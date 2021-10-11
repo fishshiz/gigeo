@@ -18,3 +18,93 @@ export interface GeocodeResponse {
   query: string[];
   type: string;
 }
+
+export interface TMEvent {
+  accessibility: { ticketLimit: number };
+  ageRestrictions: { legalAgeEnforced: boolean };
+  classifications: TMClassification[];
+  dates: {
+    start: {
+      dateTBA: boolean;
+      dateTBD: boolean;
+      dateTime: string;
+      localDate: string;
+      localTime: string;
+      noSpecificTime: boolean;
+      timeTBA: boolean;
+    };
+    timezone: string;
+    status: { code: string };
+    spanMultipleDays: boolean;
+  };
+  id: string;
+  images: TMImage[];
+  info: string;
+  locale: string;
+  name: string;
+  pleaseNote: string;
+  priceRanges: { currency: string; max: number; min: number; type: string }[];
+  products: TMProduct[];
+  promoter: TMPromoter;
+  promoters: TMPromoter[];
+  sales: {
+    public: {
+      endDateTime: string;
+      startDateTime: string;
+      startTBA: boolean;
+      startTBD: boolean;
+    };
+    presales: { endDateTime: string; name: string; startDateTime: string }[];
+  };
+  seatmap: { staticUrl: string };
+  test: false;
+  ticketLimit: { info: string };
+  ticketing: {
+    healthCheck: { description: string; learnMoreUrl: string; summary: string };
+    safeTix: { enabled: boolean };
+  };
+  type: string;
+  url: string;
+  _embedded: {
+    venues: TMVenue[];
+  };
+}
+
+interface TMClassification {
+  family: boolean;
+  genre: { id: string; name: string };
+  primary: boolean;
+  segment: { id: string; name: string };
+  subGenre: { id: string; name: string };
+  subType: { id: string; name: string };
+  type: { id: string; name: string };
+}
+
+interface TMImage {
+  fallback: boolean;
+  height: number;
+  ratio: string;
+  url: string;
+  width: number;
+}
+
+interface TMProduct {
+  classifications: TMClassification[];
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+}
+
+interface TMPromoter {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface TMVenue {
+  location: {
+    latitude: string;
+    longitude: string;
+  };
+}

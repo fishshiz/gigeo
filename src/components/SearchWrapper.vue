@@ -15,6 +15,10 @@ const state = reactive({
     isArtistSearch: false,
 })
 
+const emit = defineEmits<{
+    (e: 'select', item: GeocodeFeature): void
+}>()
+
 const queryTypeahead = debounce(() => {
     const key = import.meta.env.VITE_MB_KEY
     fetch(
@@ -29,26 +33,15 @@ function handleUpdate(query: string) {
     queryTypeahead()
 }
 
-function handleCitySearch(item: GeocodeFeature) {
-    const key = import.meta.env.VITE_TM_KEY
-    const dateNow = moment().format('YYYY-MM-DDTHH:mm:ss')
-    const dateNext = moment().add(7, 'days').format('YYYY-MM-DDTHH:mm:ss')
-    const state = item.context[1].text;
-    const city = item.text;
-    console.log(dateNow, dateNext)
-    fetch(
-        `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateNow}Z&endDateTime=${dateNext}Z&city=${city}&state=${state}&countryCode=US`
-    ).then(response => response.json()).then(res => {
-
-        console.log(res)
-    });
+function emitSelect(item: GeocodeFeature) {
+    emit('select', item);
 }
 </script>
 
 <template>
     <div class="search">
         <Search :value="state.searchTerm" @update="handleUpdate" />
-        <Dropdown :items="state.dropdownItems" @select="handleCitySearch" />
+        <Dropdown :items="state.dropdownItems" @select="emitSelect" />
     </div>
 </template>
 
