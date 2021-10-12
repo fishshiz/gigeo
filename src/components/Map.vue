@@ -101,22 +101,12 @@ function handleCitySearch(item: GeocodeFeature) {
 }
 
 .marker {
-  width: 1vw;
-  height: 1vh;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background-color: #fff;
-  box-shadow: 0 0 6vh 3vw #fff, 0 0 1vh 6vw #b400ff, 0 0 14vh 9vw #ff00d4;
-}
-
-.marker::after {
-  background-color: rgba(255, 255, 255, 0.5);
-  content: "";
-  height: 50%;
-  width: 15%;
-  left: 18%;
-  top: 0%;
-  position: absolute;
-  border-radius: 50%;
-  transform: rotate(45deg);
+  box-shadow: inset 0 0 5px #567, inset 2px 0 8px #1a2637a1,
+    inset -2px 0 8px #0ff, inset 2px 0 30px #081217, inset -2px 0 30px #0ff,
+    0 0 5px #5566779e, -1px 0 8px #081217, 1px 0 8px #0ff;
 }
 </style>
