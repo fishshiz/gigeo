@@ -77,10 +77,12 @@ function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date
   console.log(obj, geocode, dateRange)
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
   const dateEnd = moment(dateRange[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
-  const state = geocode.context[1].text;
+  const region = geocode.context.filter(context => context.id.startsWith('region'))[0];
+  const country = geocode.context.filter(context => context.id.startsWith('country'))[0];
+
   const city = geocode.text;
   fetch(
-    `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${state}&countryCode=US`
+    `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
   ).then(response => response.json()).then(res => {
 
     markEvents(res._embedded.events)

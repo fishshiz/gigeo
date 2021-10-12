@@ -18,7 +18,7 @@ function formatPlaceName(item: GeocodeFeature): string {
     // [county, state, country]
     const country = item.context.filter(context => context.id.startsWith('country'))[0];
     const region = item.context.filter(context => context.id.startsWith('region'))[0];
-    return item.text;
+    return ['us', 'ca'].includes(country.short_code) ? `${item.text}, ${region.text}` : item.text;
 }
 
 function getPlaceCountry(item: GeocodeFeature): string {
