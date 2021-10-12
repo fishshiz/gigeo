@@ -1,7 +1,7 @@
 export interface GeocodeFeature {
   bbox: number[];
   center: number[];
-  context: { id: string; wikidata: string; text: string }[];
+  context: { id: string; short_code: string; wikidata: string; text: string }[];
   geometry: { type: string; coordinates: number[] };
   id: string;
   place_name: string;

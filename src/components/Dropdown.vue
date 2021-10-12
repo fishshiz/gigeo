@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { GeocodeFeature } from "../interface";
+import 'flag-icon-css/css/flag-icon.css'
 
 interface Props {
     items: GeocodeFeature[],
@@ -15,8 +16,14 @@ const emit = defineEmits<{
 
 function formatPlaceName(item: GeocodeFeature): string {
     // [county, state, country]
-    const state = item.context[1];
-    return `${item.text}, ${state.text}`;
+    const country = item.context.filter(context => context.id.startsWith('country'))[0];
+    const region = item.context.filter(context => context.id.startsWith('region'))[0];
+    return item.text;
+}
+
+function getPlaceCountry(item: GeocodeFeature): string {
+    const country = item.context.filter(context => context.id.startsWith('country'))[0];
+    return `flag-icon-${country.short_code}`;
 }
 
 function emitSelect(item: GeocodeFeature) {
@@ -26,12 +33,10 @@ function emitSelect(item: GeocodeFeature) {
 
 <template>
     <div class="dropdown">
-        <div
-            class="row"
-            v-for="item in items"
-            :key="item.id"
-            @click="emitSelect(item)"
-        >{{ formatPlaceName(item) }}</div>
+        <div class="row" v-for="item in items" :key="item.id" @click="emitSelect(item)">
+            <span :class="[getPlaceCountry(item), 'flag-icon']" />
+            {{ formatPlaceName(item) }}
+        </div>
     </div>
 </template>
 

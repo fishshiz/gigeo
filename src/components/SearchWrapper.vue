@@ -27,8 +27,9 @@ function isToday(someDate: Date): boolean {
 const singleDayPicked = computed(() => moment(state.dateRange[0]).isSame(moment(state.dateRange[1])))
 const todayPicked = computed(() => singleDayPicked && isToday(state.dateRange[0]))
 const singleDayText = computed(() => {
-    return !todayPicked ? 'Today' : moment(state.dateRange[0]).format("MMM Do")
+    return todayPicked ? 'Today' : moment(state.dateRange[0]).format("MMM Do")
 })
+const multiDayText = computed(() => [moment(state.dateRange[0]).format("MMM Do"), moment(state.dateRange[1]).format("MMM Do")])
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void
 }>()
@@ -36,7 +37,7 @@ const emit = defineEmits<{
 const queryTypeahead = debounce(() => {
     const key = import.meta.env.VITE_MB_KEY
     fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${state.searchTerm}.json?country=us&types=place&access_token=${key}`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${state.searchTerm}.json?types=place&access_token=${key}`
     ).then(response => response.json()).then(res => {
         state.dropdownItems = res.features;
     });
@@ -50,7 +51,7 @@ function handleUpdate(query: string) {
 function emitSelect(item: GeocodeFeature) {
     state.dropdownItems = [];
     state.searchTerm = item.place_name;
-    emit('select', item);
+    emit('select', { geocode: item, dateRange: state.dateRange });
 }
 </script>
 
@@ -62,16 +63,16 @@ function emitSelect(item: GeocodeFeature) {
         </div>
         <Datepicker
             v-model="state.dateRange"
+            class="datepicker"
             :dark="true"
             :enable-time-picker="false"
             :range="true"
         >
             <template #trigger>
-                <div v-if="singleDayPicked">
-                    <div class="first-day">{{ singleDayText }}</div>
-                    <div class="arrow-right" />
+                <div class="day-select">
+                    <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
+                    <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
                 </div>
-                <div v-else>{{ state.dateRange[0] }} - {{ state.dateRange[1] }}</div>
             </template>
         </Datepicker>
     </div>
@@ -87,35 +88,40 @@ function emitSelect(item: GeocodeFeature) {
     top: 40px;
     display: flex;
 }
-.dp__theme_dark {
-    --dp-background-color: RGB(26, 37, 56);
-    --dp-text-color: #ffffff;
-    --dp-hover-color: #484848;
-    --dp-primary-color: #005cb2;
-    --dp-primary-text-color: #ffffff;
+:global(.dp__theme_dark) {
+    --dp-background-color: #162131;
+    --dp-text-color: #dee5e5;
+    --dp-hover-color: #556577;
+    --dp-primary-color: #d7335c;
+    --dp-primary-text-color: #dee5e5;
     --dp-secondary-color: #a9a9a9;
     --dp-border-color: #2d2d2d;
     --dp-border-color-hover: #aaaeb7;
     --dp-disabled-color: #737373;
     --dp-scroll-bar-background: #212121;
     --dp-scroll-bar-color: #484848;
-    --dp-success-color: #00701a;
+    --dp-success-color: #d7335c;
     --dp-icon-color: #959595;
     --dp-danger-color: #e53935;
 }
-.arrow-right {
-    width: 0;
-    height: 0;
-    border-top: 15px solid transparent;
-    border-bottom: 15px solid transparent;
-    border-left: 15px solid #fff;
-    display: inline;
-    position: absolute;
-}
 
 .first-day {
-    background: #fff;
-    display: inline-block;
-    height: 30px;
+}
+
+.day-select {
+    background: rgb(27 38 55 / 51%);
+    color: #dee5e5;
+    border: 3px solid #dee5e5;
+    border-radius: 26px;
+    box-sizing: border-box;
+    padding: 5px 15px 7px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.day-select:hover {
+    color: #9dc5bb;
+
+    border: 3px solid #9dc5bb;
 }
 </style>

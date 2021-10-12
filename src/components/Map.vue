@@ -71,14 +71,16 @@ function clearMarkers() {
 }
 
 
-function handleCitySearch(item: GeocodeFeature) {
+function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
   const key = import.meta.env.VITE_TM_KEY
-  const dateNow = moment().format('YYYY-MM-DDTHH:mm:ss')
-  const dateNext = moment().add(7, 'days').format('YYYY-MM-DDTHH:mm:ss')
-  const state = item.context[1].text;
-  const city = item.text;
+  const { geocode, dateRange } = obj;
+  console.log(obj, geocode, dateRange)
+  const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
+  const dateEnd = moment(dateRange[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
+  const state = geocode.context[1].text;
+  const city = geocode.text;
   fetch(
-    `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateNow}Z&endDateTime=${dateNext}Z&city=${city}&state=${state}&countryCode=US`
+    `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${state}&countryCode=US`
   ).then(response => response.json()).then(res => {
 
     markEvents(res._embedded.events)
