@@ -5,18 +5,35 @@ import debounce from 'lodash.debounce';
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
-import { reactive, ref, computed, defineExpose, onMounted, nextTick } from 'vue'
+import { reactive, ref, computed, defineExpose, onMounted, nextTick, watch } from 'vue'
 import { GeocodeResponse, GeocodeFeature } from "../interface"
 interface Props {
     value: string
 }
 
-const state = reactive({
+interface State {
+    searchTerm: string,
+    dropdownItems: GeocodeFeature[],
+    activeGeocode: GeocodeFeature | undefined,
+    dateRange: [Date, Date],
+}
+
+const state = reactive<State>({
     searchTerm: '',
     dropdownItems: [],
-    isArtistSearch: false,
+    activeGeocode: undefined,
     dateRange: [new Date(), new Date()],
 })
+
+watch(
+    () => state,
+    (state, prevState) => {
+        if (!!state.activeGeocode) {
+            emitSelect()
+        }
+    },
+    { deep: true }
+)
 
 function isToday(someDate: Date): boolean {
     const today = new Date()
@@ -48,10 +65,15 @@ function handleUpdate(query: string) {
     queryTypeahead()
 }
 
-function emitSelect(item: GeocodeFeature) {
+function handleSelect(item: GeocodeFeature) {
+    state.activeGeocode = item;
     state.dropdownItems = [];
     state.searchTerm = item.place_name;
-    emit('select', { geocode: item, dateRange: state.dateRange });
+    emitSelect()
+}
+
+function emitSelect() {
+    emit('select', { geocode: state.activeGeocode, dateRange: state.dateRange });
 }
 </script>
 
@@ -59,7 +81,7 @@ function emitSelect(item: GeocodeFeature) {
     <div class="search">
         <div>
             <Search :value="state.searchTerm" @update="handleUpdate" />
-            <Dropdown :items="state.dropdownItems" @select="emitSelect" />
+            <Dropdown :items="state.dropdownItems" @select="handleSelect" />
         </div>
         <Datepicker
             v-model="state.dateRange"
@@ -67,6 +89,7 @@ function emitSelect(item: GeocodeFeature) {
             :dark="true"
             :enable-time-picker="false"
             :range="true"
+            :auto-apply="true"
         >
             <template #trigger>
                 <div class="day-select">

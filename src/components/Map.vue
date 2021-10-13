@@ -17,10 +17,6 @@ onMounted(() => {
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
   });
-  state.map.loadImage('../src/icons/music_note.png', (error, image) => {
-    if (error) throw error;
-    state.map.addImage('music-note', image);
-  })
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(setLocation);
   }
@@ -56,7 +52,8 @@ function markEvents(events: TMEvent[]) {
       type: 'Feature',
       properties: {
         description: place.name,
-        icon: 'american-football'
+        icon: 'music',
+        color: '#d7335c'
       },
       geometry: {
         type: 'Point',
@@ -85,10 +82,13 @@ function markEvents(events: TMEvent[]) {
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
       'text-radial-offset': 0.5,
       'text-justify': 'auto',
-      'icon-image': ['get', 'icon']
+      'icon-image': ['get', 'icon'],
+      'icon-size': 1.5
     },
     'paint': {
-      'text-color': '#fff'
+      'text-color': ['get', 'color'],
+      'text-halo-color': '#9dc5bb',
+      'text-halo-width': 4,
     }
   });
 }
@@ -105,7 +105,7 @@ function clearMarkerState() {
 }
 
 
-function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
+async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
@@ -114,13 +114,45 @@ function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date
   const country = geocode.context.filter(context => context.id.startsWith('country'))[0];
 
   const city = geocode.text;
-  fetch(
-    `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
-  ).then(response => response.json()).then(res => {
+  // SEATGEEK
+  // const sgKey = import.meta.env.VITE_SG_KEY
+  // fetch(
+  //   `https://api.seatgeek.com/2/events?client_id=${sgKey}&datetime_utc.gte=${dateStart}Z&datetime_utc.lte=${dateEnd}Z&venue.city=${city}&venue.state=${region.short_code.slice(-2)}&venue.country=${country.short_code}`
+  // ).then(response => response.json()).then(res => {
+  //   debugger;
+  //   markEvents(res._embedded.events)
+  // });
 
-    markEvents(res._embedded.events)
-  });
+  // TICKETMASTER
+  const events = await getFullList(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`, 0);
+  console.log(events)
+  markEvents(events)
+  // fetch(
+  //   `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
+  // ).then(response => response.json()).then(res => {
+  //   markEvents(res._embedded.events)
+  // });
 }
+async function getUsers(url: string, pageNo = 1) {
+
+  let actualUrl = pageNo ? url + `?page=${pageNo}&limit=20` : url;
+  var apiResults = await fetch(actualUrl)
+    .then(resp => {
+      return resp.json();
+    });
+
+  return apiResults;
+
+}
+async function getFullList(url: string, pageNo = 0) {
+  const results = await getUsers(url, pageNo);
+  console.log("Retreiving data from API for page : " + pageNo, results);
+  if (results._links.next) {
+    return results._embedded.events.concat(await getFullList(url, pageNo + 1));
+  } else {
+    return results;
+  }
+};
 </script>
 
 <template>
@@ -135,15 +167,5 @@ function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date
   bottom: 0;
   width: 100%;
   height: 100%;
-}
-
-.marker {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background-color: #fff;
-  box-shadow: inset 0 0 5px #567, inset 2px 0 8px #1a2637a1,
-    inset -2px 0 8px #0ff, inset 2px 0 30px #081217, inset -2px 0 30px #0ff,
-    0 0 5px #5566779e, -1px 0 8px #081217, 1px 0 8px #0ff;
 }
 </style>
