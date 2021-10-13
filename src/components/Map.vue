@@ -11,18 +11,20 @@ const state = reactive({
 });
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
-  console.log(state)
   state.map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/fishshiz/ckukigrtdav6m17n3jfw2jx3j',
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
   });
+  state.map.loadImage('../src/icons/music_note.png', (error, image) => {
+    if (error) throw error;
+    state.map.addImage('music-note', image);
+  })
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(setLocation);
   }
   function setLocation(position: PositionCallback) {
-    console.log(position)
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
     state.map.flyTo({
@@ -34,7 +36,8 @@ onMounted(() => {
 })
 
 function markEvents(events: TMEvent[]) {
-  clearMarkers()
+  clearMarkerState()
+  const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
   events.forEach(place => {
     const venue = place._embedded.venues[0];
@@ -49,12 +52,18 @@ function markEvents(events: TMEvent[]) {
       parseFloat(location.latitude)
     ];
     coordinates.push([longitude, latitude]);
-    const el = document.createElement("div");
-    el.className = "marker";
-    const marker = new mapboxgl.Marker({ color: '#fff', element: el })
-      .setLngLat([longitude, latitude])
-      .addTo(state.map);
-    state.markers.push(marker);
+    const feature = {
+      type: 'Feature',
+      properties: {
+        description: place.name,
+        icon: 'american-football'
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [longitude, latitude]
+      }
+    };
+    dataSource.features.push(feature)
   });
 
   let bounds = coordinates.reduce(function (bounds, coord) {
@@ -63,18 +72,42 @@ function markEvents(events: TMEvent[]) {
   state.map.fitBounds(bounds, {
     padding: 80
   });
+  state.map.addSource('event-data', {
+    'type': 'geojson',
+    'data': dataSource
+  })
+  state.map.addLayer({
+    'id': 'events',
+    'type': 'symbol',
+    'source': 'event-data',
+    'layout': {
+      'text-field': ['get', 'description'],
+      'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+      'text-radial-offset': 0.5,
+      'text-justify': 'auto',
+      'icon-image': ['get', 'icon']
+    },
+    'paint': {
+      'text-color': '#fff'
+    }
+  });
 }
 
-function clearMarkers() {
+function clearMarkerState() {
   state.markers.forEach(m => m.remove());
   state.markers = [];
+  if (state.map.getLayer('events')) {
+    state.map.removeLayer('events')
+  }
+  if (state.map.getSource('event-data')) {
+    state.map.removeSource('event-data')
+  }
 }
 
 
 function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
-  console.log(obj, geocode, dateRange)
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
   const dateEnd = moment(dateRange[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
   const region = geocode.context.filter(context => context.id.startsWith('region'))[0];
