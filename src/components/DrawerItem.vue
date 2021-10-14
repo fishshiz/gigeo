@@ -12,7 +12,7 @@ const props = defineProps<{
     venue: TMVenue
 }>()
 const emit = defineEmits<{
-    (e: 'select', item: GeocodeFeature): void
+    (e: 'select', item: GeocodeFeature): void,
 }>()
 
 function formatDate(date: string) {
@@ -54,10 +54,13 @@ function formatDate(date: string) {
 .item-wrapper {
     position: relative;
     z-index: 2;
-    pointer-events: none;
     padding-top: 8px;
     padding-bottom: 16px;
     height: 120px;
+}
+
+.item-wrapper:hover {
+    background: #70757a;
 }
 
 .image-container {

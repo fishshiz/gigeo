@@ -18,7 +18,8 @@ const state = reactive({
 })
 
 const emit = defineEmits<{
-    (e: 'select', item: GeocodeFeature): void
+    (e: 'select', item: GeocodeFeature): void,
+    (e: 'hover', id: string | null): void,
 }>()
 
 function toggleDrawer() {
@@ -29,6 +30,9 @@ function emitSelect(e) {
     emit('select', e)
 }
 
+function emitMouseOver(id: string | null) {
+    emit('hover', id);
+}
 </script>
 
 <template>
@@ -36,10 +40,11 @@ function emitSelect(e) {
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @select="emitSelect" />
-
                 <div class="scrollbox">
                     <DrawerItem
                         v-for="event in events"
+                        @mouseover="emitMouseOver(event.id)"
+                        @mouseleave="emitMouseOver(null)"
                         :key="event.id"
                         :title="event.name"
                         :images="event.images"

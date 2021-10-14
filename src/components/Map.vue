@@ -8,6 +8,7 @@ import { EVENT_TYPES } from "../constants"
 const state = reactive({
   map: null,
   events: [],
+  hoveredEvent: '',
 });
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
@@ -70,7 +71,8 @@ function markEvents(events: TMEvent[]) {
       properties: {
         description: place.name,
         icon: EVENT_TYPES[eventType].icon,
-        color: EVENT_TYPES[eventType].color
+        color: EVENT_TYPES[eventType].color,
+        id: place.id,
       },
       geometry: {
         type: 'Point',
@@ -88,6 +90,7 @@ function markEvents(events: TMEvent[]) {
   });
   state.map.addSource('event-data', {
     'type': 'geojson',
+    'promoteId': 'id',
     'data': dataSource
   })
   state.map.addLayer({
@@ -104,7 +107,11 @@ function markEvents(events: TMEvent[]) {
     },
     'paint': {
       'icon-color': ['get', 'color'],
-      'text-color': ['get', 'color'],
+      'text-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#627BC1',
+        ['get', 'color']],
       'text-halo-color': '#9dc5bb',
       'text-halo-width': 1,
     }
@@ -151,6 +158,24 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
   //   markEvents(res._embedded.events)
   // });
 }
+
+function handleHover(id: string | null) {
+  if (id) {
+    state.hoveredEvent = id;
+    state.map.setFeatureState({
+      source: 'event-data',
+      id: id,
+    }, {
+      hover: true
+    })
+  } else {
+    state.map.removeFeatureState({
+      source: 'event-data',
+      id: state.hoveredEvent,
+    });
+    state.hoveredEvent = "";
+  }
+}
 async function getPage(url: string) {
   const results = await fetch(url).then(res => res.json());
   return results;
@@ -174,7 +199,7 @@ async function getAllEvents(url: string) {
 
 <template>
   <div id="map" />
-  <DrawerCarousel @select="handleCitySearch" :events="state.events" />
+  <DrawerCarousel @select="handleCitySearch" @hover="handleHover" :events="state.events" />
 </template>
 
 <style>
