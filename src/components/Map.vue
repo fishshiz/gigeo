@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import SearchWrapper from './SearchWrapper.vue'
+import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
 import { onMounted, reactive } from 'vue'
 import moment from 'moment';
 import { GeocodeResponse, GeocodeFeature, TMEvent } from "../interface"
-
+import { EVENT_TYPES } from "../constants"
 const state = reactive({
   map: null,
-  markers: [],
+  events: [],
 });
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
@@ -16,6 +16,20 @@ onMounted(() => {
     style: 'mapbox://styles/fishshiz/ckukigrtdav6m17n3jfw2jx3j',
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
+  });
+  // Set an event listener for a specific layer
+  state.map.on('click', 'events', (e) => {
+    console.log('click: ', e.features);
+  });
+
+  // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
+  state.map.on('mouseenter', 'events', () => {
+    state.map.getCanvas().style.cursor = 'pointer';
+  });
+
+  // Change it back to a pointer when it leaves.
+  state.map.on('mouseleave', 'events', () => {
+    state.map.getCanvas().style.cursor = '';
   });
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(setLocation);
@@ -35,6 +49,7 @@ function markEvents(events: TMEvent[]) {
   clearMarkerState()
   const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
+  state.events = events;
   events.forEach(place => {
     const venue = place._embedded.venues[0];
 
@@ -48,12 +63,14 @@ function markEvents(events: TMEvent[]) {
       parseFloat(location.latitude)
     ];
     coordinates.push([longitude, latitude]);
+    const eventType = place.classifications[0].segment.name;
+    console.log(eventType, EVENT_TYPES[eventType])
     const feature = {
       type: 'Feature',
       properties: {
         description: place.name,
-        icon: 'music',
-        color: '#d7335c'
+        icon: EVENT_TYPES[eventType].icon,
+        color: EVENT_TYPES[eventType].color
       },
       geometry: {
         type: 'Point',
@@ -83,19 +100,19 @@ function markEvents(events: TMEvent[]) {
       'text-radial-offset': 0.5,
       'text-justify': 'auto',
       'icon-image': ['get', 'icon'],
-      'icon-size': 1.5
+      'icon-size': 1.5,
     },
     'paint': {
+      'icon-color': ['get', 'color'],
       'text-color': ['get', 'color'],
       'text-halo-color': '#9dc5bb',
-      'text-halo-width': 4,
+      'text-halo-width': 1,
     }
   });
 }
 
 function clearMarkerState() {
-  state.markers.forEach(m => m.remove());
-  state.markers = [];
+  state.events = [];
   if (state.map.getLayer('events')) {
     state.map.removeLayer('events')
   }
@@ -106,6 +123,7 @@ function clearMarkerState() {
 
 
 async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
+  console.log('handlesearch')
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
@@ -124,7 +142,7 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
   // });
 
   // TICKETMASTER
-  const events = await getFullList(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`, 0);
+  const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`);
   console.log(events)
   markEvents(events)
   // fetch(
@@ -133,31 +151,30 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
   //   markEvents(res._embedded.events)
   // });
 }
-async function getUsers(url: string, pageNo = 1) {
-
-  let actualUrl = pageNo ? url + `?page=${pageNo}&limit=20` : url;
-  var apiResults = await fetch(actualUrl)
-    .then(resp => {
-      return resp.json();
-    });
-
-  return apiResults;
-
+async function getPage(url: string) {
+  const results = await fetch(url).then(res => res.json());
+  return results;
 }
-async function getFullList(url: string, pageNo = 0) {
-  const results = await getUsers(url, pageNo);
-  console.log("Retreiving data from API for page : " + pageNo, results);
-  if (results._links.next) {
-    return results._embedded.events.concat(await getFullList(url, pageNo + 1));
+
+async function getAllEvents(url: string) {
+  const firstResult = await getPage(url);
+  if (!!firstResult._links.next) {
+    const totalPages = firstResult.page.totalPages;
+    const promises = [];
+    for (let i = 0; i < totalPages - 1; i++) {
+      promises.push(getPage(`${url}&page=${i + 1}&size=20`))
+    }
+    const results = await Promise.all(promises);
+    return [firstResult._embedded.events, ...results].reduce((acc, d) => [...acc, ...d._embedded.events]);
   } else {
-    return results;
+    return firstResult._embedded.events;
   }
 };
 </script>
 
 <template>
   <div id="map" />
-  <SearchWrapper @select="handleCitySearch" />
+  <DrawerCarousel @select="handleCitySearch" :events="state.events" />
 </template>
 
 <style>

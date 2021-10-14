@@ -5,7 +5,7 @@ import debounce from 'lodash.debounce';
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
-import { reactive, ref, computed, defineExpose, onMounted, nextTick, watch } from 'vue'
+import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue'
 import { GeocodeResponse, GeocodeFeature } from "../interface"
 interface Props {
     value: string
@@ -26,8 +26,8 @@ const state = reactive<State>({
 })
 
 watch(
-    () => state,
-    (state, prevState) => {
+    () => state.dateRange,
+    (s, prevState) => {
         if (!!state.activeGeocode) {
             emitSelect()
         }
@@ -80,7 +80,7 @@ function emitSelect() {
 <template>
     <div class="search">
         <div>
-            <Search :value="state.searchTerm" @update="handleUpdate" />
+            <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
             <Dropdown :items="state.dropdownItems" @select="handleSelect" />
         </div>
         <Datepicker
@@ -106,10 +106,45 @@ function emitSelect() {
     background: rgb(27 38 55 / 51%);
     margin: 0 auto;
     width: 300px;
-    position: absolute;
+    position: sticky;
     left: calc(50% - 120px);
     top: 40px;
     display: flex;
+    background-color: rgb(255, 255, 255);
+    height: 65px;
+    -webkit-flex: none;
+    -webkit-box-flex: 0;
+    flex: none;
+    margin: 8px 0 8px 8px;
+    left: 0;
+    margin: 16px;
+    top: 0;
+    z-index: 15;
+    -webkit-transition: left 0.5s;
+    transition: left 0.5s;
+    -webkit-transform: translateX(0);
+    transform: translateX(0);
+    transition-property: -webkit-transform, transform, visibility, opacity;
+    -webkit-transition-duration: 0.2s;
+    transition-duration: 0.2s;
+    -webkit-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
+}
+
+.search-bar {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    box-sizing: border-box;
+    width: 392px;
+    height: 48px;
+    border-bottom: 1px solid transparent;
+    padding: 12px 104px 11px 64px;
+    -webkit-transition-property: background, box-shadow;
+    transition-property: background, box-shadow;
+    -webkit-transition-duration: 0.3s;
+    transition-duration: 0.3s;
 }
 :global(.dp__theme_dark) {
     --dp-background-color: #162131;
@@ -127,10 +162,6 @@ function emitSelect() {
     --dp-icon-color: #959595;
     --dp-danger-color: #e53935;
 }
-
-.first-day {
-}
-
 .day-select {
     background: rgb(27 38 55 / 51%);
     color: #dee5e5;
@@ -144,7 +175,6 @@ function emitSelect() {
 
 .day-select:hover {
     color: #9dc5bb;
-
     border: 3px solid #9dc5bb;
 }
 </style>

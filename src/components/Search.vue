@@ -27,12 +27,12 @@ input {
 }
 input {
     background: none;
-    border: 3px solid #dee5e5;
+    border: 1px solid transparent;
     border-radius: 26px;
     box-sizing: border-box;
     padding: 5px 15px 7px;
     font-size: 14px;
-    color: #dee5e5;
+    color: #162131;
     z-index: 2;
     position: relative;
 }
@@ -41,7 +41,7 @@ input:focus {
 }
 input::placeholder {
     /* Chrome, Firefox, Opera, Safari 10.1+ */
-    color: #dee5e5;
+    color: #162131;
     opacity: 1; /* Firefox */
 }
 </style>

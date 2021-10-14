@@ -80,7 +80,7 @@ interface TMClassification {
   type: { id: string; name: string };
 }
 
-interface TMImage {
+export interface TMImage {
   fallback: boolean;
   height: number;
   ratio: string;
@@ -102,7 +102,19 @@ interface TMPromoter {
   description: string;
 }
 
-interface TMVenue {
+export interface TMVenue {
+  address: { line1: string };
+  city: { name: string };
+  country: { name: string; countryCode: string };
+  dmas: { id: number }[];
+  id: string;
+  locale: string;
+  name: string;
+  postalCode: string;
+  state: { name: string; stateCode: string };
+  test: boolean;
+  timezone: string;
+  type: string;
   location: {
     latitude: string;
     longitude: string;
