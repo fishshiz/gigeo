@@ -5,18 +5,35 @@ import debounce from 'lodash.debounce';
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
-import { reactive, ref, computed, defineExpose, onMounted, nextTick } from 'vue'
+import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue'
 import { GeocodeResponse, GeocodeFeature } from "../interface"
 interface Props {
     value: string
 }
 
-const state = reactive({
+interface State {
+    searchTerm: string,
+    dropdownItems: GeocodeFeature[],
+    activeGeocode: GeocodeFeature | undefined,
+    dateRange: [Date, Date],
+}
+
+const state = reactive<State>({
     searchTerm: '',
     dropdownItems: [],
-    isArtistSearch: false,
+    activeGeocode: undefined,
     dateRange: [new Date(), new Date()],
 })
+
+watch(
+    () => state.dateRange,
+    (s, prevState) => {
+        if (!!state.activeGeocode) {
+            emitSelect()
+        }
+    },
+    { deep: true }
+)
 
 function isToday(someDate: Date): boolean {
     const today = new Date()
@@ -48,18 +65,23 @@ function handleUpdate(query: string) {
     queryTypeahead()
 }
 
-function emitSelect(item: GeocodeFeature) {
+function handleSelect(item: GeocodeFeature) {
+    state.activeGeocode = item;
     state.dropdownItems = [];
     state.searchTerm = item.place_name;
-    emit('select', { geocode: item, dateRange: state.dateRange });
+    emitSelect()
+}
+
+function emitSelect() {
+    emit('select', { geocode: state.activeGeocode, dateRange: state.dateRange });
 }
 </script>
 
 <template>
     <div class="search">
         <div>
-            <Search :value="state.searchTerm" @update="handleUpdate" />
-            <Dropdown :items="state.dropdownItems" @select="emitSelect" />
+            <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
+            <Dropdown :items="state.dropdownItems" @select="handleSelect" />
         </div>
         <Datepicker
             v-model="state.dateRange"
@@ -67,6 +89,7 @@ function emitSelect(item: GeocodeFeature) {
             :dark="true"
             :enable-time-picker="false"
             :range="true"
+            :auto-apply="true"
         >
             <template #trigger>
                 <div class="day-select">
@@ -83,10 +106,45 @@ function emitSelect(item: GeocodeFeature) {
     background: rgb(27 38 55 / 51%);
     margin: 0 auto;
     width: 300px;
-    position: absolute;
+    position: sticky;
     left: calc(50% - 120px);
     top: 40px;
     display: flex;
+    background-color: rgb(255, 255, 255);
+    height: 65px;
+    -webkit-flex: none;
+    -webkit-box-flex: 0;
+    flex: none;
+    margin: 8px 0 8px 8px;
+    left: 0;
+    margin: 16px;
+    top: 0;
+    z-index: 15;
+    -webkit-transition: left 0.5s;
+    transition: left 0.5s;
+    -webkit-transform: translateX(0);
+    transform: translateX(0);
+    transition-property: -webkit-transform, transform, visibility, opacity;
+    -webkit-transition-duration: 0.2s;
+    transition-duration: 0.2s;
+    -webkit-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
+}
+
+.search-bar {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    box-sizing: border-box;
+    width: 392px;
+    height: 48px;
+    border-bottom: 1px solid transparent;
+    padding: 12px 104px 11px 64px;
+    -webkit-transition-property: background, box-shadow;
+    transition-property: background, box-shadow;
+    -webkit-transition-duration: 0.3s;
+    transition-duration: 0.3s;
 }
 :global(.dp__theme_dark) {
     --dp-background-color: #162131;
@@ -104,10 +162,6 @@ function emitSelect(item: GeocodeFeature) {
     --dp-icon-color: #959595;
     --dp-danger-color: #e53935;
 }
-
-.first-day {
-}
-
 .day-select {
     background: rgb(27 38 55 / 51%);
     color: #dee5e5;
@@ -121,7 +175,6 @@ function emitSelect(item: GeocodeFeature) {
 
 .day-select:hover {
     color: #9dc5bb;
-
     border: 3px solid #9dc5bb;
 }
 </style>
