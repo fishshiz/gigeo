@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GeocodeFeature, TMEvent, TMImage, TMVenue } from "../interface";
+import { GeocodeFeature, TMEvent, TMImage, TMPriceRange, TMVenue } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
 import DrawerItem from './DrawerItem.vue';
 import moment from "moment";
@@ -9,7 +9,9 @@ const props = defineProps<{
     day: string,
     time: string,
     images: TMImage[],
-    venue: TMVenue
+    venue: TMVenue,
+    ticketLink: string,
+    priceRange: TMPriceRange[]
 }>()
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void,
@@ -19,33 +21,40 @@ function formatDate(date: string) {
     return moment(date).format('MMM Do h:mm a')
 }
 
+function truncate(str: string, length: number = 16): string {
+    return str.length <= length ? str : str.slice(0, length - 3).concat('...')
+}
+
 </script>
 
 <template>
     <div class="item-wrapper">
         <div class="item">
-            <div class="header">
-                <div class="title">{{ title }}</div>
-                <div class="event-info">
-                    <div>{{ venue.name }}</div>
-                    <div>{{ formatDate(day) }}</div>
+            <div class="top-row">
+                <div class="header">
+                    <div class="title">{{ truncate(title, 50) }}</div>
+                    <div class="event-info">
+                        <div>{{ truncate(venue.name, 30) }}</div>
+                        <div>{{ formatDate(day) }}</div>
+                    </div>
                 </div>
-            </div>
-            <div class="image-container">
-                <div class="image-filter">
-                    <img
-                        decoding="async"
-                        :src="images[0].url"
-                        style="position: absolute;
+                <div class="image-container">
+                    <div class="image-filter">
+                        <img
+                            decoding="async"
+                            :src="images[0].url"
+                            style="position: absolute;
     top: 50%;
     left: 50%;
     height: 84px;
     -webkit-transform: translateY(-50%) translateX(-50%);
     transform: translateY(-50%) translateX(-50%);"
-                        aria-hidden="true"
-                    />
+                            aria-hidden="true"
+                        />
+                    </div>
                 </div>
             </div>
+            <a :href="ticketLink" target="_blank" class="tickets">Tickets</a>
         </div>
     </div>
 </template>
@@ -54,13 +63,14 @@ function formatDate(date: string) {
 .item-wrapper {
     position: relative;
     z-index: 2;
-    padding-top: 8px;
-    padding-bottom: 16px;
+    padding: 8px 0 16px 0;
     height: 120px;
+    border-bottom: 1px solid #e8eaed;
 }
 
 .item-wrapper:hover {
-    background: #70757a;
+    background: #70757a3a;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
 }
 
 .image-container {
@@ -114,16 +124,46 @@ function formatDate(date: string) {
     color: #70757a;
 }
 .item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 18px;
+    align-items: flex-start;
+}
+
+.top-row {
     text-decoration: none;
     height: 100%;
     width: 100%;
-    box-sizing: border-box;
     color: #000;
     cursor: pointer;
     display: flex;
+    justify-content: space-between;
     font-family: Roboto, Arial, sans-serif;
-    padding: 0;
     text-align: left;
-    width: 100%;
+    box-sizing: border-box;
+}
+
+.header {
+    max-width: 200px;
+}
+
+.tickets {
+    border: 1px solid #1a73e8;
+    border-radius: 17px;
+    display: block;
+    color: #1a73e8;
+    font-size: 14px;
+    padding: 8px 16px;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: Roboto, Arial, sans-serif;
+}
+
+.tickets:hover {
+    color: #1967d2;
+    background-color: #d2e3fc;
+    border-color: #aecbfa;
 }
 </style>
