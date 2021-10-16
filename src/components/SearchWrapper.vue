@@ -105,7 +105,6 @@ function emitSelect() {
 .search {
     background: rgb(27 38 55 / 51%);
     margin: 0 auto;
-    width: 300px;
     position: sticky;
     left: calc(50% - 120px);
     top: 40px;
@@ -116,7 +115,9 @@ function emitSelect() {
     -webkit-box-flex: 0;
     flex: none;
     margin: 8px 0 8px 8px;
+    align-items: center;
     left: 0;
+    padding: 0 12px;
     margin: 16px;
     top: 0;
     z-index: 15;
@@ -137,7 +138,7 @@ function emitSelect() {
     background: #fff;
     border-radius: 8px;
     box-sizing: border-box;
-    width: 392px;
+    width: 250px;
     height: 48px;
     border-bottom: 1px solid transparent;
     padding: 12px 104px 11px 64px;

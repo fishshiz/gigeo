@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const state = reactive({
-    drawerOpen: false,
+    drawerOpen: true,
 })
 
 const emit = defineEmits<{
@@ -40,19 +40,22 @@ function emitMouseOver(id: string | null) {
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @select="emitSelect" />
-                <div class="scrollbox">
-                    <DrawerItem
-                        v-for="event in events"
-                        @mouseover="emitMouseOver(event.id)"
-                        @mouseleave="emitMouseOver(null)"
-                        :key="event.id"
-                        :title="event.name"
-                        :images="event.images"
-                        :time="event.dates.start.localTime"
-                        :day="event.dates.start.dateTime"
-                        :venue="event._embedded.venues[0]"
-                    />
+                <div class="scrollbox" v-if="events.length">
+                    <div v-for="(event, idx) in events" :key="event.id">
+                        <DrawerItem
+                            @mouseover="emitMouseOver(event.id)"
+                            @mouseleave="emitMouseOver(null)"
+                            :title="event.name"
+                            :images="event.images"
+                            :time="event.dates.start.localTime"
+                            :day="event.dates.start.dateTime"
+                            :venue="event._embedded.venues[0]"
+                            :ticket-link="event.url"
+                            :price-range="event.priceRanges"
+                        />
+                    </div>
                 </div>
+                <div v-else>No Events</div>
             </div>
         </div>
         <div class="pane-btn-holder">

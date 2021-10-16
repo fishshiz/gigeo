@@ -43,7 +43,7 @@ export interface TMEvent {
   locale: string;
   name: string;
   pleaseNote: string;
-  priceRanges: { currency: string; max: number; min: number; type: string }[];
+  priceRanges: TMPriceRange[];
   products: TMProduct[];
   promoter: TMPromoter;
   promoters: TMPromoter[];
@@ -86,6 +86,13 @@ export interface TMImage {
   ratio: string;
   url: string;
   width: number;
+}
+
+export interface TMPriceRange {
+  currency: string;
+  max: number;
+  min: number;
+  type: string;
 }
 
 interface TMProduct {

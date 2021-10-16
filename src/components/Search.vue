@@ -23,14 +23,10 @@ function updateValue(event: Event) {
 
 <style scoped>
 input {
-    width: 100%;
-}
-input {
     background: none;
     border: 1px solid transparent;
     border-radius: 26px;
     box-sizing: border-box;
-    padding: 5px 15px 7px;
     font-size: 14px;
     color: #162131;
     z-index: 2;
