@@ -14,7 +14,7 @@ interface Props {
 interface State {
     searchTerm: string,
     dropdownItems: GeocodeFeature[],
-    activeGeocode: GeocodeFeature | undefined,
+    activeGeocode?: GeocodeFeature,
     dateRange: [Date, Date],
 }
 
@@ -73,13 +73,14 @@ function handleSelect(item: GeocodeFeature) {
 }
 
 function emitSelect() {
-    emit('select', { geocode: state.activeGeocode, dateRange: state.dateRange });
+    // @ts-ignore
+    emit('select', { activeGeocode: state.activeGeocode, dateRange: state.dateRange });
 }
 </script>
 
 <template>
     <div class="search">
-        <div>
+        <div class="search_drop">
             <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
             <Dropdown :items="state.dropdownItems" @select="handleSelect" />
         </div>
@@ -111,9 +112,6 @@ function emitSelect() {
     display: flex;
     background-color: rgb(255, 255, 255);
     height: 65px;
-    -webkit-flex: none;
-    -webkit-box-flex: 0;
-    flex: none;
     margin: 8px 0 8px 8px;
     align-items: center;
     left: 0;
@@ -141,11 +139,16 @@ function emitSelect() {
     width: 250px;
     height: 48px;
     border-bottom: 1px solid transparent;
-    padding: 12px 104px 11px 64px;
+    padding: 12px 10px 11px 6px;
     -webkit-transition-property: background, box-shadow;
     transition-property: background, box-shadow;
     -webkit-transition-duration: 0.3s;
     transition-duration: 0.3s;
+}
+
+.search_drop {
+    display: block;
+    height: 65px;
 }
 :global(.dp__theme_dark) {
     --dp-background-color: #162131;

@@ -3,10 +3,15 @@ import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
 import { onMounted, reactive } from 'vue'
 import moment from 'moment';
-import { GeocodeResponse, GeocodeFeature, TMEvent } from "../interface"
+import { GeocodeResponse, GeocodeFeature, GeocodeContext, TMEvent } from "../interface"
 import { EVENT_TYPES } from "../constants"
-const state = reactive({
-  map: null,
+interface State {
+  map: any,
+  events: TMEvent[],
+  hoveredEvent: string,
+}
+const state = reactive<State>({
+  map: undefined,
   events: [],
   hoveredEvent: '',
 });
@@ -19,26 +24,26 @@ onMounted(() => {
     zoom: 3 // starting zoom
   });
   // Set an event listener for a specific layer
-  state.map.on('click', 'events', (e) => {
+  (state.map as any).on('click', 'events', (e: any) => {
     console.log('click: ', e.features);
   });
 
   // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
-  state.map.on('mouseenter', 'events', () => {
-    state.map.getCanvas().style.cursor = 'pointer';
+  (state.map as any).on('mouseenter', 'events', () => {
+    (state.map as any).getCanvas().style.cursor = 'pointer';
   });
 
   // Change it back to a pointer when it leaves.
-  state.map.on('mouseleave', 'events', () => {
-    state.map.getCanvas().style.cursor = '';
+  (state.map as any).on('mouseleave', 'events', () => {
+    (state.map as any).getCanvas().style.cursor = '';
   });
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(setLocation);
   }
-  function setLocation(position: PositionCallback) {
+  function setLocation(position: any) {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
-    state.map.flyTo({
+    (state.map as any).flyTo({
       center: [longitude, latitude],
       zoom: 9,
       speed: 0.8,
@@ -48,7 +53,7 @@ onMounted(() => {
 
 function markEvents(events: TMEvent[]) {
   clearMarkerState()
-  const dataSource = { type: 'FeatureCollection', features: [] }
+  const dataSource: { type: string, features: any[] } = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
   state.events = events;
   events.forEach(place => {
@@ -65,7 +70,6 @@ function markEvents(events: TMEvent[]) {
     ];
     coordinates.push([longitude, latitude]);
     const eventType = place.classifications[0].segment.name;
-    console.log(eventType, EVENT_TYPES[eventType])
     const feature = {
       type: 'Feature',
       properties: {
@@ -79,7 +83,7 @@ function markEvents(events: TMEvent[]) {
         coordinates: [longitude, latitude]
       }
     };
-    dataSource.features.push(feature)
+    dataSource.features.push((feature as any))
   });
 
   let bounds = coordinates.reduce(function (bounds, coord) {
@@ -120,23 +124,22 @@ function markEvents(events: TMEvent[]) {
 
 function clearMarkerState() {
   state.events = [];
-  if (state.map.getLayer('events')) {
-    state.map.removeLayer('events')
+  if ((state.map as any).getLayer('events')) {
+    (state.map as any).removeLayer('events')
   }
-  if (state.map.getSource('event-data')) {
-    state.map.removeSource('event-data')
+  if ((state.map as any).getSource('event-data')) {
+    (state.map as any).removeSource('event-data')
   }
 }
 
 
-async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
-  console.log('handlesearch')
+async function handleCitySearch(obj: any) {
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
   const dateEnd = moment(dateRange[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
-  const region = geocode.context.filter(context => context.id.startsWith('region'))[0];
-  const country = geocode.context.filter(context => context.id.startsWith('country'))[0];
+  const region = geocode.context.filter((context: GeocodeContext) => context.id.startsWith('region'))[0];
+  const country = geocode.context.filter((context: GeocodeContext) => context.id.startsWith('country'))[0];
 
   const city = geocode.text;
   // SEATGEEK
@@ -150,7 +153,6 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
 
   // TICKETMASTER
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`);
-  console.log(events)
   markEvents(events)
   // fetch(
   //   `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
@@ -162,14 +164,14 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
 function handleHover(id: string | null) {
   if (id) {
     state.hoveredEvent = id;
-    state.map.setFeatureState({
+    (state.map as any).setFeatureState({
       source: 'event-data',
       id: id,
     }, {
       hover: true
     })
   } else {
-    state.map.removeFeatureState({
+    (state.map as any).removeFeatureState({
       source: 'event-data',
       id: state.hoveredEvent,
     });

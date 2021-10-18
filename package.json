@@ -16,6 +16,7 @@
     "vue3-date-time-picker": "^2.1.8"
   },
   "devDependencies": {
+    "@types/lodash.debounce": "^4.0.6",
     "@types/mapbox-gl": "^2.4.2",
     "@vitejs/plugin-vue": "^1.9.3",
     "typescript": "^4.4.3",

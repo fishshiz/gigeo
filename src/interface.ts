@@ -1,7 +1,7 @@
 export interface GeocodeFeature {
   bbox: number[];
   center: number[];
-  context: { id: string; short_code: string; wikidata: string; text: string }[];
+  context: GeocodeContext[];
   geometry: { type: string; coordinates: number[] };
   id: string;
   place_name: string;
@@ -10,6 +10,13 @@ export interface GeocodeFeature {
   relevance: number;
   text: string;
   type: string;
+}
+
+export interface GeocodeContext {
+  id: string;
+  short_code: string;
+  wikidata: string;
+  text: string;
 }
 
 export interface GeocodeResponse {

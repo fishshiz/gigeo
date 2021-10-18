@@ -6,8 +6,8 @@ interface Props {
     items: GeocodeFeature[],
 }
 
-const props = withDefaults(defineProps<Props>(), {
-    items: [],
+const props = defineProps({
+    items: Object as () => GeocodeFeature[],
 })
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void
@@ -32,25 +32,21 @@ function emitSelect(item: GeocodeFeature) {
 </script>
 
 <template>
-    <div class="dropdown">
-        <div class="row" v-for="item in items" :key="item.id" @click="emitSelect(item)">
-            <span :class="[getPlaceCountry(item), 'flag-icon']" />
-            {{ formatPlaceName(item) }}
+    <div class="dropdown" v-show="!!(props.items as GeocodeFeature[]).length">
+        <div class="suggestions">
+            <div class="row" v-for="item in props.items" :key="item.id" @click="emitSelect(item)">
+                <span :class="[getPlaceCountry(item), 'flag-icon']" />
+                {{ formatPlaceName(item) }}
+            </div>
         </div>
     </div>
 </template>
 
 <style scoped>
 .dropdown {
-    width: 90%;
-    height: min-content;
-    color: #333;
-    margin: 6px auto;
-    border-radius: 6px;
-    max-height: 600px;
-    font-family: Helvetica, sans-serif;
-    font-size: 14px;
-    background: hsl(0deg 0% 100% / 75%);
+    position: relative;
+    text-align: left;
+    min-width: 224px;
 }
 .row {
     padding: 6px;
@@ -60,5 +56,14 @@ function emitSelect(item: GeocodeFeature) {
 .row:hover {
     background: rgb(32 32 32 / 76%);
     color: white;
+}
+
+.suggestions {
+    background-color: #fff;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
+    font-size: 15px;
+    overflow: hidden;
+    padding: 8px 0;
 }
 </style>

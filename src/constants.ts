@@ -1,4 +1,6 @@
-export const EVENT_TYPES = {
+export const EVENT_TYPES: {
+  [key: string]: { key: string; icon: string; color: string };
+} = {
   Basketball: {
     key: "Basketball",
     icon: "basketball",
@@ -29,7 +31,7 @@ export const EVENT_TYPES = {
     icon: "art-gallery",
     color: "#c4d6b0",
   },
-  COMEDY: {
+  Comedy: {
     key: "Comedy",
     icon: "bar",
     color: "#c4d6b0",

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { GeocodeFeature, TMEvent } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
+// @ts-ignore
 import DrawerItem from './DrawerItem.vue';
+// @ts-ignore
 import SearchWrapper from './SearchWrapper.vue'
 import { reactive } from 'vue'
 
@@ -9,8 +11,8 @@ interface Props {
     events: TMEvent[],
 }
 
-const props = withDefaults(defineProps<Props>(), {
-    events: [],
+const props = defineProps({
+    events: [] as any,
 })
 
 const state = reactive({
@@ -26,7 +28,7 @@ function toggleDrawer() {
     state.drawerOpen = !state.drawerOpen;
 }
 
-function emitSelect(e) {
+function emitSelect(e: any) {
     emit('select', e)
 }
 
@@ -40,8 +42,8 @@ function emitMouseOver(id: string | null) {
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @select="emitSelect" />
-                <div class="scrollbox" v-if="events.length">
-                    <div v-for="(event, idx) in events" :key="event.id">
+                <div class="scrollbox" v-if="props.events.length">
+                    <div v-for="event in props.events" :key="event.id">
                         <DrawerItem
                             @mouseover="emitMouseOver(event.id)"
                             @mouseleave="emitMouseOver(null)"
@@ -51,7 +53,7 @@ function emitMouseOver(id: string | null) {
                             :day="event.dates.start.dateTime"
                             :venue="event._embedded.venues[0]"
                             :ticket-link="event.url"
-                            :price-range="event.priceRanges"
+                            :price-range="event.hasOwnProperty('priceRanges') ? event.priceRanges : []"
                         />
                     </div>
                 </div>

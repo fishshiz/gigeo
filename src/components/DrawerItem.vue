@@ -1,60 +1,51 @@
 <script setup lang="ts">
-import { GeocodeFeature, TMEvent, TMImage, TMPriceRange, TMVenue } from "../interface";
-import 'flag-icon-css/css/flag-icon.css'
-import DrawerItem from './DrawerItem.vue';
+import { TMImage, TMPriceRange, TMVenue } from "../interface";
 import moment from "moment";
+
+interface Props {
+    title: String,
+    day: String,
+    time: String,
+    images: TMImage[],
+    venue: TMVenue,
+    ticketLink: string,
+    priceRange: TMPriceRange[]
+}
 
 const props = defineProps<{
     title: string,
     day: string,
     time: string,
-    images: TMImage[],
-    venue: TMVenue,
     ticketLink: string,
-    priceRange: TMPriceRange[]
-}>()
-const emit = defineEmits<{
-    (e: 'select', item: GeocodeFeature): void,
 }>()
 
-function formatDate(date: string) {
+const formatDate = (date: string): string => {
     return moment(date).format('MMM Do h:mm a')
 }
 
-function truncate(str: string, length: number = 16): string {
+const truncate = (str: string, length: number = 16): string => {
     return str.length <= length ? str : str.slice(0, length - 3).concat('...')
 }
+defineExpose({
+    truncate,
+    formatDate,
+    props
+})
 
 </script>
-
 <template>
     <div class="item-wrapper">
         <div class="item">
             <div class="top-row">
                 <div class="header">
-                    <div class="title">{{ truncate(title, 50) }}</div>
-                    <div class="event-info">
-                        <div>{{ truncate(venue.name, 30) }}</div>
-                        <div>{{ formatDate(day) }}</div>
-                    </div>
+                    <div class="title">{{ truncate((props.title as string), 50) }}</div>
+                    <div class="event-info"></div>
                 </div>
                 <div class="image-container">
-                    <div class="image-filter">
-                        <img
-                            decoding="async"
-                            :src="images[0].url"
-                            style="position: absolute;
-    top: 50%;
-    left: 50%;
-    height: 84px;
-    -webkit-transform: translateY(-50%) translateX(-50%);
-    transform: translateY(-50%) translateX(-50%);"
-                            aria-hidden="true"
-                        />
-                    </div>
+                    <div class="image-filter"></div>
                 </div>
             </div>
-            <a :href="ticketLink" target="_blank" class="tickets">Tickets</a>
+            <a :href="props.ticketLink" target="_blank" class="tickets">Tickets</a>
         </div>
     </div>
 </template>
@@ -148,6 +139,14 @@ function truncate(str: string, length: number = 16): string {
     max-width: 200px;
 }
 
+.img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 84px;
+    -webkit-transform: translateY(-50%) translateX(-50%);
+    transform: translateY(-50%) translateX(-50%);
+}
 .tickets {
     border: 1px solid #1a73e8;
     border-radius: 17px;
