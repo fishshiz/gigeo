@@ -11,7 +11,6 @@ const props = defineProps<{
     images: TMImage[],
     venue: TMVenue,
     ticketLink: string,
-    priceRange: TMPriceRange[]
 }>()
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void,

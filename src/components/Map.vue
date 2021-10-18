@@ -49,11 +49,11 @@ onMounted(() => {
   }
 })
 
-function markEvents(events: TMEvent[]) {
+function markEvents(events: TMEvent[], drawLine: boolean = false) {
   clearMarkerState()
   const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
-  state.events = events;
+  state.events = events.sort((a, b) => new Date(a.dates.start.dateTime) - new Date(b.dates.start.dateTime));
   events.forEach(place => {
     const venue = place._embedded.venues[0];
 
@@ -67,8 +67,7 @@ function markEvents(events: TMEvent[]) {
       parseFloat(location.latitude)
     ];
     coordinates.push([longitude, latitude]);
-    const eventType = place.classifications[0].segment.name;
-    console.log(eventType, EVENT_TYPES[eventType])
+    const eventType = place.classifications ? place.classifications[0].segment.name : 'Music';
     const feature = {
       type: 'Feature',
       properties: {
@@ -84,6 +83,52 @@ function markEvents(events: TMEvent[]) {
     };
     dataSource.features.push(feature)
   });
+
+  if (drawLine) {
+    state.map.addSource('route', {
+      'type': 'geojson',
+      'lineMetrics': true,
+      'data': {
+        'type': 'Feature',
+        'properties': {
+        },
+        'geometry': {
+          'type': 'LineString',
+          'coordinates': coordinates
+        }
+      }
+    });
+    state.map.addLayer({
+      'id': 'route',
+      'type': 'line',
+      'source': 'route',
+      'layout': {
+        'line-cap': 'round'
+      },
+      'paint': {
+        'line-color': '#888',
+        'line-width': 4,
+        'line-dasharray': [0, 2],
+        'line-gradient': [
+          'interpolate',
+          ['linear'],
+          ['line-progress'],
+          0,
+          'blue',
+          0.1,
+          'royalblue',
+          0.3,
+          'cyan',
+          0.5,
+          'lime',
+          0.7,
+          'yellow',
+          1,
+          'red'
+        ]
+      }
+    });
+  }
 
   let bounds = coordinates.reduce(function (bounds, coord) {
     return bounds.extend(coord);
@@ -129,6 +174,12 @@ function clearMarkerState() {
   if (state.map.getSource('event-data')) {
     state.map.removeSource('event-data')
   }
+  if (state.map.getLayer('route')) {
+    state.map.removeLayer('route')
+  }
+  if (state.map.getSource('route')) {
+    state.map.removeSource('route')
+  }
 }
 
 async function handleArtistSearch(artist: SpotifyArtist) {
@@ -136,7 +187,7 @@ async function handleArtistSearch(artist: SpotifyArtist) {
 
   const key = import.meta.env.VITE_TM_KEY
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${artist.name}`);
-  markEvents(events)
+  markEvents(events, true)
 }
 
 async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
@@ -204,6 +255,13 @@ async function getAllEvents(url: string) {
   }
 };
 
+function flyToItem(event: TMEvent) {
+  state.map.flyTo({
+    center: [event._embedded.venues[0].location.longitude, event._embedded.venues[0].location.latitude],
+    speed: 0.8,
+  });
+}
+
 function spotifySignIn() {
   const formBody = new FormData();
   formBody.set("grant_type", 'client_credentials');
@@ -238,6 +296,7 @@ function spotifySignIn() {
   <DrawerCarousel
     @artist="handleArtistSearch"
     @geocode="handleCitySearch"
+    @item-click="flyToItem"
     @hover="handleHover"
     :events="state.events"
   />

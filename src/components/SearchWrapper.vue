@@ -31,7 +31,7 @@ watch(
     () => state.dateRange,
     (s, prevState) => {
         if (!!state.activeGeocode) {
-            emitSelect()
+            emitGeoSelect()
         }
     },
     { deep: true }
@@ -56,21 +56,21 @@ const emit = defineEmits<{
 
 const queryTypeahead = debounce(() => {
     // Spotify
-    state.dropdownItems = []
-    fetch(`https://api.spotify.com/v1/search?q=${state.searchTerm}&type=artist&limit=5`, {
+    const spotifyCall = fetch(`https://api.spotify.com/v1/search?q=${state.searchTerm}&type=artist&limit=5`, {
         headers: {
             'Authorization': `Bearer ${token.value}`
         }
-    }).then(res => res.json()).then(e => {
-        console.log(e);
-        state.dropdownItems.push(...e.artists.items)
-    })
+    }).then(res => res.json())
 
     const key = import.meta.env.VITE_MB_KEY
-    fetch(
+    const geocodeCall = fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${state.searchTerm}.json?types=place&access_token=${key}`
-    ).then(response => response.json()).then(res => {
-        state.dropdownItems.push(...res.features);
+    ).then(response => response.json());
+    const promises: Promise<any>[] = [spotifyCall, geocodeCall];
+    Promise.all(promises).then(values => {
+        console.log(values)
+        state.dropdownItems = [...values[0].artists.items, ...values[1].features]
+
     });
 }, 300);
 
@@ -104,57 +104,42 @@ function emitArtistSelect(item: SpotifyArtist) {
         <div class="search-wrapper">
             <div class="search_dropdown">
                 <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
-                <Dropdown :items="state.dropdownItems" @select="handleSelect" />
+                <Datepicker
+                    v-model="state.dateRange"
+                    class="datepicker"
+                    :dark="true"
+                    :enable-time-picker="false"
+                    :range="true"
+                    :auto-apply="true"
+                >
+                    <template #trigger>
+                        <div class="day-select">
+                            <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
+                            <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
+                        </div>
+                    </template>
+                </Datepicker>
             </div>
-            <Datepicker
-                v-model="state.dateRange"
-                class="datepicker"
-                :dark="true"
-                :enable-time-picker="false"
-                :range="true"
-                :auto-apply="true"
-            >
-                <template #trigger>
-                    <div class="day-select">
-                        <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
-                        <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
-                    </div>
-                </template>
-            </Datepicker>
+            <Dropdown
+                v-show="!!state.dropdownItems.length"
+                :items="state.dropdownItems"
+                @select="handleSelect"
+            />
         </div>
     </div>
 </template>
 
 <style scoped>
 .search {
-    background: rgb(27 38 55 / 51%);
-    margin: 0 auto;
+    margin: 8px 0px 8px 8px;
     position: sticky;
-    left: calc(50% - 120px);
-    top: 40px;
-    display: flex;
-    background-color: rgb(255, 255, 255);
-    height: 65px;
-    -webkit-flex: none;
-    -webkit-box-flex: 0;
-    flex: none;
-    margin: 8px 0 8px 8px;
-    align-items: center;
-    left: 0;
-    padding: 0 12px;
-    margin: 16px;
-    top: 0;
+    left: 0px;
+    top: 0px;
     z-index: 15;
-    -webkit-transition: left 0.5s;
-    transition: left 0.5s;
-    -webkit-transform: translateX(0);
-    transform: translateX(0);
-    transition-property: -webkit-transform, transform, visibility, opacity;
-    -webkit-transition-duration: 0.2s;
-    transition-duration: 0.2s;
-    -webkit-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
-    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
-    box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
+    transform: translateX(0px);
+    transition: -webkit-transform 0.2s cubic-bezier(0, 0, 0.2, 1) 0s, transform,
+        visibility, opacity;
+    width: 100%;
 }
 
 .search-bar {
@@ -165,10 +150,41 @@ function emitArtistSelect(item: SpotifyArtist) {
     width: 250px;
     height: 48px;
     border-bottom: 1px solid transparent;
-    padding: 12px 104px 11px 64px;
+    padding-left: 12px;
     -webkit-transition-property: background, box-shadow;
     transition-property: background, box-shadow;
     -webkit-transition-duration: 0.3s;
+    transition-duration: 0.3s;
+}
+
+.search_dropdown {
+    display: block;
+}
+
+.datepicker {
+    cursor: pointer;
+    padding: 12px 15px;
+    position: absolute;
+    right: 0;
+    top: 0;
+    display: block;
+}
+.search_bar {
+    position: absolute;
+    z-index: 4;
+    left: 0;
+    top: 0;
+    box-shadow: 0 0 2px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid #dadce0;
+    position: relative;
+    background: #fff;
+    box-sizing: border-box;
+    width: 392px;
+    height: 48px;
+    border-bottom: 1px solid transparent;
+    padding: 12px 104px 11px 64px;
+    transition-property: background, box-shadow;
     transition-duration: 0.3s;
 }
 :global(.dp__theme_dark) {
@@ -204,6 +220,6 @@ function emitArtistSelect(item: SpotifyArtist) {
 }
 
 .search-wrapper {
-    position: absolute;
+    text-align: left;
 }
 </style>

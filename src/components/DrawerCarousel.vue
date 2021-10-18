@@ -21,6 +21,7 @@ const emit = defineEmits<{
     (e: 'geocode', item: GeocodeFeature): void,
     (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
+    (e: 'item-click', event: TMEvent): void,
 }>()
 
 function toggleDrawer() {
@@ -38,6 +39,10 @@ function emitSelect(e) {
 function emitMouseOver(id: string | null) {
     emit('hover', id);
 }
+
+function emitClick(event: TMEvent) {
+    emit('item-click', event)
+}
 </script>
 
 <template>
@@ -50,6 +55,7 @@ function emitMouseOver(id: string | null) {
                         <DrawerItem
                             @mouseover="emitMouseOver(event.id)"
                             @mouseleave="emitMouseOver(null)"
+                            @click="emitClick(event)"
                             :title="event.name"
                             :images="event.images"
                             :time="event.dates.start.localTime"
