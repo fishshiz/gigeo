@@ -3,7 +3,7 @@ import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
 import { onMounted, reactive, provide, ref } from 'vue'
 import moment from 'moment';
-import { GeocodeResponse, GeocodeFeature, TMEvent, SpotifyArtist } from "../interface"
+import { GeocodeFeature, TMEvent, SpotifyArtist } from "../interface"
 import { EVENT_TYPES } from "../constants"
 interface State {
   map: any,
@@ -216,18 +216,12 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
   // fetch(
   //   `https://api.seatgeek.com/2/events?client_id=${sgKey}&datetime_utc.gte=${dateStart}Z&datetime_utc.lte=${dateEnd}Z&venue.city=${city}&venue.state=${region.short_code.slice(-2)}&venue.country=${country.short_code}`
   // ).then(response => response.json()).then(res => {
-  //   debugger;
   //   markEvents(res._embedded.events)
   // });
 
   // TICKETMASTER
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`);
   markEvents(events)
-  // fetch(
-  //   `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
-  // ).then(response => response.json()).then(res => {
-  //   markEvents(res._embedded.events)
-  // });
 }
 
 function handleHover(id: string | null) {
@@ -292,11 +286,6 @@ function spotifySignIn() {
   }).then(resp => {
     token.value = resp.access_token;
   })
-  // window.open('https://accounts.spotify.com/authorize' +
-  //   '?response_type=code' +
-  //   '&client_id=' + 'd3ca95caa72245cfac3540697e97894f' +
-  //   (scopes ? '&scope=' + encodeURIComponent(scopes) : '') +
-  //   '&redirect_uri=' + encodeURIComponent('http://localhost:3000/'), '_blank');
 }
 </script>
 
