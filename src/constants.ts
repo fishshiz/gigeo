@@ -29,7 +29,7 @@ export const EVENT_TYPES = {
     icon: "art-gallery",
     color: "#c4d6b0",
   },
-  COMEDY: {
+  Comedy: {
     key: "Comedy",
     icon: "bar",
     color: "#c4d6b0",

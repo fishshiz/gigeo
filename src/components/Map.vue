@@ -5,13 +5,18 @@ import { onMounted, reactive, provide, ref } from 'vue'
 import moment from 'moment';
 import { GeocodeResponse, GeocodeFeature, TMEvent, SpotifyArtist } from "../interface"
 import { EVENT_TYPES } from "../constants"
-const state = reactive({
-  map: null,
+interface State {
+  map: any,
+  events: TMEvent[],
+  hoveredEvent: string,
+
+}
+const state: State = reactive({
+  map: undefined,
   events: [],
   hoveredEvent: '',
 });
 const token = ref('')
-const drawer = ref(null)
 provide('spotifyToken', token)
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
@@ -23,8 +28,11 @@ onMounted(() => {
   });
   spotifySignIn();
   // Set an event listener for a specific layer
-  state.map.on('click', 'events', (e) => {
-    document.getElementById(e.features[0].id).scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+  state.map.on('click', 'events', (e: any) => {
+    const element = document.getElementById(e.features[0].id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+    }
   });
 
   // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
@@ -39,7 +47,7 @@ onMounted(() => {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(setLocation);
   }
-  function setLocation(position: PositionCallback) {
+  function setLocation(position: GeolocationPosition): void {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
     state.map.flyTo({
@@ -54,7 +62,11 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
   clearMarkerState()
   const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
-  state.events = events.sort((a, b) => new Date(a.dates.start.dateTime) - new Date(b.dates.start.dateTime));
+  state.events = events.sort((a, b) => {
+    const dateA = new Date(a.dates.start.dateTime).getTime();
+    const dateB = new Date(b.dates.start.dateTime).getTime();
+    return dateA - dateB;
+  });
   events.forEach(place => {
     const venue = place._embedded.venues[0];
 
@@ -68,7 +80,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       parseFloat(location.latitude)
     ];
     coordinates.push([longitude, latitude]);
-    const eventType = place.classifications ? place.classifications[0].segment.name : 'Music';
+    const eventType: keyof typeof EVENT_TYPES = place.classifications ? place.classifications[0].segment.name : 'Music';
     const feature = {
       type: 'Feature',
       properties: {
@@ -82,6 +94,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
         coordinates: [longitude, latitude]
       }
     };
+    //@ts-ignore
     dataSource.features.push(feature)
   });
 
@@ -290,7 +303,6 @@ function spotifySignIn() {
 <template>
   <div id="map" />
   <DrawerCarousel
-    ref="drawer"
     @artist="handleArtistSearch"
     @geocode="handleCitySearch"
     @item-click="flyToItem"

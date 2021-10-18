@@ -9,16 +9,14 @@ interface Props {
     events: TMEvent[],
 }
 
-const props = withDefaults(defineProps<Props>(), {
-    events: [],
-})
+defineProps<Props>();
 
 const state = reactive({
     drawerOpen: true,
 })
 
 const emit = defineEmits<{
-    (e: 'geocode', item: GeocodeFeature): void,
+    (e: 'geocode', obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }): void,
     (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
     (e: 'item-click', event: TMEvent): void,
@@ -28,10 +26,12 @@ function toggleDrawer() {
     state.drawerOpen = !state.drawerOpen;
 }
 
-function emitSelect(e) {
+function emitSelect(e: SpotifyArtist | GeocodeFeature) {
     if (e.type === 'artist') {
+        //@ts-ignore
         emit('artist', e)
     } else {
+        //@ts-ignore
         emit('geocode', e)
     }
 }
@@ -42,10 +42,6 @@ function emitMouseOver(id: string | null) {
 
 function emitClick(event: TMEvent) {
     emit('item-click', event)
-}
-
-function scrollTo(id: string) {
-    document.getElementById(id).scrollIntoView();
 }
 </script>
 

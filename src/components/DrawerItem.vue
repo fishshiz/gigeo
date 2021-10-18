@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { GeocodeFeature, TMEvent, TMImage, TMPriceRange, TMVenue } from "../interface";
+import { GeocodeFeature, TMImage, TMVenue } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
-import DrawerItem from './DrawerItem.vue';
 import moment from "moment";
 
-const props = defineProps<{
+defineProps<{
     title: string,
     day: string,
     time: string,

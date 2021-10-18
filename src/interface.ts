@@ -1,3 +1,5 @@
+import { EVENT_TYPES } from "./constants";
+
 export interface GeocodeFeature {
   bbox: number[];
   center: number[];
@@ -72,12 +74,12 @@ export interface TMEvent {
 
 interface TMClassification {
   family: boolean;
-  genre: { id: string; name: string };
+  genre: { id: string; name: keyof typeof EVENT_TYPES };
   primary: boolean;
-  segment: { id: string; name: string };
-  subGenre: { id: string; name: string };
-  subType: { id: string; name: string };
-  type: { id: string; name: string };
+  segment: { id: string; name: keyof typeof EVENT_TYPES };
+  subGenre: { id: string; name: keyof typeof EVENT_TYPES };
+  subType: { id: string; name: keyof typeof EVENT_TYPES };
+  type: { id: string; name: keyof typeof EVENT_TYPES };
 }
 
 export interface TMImage {
