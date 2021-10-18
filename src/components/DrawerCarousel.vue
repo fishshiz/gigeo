@@ -43,6 +43,10 @@ function emitMouseOver(id: string | null) {
 function emitClick(event: TMEvent) {
     emit('item-click', event)
 }
+
+function scrollTo(id: string) {
+    document.getElementById(id).scrollIntoView();
+}
 </script>
 
 <template>
@@ -51,7 +55,7 @@ function emitClick(event: TMEvent) {
             <div class="pane-content-holder">
                 <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
                 <div class="scrollbox" v-if="events.length">
-                    <div v-for="(event, idx) in events" :key="event.id">
+                    <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
                         <DrawerItem
                             @mouseover="emitMouseOver(event.id)"
                             @mouseleave="emitMouseOver(null)"

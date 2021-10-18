@@ -27,7 +27,6 @@ function getPlaceCountry(item: GeocodeFeature): string {
 }
 
 function artistImage(item: SpotifyArtist): string {
-    console.log(item)
     return item.images.length ? item.images[0].url : '../images/artist.png';
 }
 

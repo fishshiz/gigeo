@@ -11,6 +11,7 @@ const state = reactive({
   hoveredEvent: '',
 });
 const token = ref('')
+const drawer = ref(null)
 provide('spotifyToken', token)
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
@@ -23,7 +24,7 @@ onMounted(() => {
   spotifySignIn();
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e) => {
-    console.log('click: ', e.features);
+    document.getElementById(e.features[0].id).scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
   });
 
   // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
@@ -183,8 +184,6 @@ function clearMarkerState() {
 }
 
 async function handleArtistSearch(artist: SpotifyArtist) {
-  console.log('handlesearch')
-
   const key = import.meta.env.VITE_TM_KEY
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${artist.name}`);
   markEvents(events, true)
@@ -278,10 +277,7 @@ function spotifySignIn() {
   }).then(res => {
     return res.json()
   }).then(resp => {
-
     token.value = resp.access_token;
-
-    console.log(resp);
   })
   // window.open('https://accounts.spotify.com/authorize' +
   //   '?response_type=code' +
@@ -294,6 +290,7 @@ function spotifySignIn() {
 <template>
   <div id="map" />
   <DrawerCarousel
+    ref="drawer"
     @artist="handleArtistSearch"
     @geocode="handleCitySearch"
     @item-click="flyToItem"
