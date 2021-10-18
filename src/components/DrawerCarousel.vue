@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GeocodeFeature, TMEvent } from "../interface";
+import { GeocodeFeature, SpotifyArtist, TMEvent } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
 import DrawerItem from './DrawerItem.vue';
 import SearchWrapper from './SearchWrapper.vue'
@@ -18,7 +18,8 @@ const state = reactive({
 })
 
 const emit = defineEmits<{
-    (e: 'select', item: GeocodeFeature): void,
+    (e: 'geocode', item: GeocodeFeature): void,
+    (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
 }>()
 
@@ -27,7 +28,11 @@ function toggleDrawer() {
 }
 
 function emitSelect(e) {
-    emit('select', e)
+    if (e.type === 'artist') {
+        emit('artist', e)
+    } else {
+        emit('geocode', e)
+    }
 }
 
 function emitMouseOver(id: string | null) {
@@ -39,7 +44,7 @@ function emitMouseOver(id: string | null) {
     <div :class="[{ 'pane-collapsed': !state.drawerOpen }, 'pane']">
         <div class="pane-content">
             <div class="pane-content-holder">
-                <SearchWrapper @select="emitSelect" />
+                <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
                 <div class="scrollbox" v-if="events.length">
                     <div v-for="(event, idx) in events" :key="event.id">
                         <DrawerItem
@@ -55,7 +60,10 @@ function emitMouseOver(id: string | null) {
                         />
                     </div>
                 </div>
-                <div v-else>No Events</div>
+                <div v-else class="empty-wrapper">
+                    <h2>Nothing to see here...</h2>
+                    <span>Try searching by city and date, or by individual artist</span>
+                </div>
             </div>
         </div>
         <div class="pane-btn-holder">
@@ -98,6 +106,7 @@ function emitMouseOver(id: string | null) {
     width: 100%;
     background-color: #fff;
     height: 100%;
+    font-family: Roboto, Arial, sans-serif;
 }
 
 .pane-content-holder {
@@ -139,5 +148,9 @@ button {
 .btn-img {
     width: 100%;
     vertical-align: middle;
+}
+
+.empty-wrapper {
+    margin: 16px;
 }
 </style>

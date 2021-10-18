@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { GeocodeFeature } from "../interface";
+import { GeocodeFeature, SpotifyArtist } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
 
 interface Props {
-    items: GeocodeFeature[],
+    items: Array<GeocodeFeature | SpotifyArtist>,
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,8 +34,14 @@ function emitSelect(item: GeocodeFeature) {
 <template>
     <div class="dropdown">
         <div class="row" v-for="item in items" :key="item.id" @click="emitSelect(item)">
-            <span :class="[getPlaceCountry(item), 'flag-icon']" />
-            {{ formatPlaceName(item) }}
+            <div v-if="item.popularity">
+                <img class="artist-img" :src="item.images[0].url" />
+                {{ item.name }}
+            </div>
+            <div v-else>
+                <span :class="[getPlaceCountry(item), 'flag-icon']" />
+                {{ formatPlaceName(item) }}
+            </div>
         </div>
     </div>
 </template>
@@ -60,5 +66,9 @@ function emitSelect(item: GeocodeFeature) {
 .row:hover {
     background: rgb(32 32 32 / 76%);
     color: white;
+}
+
+.artist-img {
+    height: 50px;
 }
 </style>

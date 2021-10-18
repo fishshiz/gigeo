@@ -5,8 +5,8 @@ import debounce from 'lodash.debounce';
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
-import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue'
-import { GeocodeResponse, GeocodeFeature } from "../interface"
+import { reactive, inject, computed, onMounted, nextTick, watch } from 'vue'
+import { GeocodeResponse, GeocodeFeature, SpotifyArtist } from "../interface"
 interface Props {
     value: string
 }
@@ -24,6 +24,8 @@ const state = reactive<State>({
     activeGeocode: undefined,
     dateRange: [new Date(), new Date()],
 })
+
+const token = inject('spotifyToken');
 
 watch(
     () => state.dateRange,
@@ -48,15 +50,27 @@ const singleDayText = computed(() => {
 })
 const multiDayText = computed(() => [moment(state.dateRange[0]).format("MMM Do"), moment(state.dateRange[1]).format("MMM Do")])
 const emit = defineEmits<{
-    (e: 'select', item: GeocodeFeature): void
+    (e: 'geocode', item: GeocodeFeature): void
+    (e: 'artist', item: SpotifyArtist): void
 }>()
 
 const queryTypeahead = debounce(() => {
+    // Spotify
+    state.dropdownItems = []
+    fetch(`https://api.spotify.com/v1/search?q=${state.searchTerm}&type=artist&limit=5`, {
+        headers: {
+            'Authorization': `Bearer ${token.value}`
+        }
+    }).then(res => res.json()).then(e => {
+        console.log(e);
+        state.dropdownItems.push(...e.artists.items)
+    })
+
     const key = import.meta.env.VITE_MB_KEY
     fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${state.searchTerm}.json?types=place&access_token=${key}`
     ).then(response => response.json()).then(res => {
-        state.dropdownItems = res.features;
+        state.dropdownItems.push(...res.features);
     });
 }, 300);
 
@@ -65,39 +79,49 @@ function handleUpdate(query: string) {
     queryTypeahead()
 }
 
-function handleSelect(item: GeocodeFeature) {
-    state.activeGeocode = item;
+function handleSelect(item: GeocodeFeature | SpotifyArtist) {
+    if (item.type === 'artist') {
+        state.searchTerm = item.name;
+        emitArtistSelect(item)
+    } else {
+        state.activeGeocode = item;
+        state.searchTerm = item.place_name;
+        emitGeoSelect()
+    }
     state.dropdownItems = [];
-    state.searchTerm = item.place_name;
-    emitSelect()
 }
 
-function emitSelect() {
-    emit('select', { geocode: state.activeGeocode, dateRange: state.dateRange });
+function emitGeoSelect() {
+    emit('geocode', { geocode: state.activeGeocode, dateRange: state.dateRange });
+}
+function emitArtistSelect(item: SpotifyArtist) {
+    emit('artist', item);
 }
 </script>
 
 <template>
     <div class="search">
-        <div>
-            <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
-            <Dropdown :items="state.dropdownItems" @select="handleSelect" />
+        <div class="search-wrapper">
+            <div class="search_dropdown">
+                <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
+                <Dropdown :items="state.dropdownItems" @select="handleSelect" />
+            </div>
+            <Datepicker
+                v-model="state.dateRange"
+                class="datepicker"
+                :dark="true"
+                :enable-time-picker="false"
+                :range="true"
+                :auto-apply="true"
+            >
+                <template #trigger>
+                    <div class="day-select">
+                        <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
+                        <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
+                    </div>
+                </template>
+            </Datepicker>
         </div>
-        <Datepicker
-            v-model="state.dateRange"
-            class="datepicker"
-            :dark="true"
-            :enable-time-picker="false"
-            :range="true"
-            :auto-apply="true"
-        >
-            <template #trigger>
-                <div class="day-select">
-                    <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
-                    <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
-                </div>
-            </template>
-        </Datepicker>
     </div>
 </template>
 
@@ -177,5 +201,9 @@ function emitSelect() {
 .day-select:hover {
     color: #9dc5bb;
     border: 3px solid #9dc5bb;
+}
+
+.search-wrapper {
+    position: absolute;
 }
 </style>

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
-import { onMounted, reactive } from 'vue'
+import { onMounted, reactive, provide, ref } from 'vue'
 import moment from 'moment';
-import { GeocodeResponse, GeocodeFeature, TMEvent } from "../interface"
+import { GeocodeResponse, GeocodeFeature, TMEvent, SpotifyArtist } from "../interface"
 import { EVENT_TYPES } from "../constants"
 const state = reactive({
   map: null,
   events: [],
   hoveredEvent: '',
 });
+const token = ref('')
+provide('spotifyToken', token)
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
   state.map = new mapboxgl.Map({
@@ -18,6 +20,7 @@ onMounted(() => {
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
   });
+  spotifySignIn();
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e) => {
     console.log('click: ', e.features);
@@ -128,9 +131,15 @@ function clearMarkerState() {
   }
 }
 
+async function handleArtistSearch(artist: SpotifyArtist) {
+  console.log('handlesearch')
+
+  const key = import.meta.env.VITE_TM_KEY
+  const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${artist.name}`);
+  markEvents(events)
+}
 
 async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
-  console.log('handlesearch')
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
@@ -150,7 +159,6 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
 
   // TICKETMASTER
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`);
-  console.log(events)
   markEvents(events)
   // fetch(
   //   `https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`
@@ -195,11 +203,44 @@ async function getAllEvents(url: string) {
     return firstResult._embedded.events;
   }
 };
+
+function spotifySignIn() {
+  const formBody = new FormData();
+  formBody.set("grant_type", 'client_credentials');
+  var scopes = 'user-read-private user-read-email';
+  fetch('https://accounts.spotify.com/api/token?grant_type=client_credentials', {
+    method: 'POST',
+
+
+    // Adding headers to the request
+    headers: {
+      "Authorization": `Basic ${btoa(`${import.meta.env.VITE_SPOTIFY_ID}:${import.meta.env.VITE_SPOTIFY_SECRET}`)}`,
+      "Content-type": "application/x-www-form-urlencoded"
+    }
+  }).then(res => {
+    return res.json()
+  }).then(resp => {
+
+    token.value = resp.access_token;
+
+    console.log(resp);
+  })
+  // window.open('https://accounts.spotify.com/authorize' +
+  //   '?response_type=code' +
+  //   '&client_id=' + 'd3ca95caa72245cfac3540697e97894f' +
+  //   (scopes ? '&scope=' + encodeURIComponent(scopes) : '') +
+  //   '&redirect_uri=' + encodeURIComponent('http://localhost:3000/'), '_blank');
+}
 </script>
 
 <template>
   <div id="map" />
-  <DrawerCarousel @select="handleCitySearch" @hover="handleHover" :events="state.events" />
+  <DrawerCarousel
+    @artist="handleArtistSearch"
+    @geocode="handleCitySearch"
+    @hover="handleHover"
+    :events="state.events"
+  />
 </template>
 
 <style>
