@@ -153,6 +153,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
   state.map.addSource('event-data', {
     'type': 'geojson',
     'promoteId': 'id',
+    'cluster': true,
     'data': dataSource
   })
   state.map.addLayer({
@@ -160,7 +161,12 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
     'type': 'symbol',
     'source': 'event-data',
     'layout': {
-      'text-field': ['get', 'description'],
+      'text-field': [
+        'case',
+        ['boolean', ['has', 'point_count'], false],
+        ['get', 'point_count'],
+        ['get', 'description'],
+      ],
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
       'text-radial-offset': 0.5,
       'text-justify': 'auto',
