@@ -9,12 +9,16 @@ interface State {
   map: any,
   events: TMEvent[],
   hoveredEvent: string,
-
+  selectedClusterEvents: TMEvent[],
+  selectedClusterVenue: string
 }
+let selectedClusterEvent = reactive([])
 const state: State = reactive({
   map: undefined,
   events: [],
   hoveredEvent: '',
+  selectedClusterEvents: [],
+  selectedClusterVenue: '',
 });
 const token = ref('')
 provide('spotifyToken', token)
@@ -27,11 +31,23 @@ onMounted(() => {
     zoom: 3 // starting zoom
   });
   spotifySignIn();
+  state.map.on('click', () => {
+    state.selectedClusterEvents = [];
+    state.selectedClusterVenue = '';
+  })
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e: any) => {
     const element = document.getElementById(e.features[0].id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+    } else {
+      state.selectedClusterVenue = e.features[0].properties.clusterVenue
+      state.map.getSource('event-data').getClusterLeaves(e.features[0].properties.cluster_id, e.features[0].properties.points_count, 0, (error, features) => {
+        features.forEach(feature => {
+          const event = state.events.find(event => event.id === feature.properties.id);
+          state.selectedClusterEvents.push(event);
+        })
+      })
     }
   });
 
@@ -57,6 +73,11 @@ onMounted(() => {
     });
   }
 })
+
+function clearSelection() {
+  state.selectedClusterVenue = '';
+  state.selectedClusterEvents = [];
+}
 
 function markEvents(events: TMEvent[], drawLine: boolean = false) {
   clearMarkerState()
@@ -85,6 +106,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       type: 'Feature',
       properties: {
         description: place.name,
+        venue: place._embedded.venues[0].name,
         icon: EVENT_TYPES[eventType].icon,
         color: EVENT_TYPES[eventType].color,
         id: place.id,
@@ -154,6 +176,8 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
     'type': 'geojson',
     'promoteId': 'id',
     'cluster': true,
+    'clusterRadius': 1,
+    'clusterProperties': { "clusterEvent": ["string", ["get", "description"]], "clusterVenue": ["string", ["get", "venue"]] },
     'data': dataSource
   })
   state.map.addLayer({
@@ -164,7 +188,8 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       'text-field': [
         'case',
         ['boolean', ['has', 'point_count'], false],
-        ['get', 'point_count'],
+        // ['concat', ['get', 'clusterEvent'], ' and ', ['-', ['to-number', ['get', 'point_count']], 1], ' others'],
+        ['concat', ['get', 'point_count'], ' events at ', ['get', 'clusterVenue']],
         ['get', 'description'],
       ],
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
@@ -184,6 +209,10 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       'text-halo-width': 1,
     }
   });
+  console.log(state.map.getSource('event-data').id)
+  console.log(state.map.querySourceFeatures('event-data', {
+    sourceLayer: 'events'
+  }))
 }
 
 function clearMarkerState() {
@@ -302,7 +331,10 @@ function spotifySignIn() {
     @geocode="handleCitySearch"
     @item-click="flyToItem"
     @hover="handleHover"
+    @clear="clearSelection"
     :events="state.events"
+    :selected-events="state.selectedClusterEvents"
+    :selected-venue="state.selectedClusterVenue"
   />
 </template>
 

@@ -57,17 +57,17 @@ function truncate(str: string, length: number = 16): string {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .item-wrapper {
     position: relative;
     z-index: 2;
     padding: 8px 0 16px 0;
     height: 120px;
-    border-bottom: 1px solid #e8eaed;
+    border-bottom: 1 px solid var(--dynamic-border-color);
 }
 
 .item-wrapper:hover {
-    background: #70757a3a;
+    background: var(--background-highlight-color);
     box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
 }
 
@@ -96,7 +96,7 @@ function truncate(str: string, length: number = 16): string {
     transition-duration: 0.15s, 0.3s, 0.3s;
     -webkit-transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
     transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
-    background-color: #f1f3f4;
+    background-color: var(--dynamic-border-color);
     opacity: 0;
     -webkit-filter: saturate(0);
     filter: saturate(0);
@@ -110,7 +110,7 @@ function truncate(str: string, length: number = 16): string {
 
 .title {
     line-height: 20px;
-    color: #202124;
+    color: var(--dynamic-title-color);
     white-space: normal;
     text-align: left;
     margin-bottom: 2px;
@@ -119,7 +119,7 @@ function truncate(str: string, length: number = 16): string {
 
 .event-info {
     font-size: 14px;
-    color: #70757a;
+    color: var(--dynamic-subtitle-color);
 }
 .item {
     display: flex;
@@ -133,7 +133,7 @@ function truncate(str: string, length: number = 16): string {
     text-decoration: none;
     height: 100%;
     width: 100%;
-    color: #000;
+    color: var(--dynamic-title-color);
     cursor: pointer;
     display: flex;
     justify-content: space-between;
@@ -147,10 +147,10 @@ function truncate(str: string, length: number = 16): string {
 }
 
 .tickets {
-    border: 1px solid #1a73e8;
+    border: 1 px solid var(--button-hover-color);
     border-radius: 17px;
     display: block;
-    color: #1a73e8;
+    color: var(--button-color);
     font-size: 14px;
     padding: 8px 16px;
     text-align: center;
@@ -160,7 +160,7 @@ function truncate(str: string, length: number = 16): string {
 }
 
 .tickets:hover {
-    color: #1967d2;
+    color: var(--button-hover-color);
     background-color: #d2e3fc;
     border-color: #aecbfa;
 }

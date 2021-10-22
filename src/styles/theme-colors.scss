@@ -1,0 +1,40 @@
+:root {
+  --app-background-color: #ffffff;
+  --dynamic-title-color: #363636;
+  --dynamic-subtitle-color: #4a4a4a;
+  $dark0: #091217;
+  $dark1: #1a2538;
+  $dark2: #132624;
+  $dark3: #566577;
+  $dark4: #778faf;
+  $dark5: #5eb1bf;
+  $dark6: #f8f4e3;
+
+  $light0: #150b1e;
+  $light1: #8fbbbd;
+  $light2: #e2c95a;
+  $light3: #bfefbd;
+  $light4: #cfd7c7;
+  $light5: #f6a38e;
+  $light6: #f6f1d1;
+}
+
+[data-theme="dark"] {
+  --app-background-color: #091a28;
+  --background-highlight-color: #778faf;
+  --dynamic-title-color: #f6f1d1;
+  --dynamic-subtitle-color: #f8f4e3;
+  --dynamic-border-color: #566577;
+  --button-color: #5eb1bf;
+  --button-hover-color: #f8f4e3;
+}
+
+[data-theme="light"] {
+  --app-background-color: #f6f1d1;
+  --background-highlight-color: #f6a38e;
+  --dynamic-title-color: #150b1e;
+  --dynamic-subtitle-color: #8fbbbd;
+  --dynamic-border-color: #e2c95a;
+  --button-color: #bfefbd;
+  --button-hover-color: #8fbbbd;
+}

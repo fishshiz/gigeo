@@ -7,6 +7,8 @@ import { reactive } from 'vue'
 
 interface Props {
     events: TMEvent[],
+    selectedEvents: TMEvent[],
+    selectedVenue: string,
 }
 
 defineProps<Props>();
@@ -20,6 +22,7 @@ const emit = defineEmits<{
     (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
     (e: 'item-click', event: TMEvent): void,
+    (e: 'clear'): void,
 }>()
 
 function toggleDrawer() {
@@ -43,6 +46,10 @@ function emitMouseOver(id: string | null) {
 function emitClick(event: TMEvent) {
     emit('item-click', event)
 }
+
+function emitClear(): void {
+    emit('clear');
+}
 </script>
 
 <template>
@@ -50,7 +57,27 @@ function emitClick(event: TMEvent) {
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
-                <div class="scrollbox" v-if="events.length">
+                <div class="scrollbox edan" v-if="selectedEvents.length">
+                    <div class="selected-header">
+                        <img src="src/icons/arrow_back.svg" class="back-btn" @click="emitClear" />
+                        {{ selectedEvents.length }} events at {{ selectedVenue }}
+                    </div>
+                    <div v-for="(event, idx) in selectedEvents" :id="event.id" :key="event.id">
+                        <DrawerItem
+                            @mouseover="emitMouseOver(event.id)"
+                            @mouseleave="emitMouseOver(null)"
+                            @click="emitClick(event)"
+                            :title="event.name"
+                            :images="event.images"
+                            :time="event.dates.start.localTime"
+                            :day="event.dates.start.dateTime"
+                            :venue="event._embedded.venues[0]"
+                            :ticket-link="event.url"
+                            :price-range="event.priceRanges"
+                        />
+                    </div>
+                </div>
+                <div class="scrollbox" v-else-if="events.length">
                     <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
                         <DrawerItem
                             @mouseover="emitMouseOver(event.id)"
@@ -80,7 +107,7 @@ function emitClick(event: TMEvent) {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .pane {
     width: 408px;
     position: absolute;
@@ -89,7 +116,7 @@ function emitClick(event: TMEvent) {
     opacity: 1;
     height: 100%;
     box-shadow: 0 0 20px rgb(0 0 0 / 30%);
-    background: #fff;
+    // background: $dark0;
     left: 0;
     -webkit-transform: translateX(0px);
     transform: translateX(0px);
@@ -110,7 +137,7 @@ function emitClick(event: TMEvent) {
     left: 0;
     top: 0;
     width: 100%;
-    background-color: #fff;
+    background-color: var(--app-background-color);
     height: 100%;
     font-family: Roboto, Arial, sans-serif;
 }
@@ -140,10 +167,10 @@ button {
     width: 23px;
     height: 48px;
     cursor: pointer;
-    border-left: 1px solid #d4d4d4;
+    // border-left: 1px solid $dark1;
     box-shadow: 0px 1px 4px rgb(0 0 0 / 30%);
     border-radius: 0 8px 8px 0;
-    background: rgba(255, 255, 255, 1) 7px center/7px 10px no-repeat;
+    // background: $dark4 7px center/7px 10px no-repeat;
 }
 
 .scrollbox {
@@ -158,5 +185,26 @@ button {
 
 .empty-wrapper {
     margin: 16px;
+    color: var(--dynamic-title-color);
+}
+
+.edan {
+    // background: $dark1;
+}
+
+.selected-header {
+    // background: $dark3;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    height: 40px;
+    // color: $dark6;
+}
+
+.back-btn {
+    padding: 0 16px;
+    cursor: pointer;
+    // color: $dark6;
+    width: 15px;
 }
 </style>

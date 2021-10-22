@@ -129,7 +129,7 @@ function emitArtistSelect(item: SpotifyArtist) {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .search {
     margin: 8px 0px 8px 8px;
     position: sticky;
@@ -204,9 +204,9 @@ function emitArtistSelect(item: SpotifyArtist) {
     --dp-danger-color: #e53935;
 }
 .day-select {
-    background: rgb(27 38 55 / 51%);
-    color: #dee5e5;
-    border: 3px solid #dee5e5;
+    background: var(--button-color);
+    color: var(--dynamic-subtitle-color);
+    border: 3px solid var(--dynamic-subtitle-color);
     border-radius: 26px;
     box-sizing: border-box;
     padding: 5px 15px 7px;
@@ -215,8 +215,8 @@ function emitArtistSelect(item: SpotifyArtist) {
 }
 
 .day-select:hover {
-    color: #9dc5bb;
-    border: 3px solid #9dc5bb;
+    color: var(--button-hover-color);
+    border: 3px solid var(--button-hover-color);
 }
 
 .search-wrapper {
