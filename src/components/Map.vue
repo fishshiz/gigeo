@@ -1,10 +1,29 @@
 <script setup lang="ts">
 import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
-import { onMounted, reactive, provide, ref } from 'vue'
+import { onMounted, reactive, provide, watch, ref } from 'vue'
 import moment from 'moment';
-import { GeocodeFeature, TMEvent, SpotifyArtist } from "../interface"
+import { GeocodeFeature, TMEvent, SpotifyArtist, Coordinates } from "../interface"
 import { EVENT_TYPES } from "../constants"
+interface Props {
+  darkMode: boolean
+}
+const props = defineProps<Props>()
+const darkMap = 'fishshiz/ckukigrtdav6m17n3jfw2jx3j';
+const lightMap = 'fishshiz/ckv1v5li01lx514piujpqwkqa';
+watch(() => props.darkMode, (s, prevState) => {
+  if (s) {
+    switchBasemap(state.map, darkMap)
+    // state.map.setStyle(darkMap);
+  } else {
+    switchBasemap(state.map, lightMap)
+    // state.map.setStyle(lightMap);
+  }
+  // if (state.events.length) {
+  //   console.log('hii', state.events)
+  //   markEvents(state.events, false);
+  // }
+})
 interface State {
   map: any,
   events: TMEvent[],
@@ -19,14 +38,16 @@ const state: State = reactive({
   hoveredEvent: '',
   selectedClusterEvents: [],
   selectedClusterVenue: '',
+  drawerOpen: true
 });
 const token = ref('')
 provide('spotifyToken', token)
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
+  const style = props.darkMode ? darkMap : lightMap;
   state.map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/fishshiz/ckukigrtdav6m17n3jfw2jx3j',
+    style: `mapbox://styles/${style}`,
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
   });
@@ -38,17 +59,23 @@ onMounted(() => {
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e: any) => {
     const element = document.getElementById(e.features[0].id);
+    console.log(e)
+    const location = { longitude: e.lngLat.lng, latitude: e.lngLat.lat };
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
     } else {
       state.selectedClusterVenue = e.features[0].properties.clusterVenue
       state.map.getSource('event-data').getClusterLeaves(e.features[0].properties.cluster_id, e.features[0].properties.points_count, 0, (error, features) => {
-        features.forEach(feature => {
+        features.forEach((feature: any) => {
           const event = state.events.find(event => event.id === feature.properties.id);
-          state.selectedClusterEvents.push(event);
+          state.selectedClusterEvents.push((event as TMEvent));
         })
       })
     }
+    if (!state.drawerOpen) {
+      toggleDrawer()
+    }
+    flyToItem(location);
   });
 
   // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
@@ -79,8 +106,48 @@ function clearSelection() {
   state.selectedClusterEvents = [];
 }
 
+// styleID should be in the form "mapbox/satellite-v9"
+async function switchBasemap(map: any, styleID: string) {
+  const newStyle = await fetch(
+    `https://api.mapbox.com/styles/v1/${styleID}?access_token=${mapboxgl.accessToken}`
+  ).then(res => res.json());
+  const currentStyle = map.getStyle();
+  // ensure any sources from the current style are copied across to the new style
+  newStyle.sources = Object.assign(
+    {},
+    currentStyle.sources,
+    newStyle.sources
+  );
+
+  // find the index of where to insert our layers to retain in the new style
+  let labelIndex = newStyle.layers.findIndex((el: any) => {
+    return el.id == 'waterway-label';
+  });
+
+  // default to on top
+  if (labelIndex === -1) {
+    labelIndex = newStyle.layers.length;
+  }
+  const appLayers = currentStyle.layers.filter((el: any) => {
+    // app layers are the layers to retain, and these are any layers which have a different source set
+    return (
+      el.source &&
+      el.source != 'mapbox://mapbox.satellite' &&
+      el.source != 'mapbox' &&
+      el.source != 'composite'
+    );
+  });
+  newStyle.layers = [
+    ...newStyle.layers.slice(0, labelIndex),
+    ...appLayers,
+    ...newStyle.layers.slice(labelIndex, -1),
+  ];
+  map.setStyle(newStyle);
+}
+
 function markEvents(events: TMEvent[], drawLine: boolean = false) {
   clearMarkerState()
+  console.log('in marking', events)
   const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
   state.events = events.sort((a, b) => {
@@ -165,7 +232,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       }
     });
   }
-
+  console.log(coordinates)
   let bounds = coordinates.reduce(function (bounds, coord) {
     return bounds.extend(coord);
   }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
@@ -209,10 +276,6 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       'text-halo-width': 1,
     }
   });
-  console.log(state.map.getSource('event-data').id)
-  console.log(state.map.querySourceFeatures('event-data', {
-    sourceLayer: 'events'
-  }))
 }
 
 function clearMarkerState() {
@@ -296,9 +359,15 @@ async function getAllEvents(url: string) {
   }
 };
 
-function flyToItem(event: TMEvent) {
-  state.map.flyTo({
-    center: [event._embedded.venues[0].location.longitude, event._embedded.venues[0].location.latitude],
+function flyToItem(location: Coordinates) {
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  const drawerWidth = 408;
+  const goToPoint = state.map.project({ lng: location.longitude, lat: location.latitude })
+  console.log(drawerWidth, Math.round(h / 2), goToPoint)
+  const coords = state.map.unproject([goToPoint.x - (drawerWidth / 2), Math.round(h / 2)])
+  state.map.easeTo({
+    center: [coords.lng, location.latitude],
     speed: 0.8,
   });
 }
@@ -322,6 +391,10 @@ function spotifySignIn() {
     token.value = resp.access_token;
   })
 }
+
+function toggleDrawer() {
+  state.drawerOpen = !state.drawerOpen;
+}
 </script>
 
 <template>
@@ -332,9 +405,11 @@ function spotifySignIn() {
     @item-click="flyToItem"
     @hover="handleHover"
     @clear="clearSelection"
+    @toggle="toggleDrawer"
     :events="state.events"
     :selected-events="state.selectedClusterEvents"
     :selected-venue="state.selectedClusterVenue"
+    :drawer-open="state.drawerOpen"
   />
 </template>
 

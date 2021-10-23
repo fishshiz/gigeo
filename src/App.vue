@@ -34,7 +34,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Map />
+  <Map :dark-mode="state.darkMode" />
   <input type="checkbox" class="theme-switch" v-model="state.darkMode" />
 </template>
 

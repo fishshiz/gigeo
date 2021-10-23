@@ -1,32 +1,31 @@
 <script setup lang="ts">
-import { GeocodeFeature, SpotifyArtist, TMEvent } from "../interface";
+import { GeocodeFeature, SpotifyArtist, TMEvent, Coordinates } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
 import DrawerItem from './DrawerItem.vue';
 import SearchWrapper from './SearchWrapper.vue'
-import { reactive } from 'vue'
+import Icon from './Icon.vue';
+import { reactive, inject } from 'vue'
 
 interface Props {
     events: TMEvent[],
     selectedEvents: TMEvent[],
     selectedVenue: string,
+    drawerOpen: boolean,
 }
 
 defineProps<Props>();
-
-const state = reactive({
-    drawerOpen: true,
-})
 
 const emit = defineEmits<{
     (e: 'geocode', obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }): void,
     (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
-    (e: 'item-click', event: TMEvent): void,
+    (e: 'item-click', location: Coordinates): void,
     (e: 'clear'): void,
+    (e: "toggle"): void
 }>()
 
 function toggleDrawer() {
-    state.drawerOpen = !state.drawerOpen;
+    emit('toggle')
 }
 
 function emitSelect(e: SpotifyArtist | GeocodeFeature) {
@@ -44,7 +43,8 @@ function emitMouseOver(id: string | null) {
 }
 
 function emitClick(event: TMEvent) {
-    emit('item-click', event)
+    const { location } = event._embedded.venues[0];
+    emit('item-click', location)
 }
 
 function emitClear(): void {
@@ -53,13 +53,19 @@ function emitClear(): void {
 </script>
 
 <template>
-    <div :class="[{ 'pane-collapsed': !state.drawerOpen }, 'pane']">
+    <div :class="[{ 'pane-collapsed': !drawerOpen }, 'pane']">
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
                 <div class="scrollbox edan" v-if="selectedEvents.length">
                     <div class="selected-header">
-                        <img src="src/icons/arrow_back.svg" class="back-btn" @click="emitClear" />
+                        <Icon
+                            :size="15"
+                            color="var(--dynamic-title-color)"
+                            icon="arrow_back"
+                            class="back-btn"
+                            @click="emitClear"
+                        />
                         {{ selectedEvents.length }} events at {{ selectedVenue }}
                     </div>
                     <div v-for="(event, idx) in selectedEvents" :id="event.id" :key="event.id">
@@ -189,22 +195,22 @@ button {
 }
 
 .edan {
-    // background: $dark1;
+    background: var(--app-background-color);
 }
 
 .selected-header {
-    // background: $dark3;
+    background: var(--dynamic-border-color);
     display: flex;
     justify-content: flex-start;
     align-items: center;
     height: 40px;
-    // color: $dark6;
+    color: var(--button-color);
 }
 
 .back-btn {
     padding: 0 16px;
     cursor: pointer;
-    // color: $dark6;
+    color: var(--dynamic-title-color);
     width: 15px;
 }
 </style>

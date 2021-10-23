@@ -124,10 +124,12 @@ export interface TMVenue {
   test: boolean;
   timezone: string;
   type: string;
-  location: {
-    latitude: string;
-    longitude: string;
-  };
+  location: Coordinates;
+}
+
+export interface Coordinates {
+  latitude: string;
+  longitude: string;
 }
 
 export interface SpotifyArtist {

@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { GeocodeFeature, SpotifyArtist } from "../interface";
+import type { GeocodeFeature, SpotifyArtist } from "../interface";
 import 'flag-icon-css/css/flag-icon.css'
 
 interface Props {
     items: Array<GeocodeFeature | SpotifyArtist>,
 }
 
-const props = withDefaults(defineProps<Props>(), {
-    items: [],
-})
+const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void
 }>()
@@ -30,21 +28,21 @@ function artistImage(item: SpotifyArtist): string {
     return item.images.length ? item.images[0].url : '../images/artist.png';
 }
 
-function emitSelect(item: GeocodeFeature) {
-    emit('select', item);
+function emitSelect(item: GeocodeFeature | SpotifyArtist) {
+    emit('select', (item as any));
 }
 </script>
 
 <template>
     <div class="dropdown">
-        <div class="row" v-for="item in items" :key="item.id" @click="emitSelect(item)">
+        <div class="row" v-for="item in props.items" :key="item.id" @click="emitSelect(item)">
             <div v-if="item.type === 'artist'">
-                <img class="artist-img" :src="artistImage(item)" />
-                {{ item.name }}
+                <img class="artist-img" :src="artistImage((item as SpotifyArtist))" />
+                {{ (item as SpotifyArtist).name }}
             </div>
             <div v-else>
-                <span :class="[getPlaceCountry(item), 'flag-icon', 'flag']" />
-                {{ formatPlaceName(item) }}
+                <span :class="[getPlaceCountry((item as GeocodeFeature)), 'flag-icon', 'flag']" />
+                {{ formatPlaceName((item as GeocodeFeature)) }}
             </div>
         </div>
     </div>
@@ -56,11 +54,13 @@ function emitSelect(item: GeocodeFeature) {
     text-align: left;
     min-width: 224px;
     background-color: #fff;
-    border-radius: 0 0 8px 8px;
+    border-radius: 1.1rem;
     box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
     font-size: 15px;
+    top: 4px;
     overflow: hidden;
-    width: 392px;
+    width: 260px;
+    z-index: 100;
     padding: 8px 0;
 }
 .row {

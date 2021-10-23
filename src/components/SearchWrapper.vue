@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Search from './Search.vue'
 import Dropdown from './Dropdown.vue'
-import debounce from 'lodash.debounce';
+import debounce from "just-debounce-it";
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
@@ -44,16 +44,56 @@ function isToday(someDate: Date): boolean {
         someDate.getFullYear() == today.getFullYear()
 }
 const singleDayPicked = computed(() => moment(state.dateRange[0]).isSame(moment(state.dateRange[1])))
-const todayPicked = computed(() => singleDayPicked && isToday(state.dateRange[0]))
-const singleDayText = computed(() => {
-    return todayPicked ? 'Today' : moment(state.dateRange[0]).format("MMM Do")
+const todayPicked = computed(() => {
+    const compareDate = state.dateRange[0];
+    const today = new Date()
+    return singleDayPicked && compareDate.getDate() === today.getDate() &&
+        compareDate.getMonth() === today.getMonth() &&
+        compareDate.getFullYear() === today.getFullYear()
 })
-const multiDayText = computed(() => [moment(state.dateRange[0]).format("MMM Do"), moment(state.dateRange[1]).format("MMM Do")])
+const tomorrowPicked = computed(() => {
+    const compareDate = moment(state.dateRange[0]);
+    const tomorrow = moment().add(1, 'days');
+    return compareDate.isSame(tomorrow, "day");
+})
+const singleDayText = computed(() => {
+    if (todayPicked.value) {
+        return 'Today';
+    }
+    if (tomorrowPicked.value) {
+        return 'Tomorrow'
+    }
+    return moment(state.dateRange[0]).format("MMM Do")
+})
+const multiDayDay = computed(() => {
+    const startDay = ordinalSuffix(moment(state.dateRange[0]).date());
+    const endDay = ordinalSuffix(moment(state.dateRange[1]).date());;
+    return [startDay, endDay]
+})
+const multiDayMonth = computed(() => {
+    const startMonth = moment(state.dateRange[0]).format("MMM");
+    const endMonth = moment(state.dateRange[1]).format("MMM");
+    return startMonth === endMonth ? [startMonth] : [startMonth, endMonth];
+})
 const emit = defineEmits<{
     (e: 'geocode', item: GeocodeFeature): void
     (e: 'artist', item: SpotifyArtist): void
 }>()
 
+function ordinalSuffix(i: number) {
+    const j = i % 10,
+        k = i % 100;
+    if (j == 1 && k != 11) {
+        return i + "st";
+    }
+    if (j == 2 && k != 12) {
+        return i + "nd";
+    }
+    if (j == 3 && k != 13) {
+        return i + "rd";
+    }
+    return i + "th";
+}
 const queryTypeahead = debounce(() => {
     // Spotify
     const spotifyCall = fetch(`https://api.spotify.com/v1/search?q=${state.searchTerm}&type=artist&limit=5`, {
@@ -81,11 +121,11 @@ function handleUpdate(query: string) {
 
 function handleSelect(item: GeocodeFeature | SpotifyArtist) {
     if (item.type === 'artist') {
-        state.searchTerm = item.name;
-        emitArtistSelect(item)
+        state.searchTerm = (item as SpotifyArtist).name;
+        emitArtistSelect((item as SpotifyArtist))
     } else {
-        state.activeGeocode = item;
-        state.searchTerm = item.place_name;
+        state.activeGeocode = (item as GeocodeFeature);
+        state.searchTerm = (item as GeocodeFeature).place_name;
         emitGeoSelect()
     }
     state.dropdownItems = [];
@@ -104,50 +144,53 @@ function emitArtistSelect(item: SpotifyArtist) {
         <div class="search-wrapper">
             <div class="search_dropdown">
                 <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
-                <Datepicker
-                    v-model="state.dateRange"
-                    class="datepicker"
-                    :dark="true"
-                    :enable-time-picker="false"
-                    :range="true"
-                    :auto-apply="true"
-                >
-                    <template #trigger>
-                        <div class="day-select">
-                            <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
-                            <div v-else>{{ multiDayText[0] }} - {{ multiDayText[1] }}</div>
-                        </div>
-                    </template>
-                </Datepicker>
+                <Dropdown
+                    v-show="!!state.dropdownItems.length"
+                    :items="state.dropdownItems"
+                    @select="handleSelect"
+                />
             </div>
-            <Dropdown
-                v-show="!!state.dropdownItems.length"
-                :items="state.dropdownItems"
-                @select="handleSelect"
-            />
+            <Datepicker
+                v-model="state.dateRange"
+                class="datepicker"
+                :dark="true"
+                :enable-time-picker="false"
+                :range="true"
+                :auto-apply="true"
+            >
+                <template #trigger>
+                    <div class="day-select">
+                        <div class="first-day" v-if="singleDayPicked">{{ singleDayText }}</div>
+                        <div v-else class="multi-day">
+                            <div class="months">
+                                <div class="month" v-for="month in multiDayMonth">{{ month }}</div>
+                            </div>
+                            <div class="days">
+                                <div class="day">{{ multiDayDay[0] }}</div>
+                                <div class="day">{{ multiDayDay[1] }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </Datepicker>
         </div>
     </div>
 </template>
 
 <style scoped lang="scss">
 .search {
-    margin: 8px 0px 8px 8px;
+    margin: 8px 0px 8px 16px;
     position: sticky;
-    left: 0px;
-    top: 0px;
-    z-index: 15;
-    transform: translateX(0px);
-    transition: -webkit-transform 0.2s cubic-bezier(0, 0, 0.2, 1) 0s, transform,
-        visibility, opacity;
-    width: 100%;
+    height: 80px;
+    z-index: 100;
 }
 
 .search-bar {
     position: relative;
     background: #fff;
-    border-radius: 8px;
+    border-radius: 1.1rem;
     box-sizing: border-box;
-    width: 250px;
+    width: 260px;
     height: 48px;
     border-bottom: 1px solid transparent;
     padding-left: 12px;
@@ -163,7 +206,7 @@ function emitArtistSelect(item: SpotifyArtist) {
 
 .datepicker {
     cursor: pointer;
-    padding: 12px 15px;
+    padding: 0px 15px;
     position: absolute;
     right: 0;
     top: 0;
@@ -204,14 +247,20 @@ function emitArtistSelect(item: SpotifyArtist) {
     --dp-danger-color: #e53935;
 }
 .day-select {
-    background: var(--button-color);
-    color: var(--dynamic-subtitle-color);
-    border: 3px solid var(--dynamic-subtitle-color);
-    border-radius: 26px;
     box-sizing: border-box;
-    padding: 5px 15px 7px;
     font-size: 14px;
     cursor: pointer;
+    width: 100px;
+    height: 50px;
+    background-color: var(--button-color);
+    border-radius: 1.1rem;
+    text-align: center;
+    line-height: 44px;
+    color: var(--dynamic-subtitle-color);
+    -webkit-box-shadow: 0px 13px 74px -15px rgb(129 87 244);
+    -moz-box-shadow: 0px 13px 74px -15px rgba(129, 87, 244, 1);
+    box-shadow: 0px 13px 74px -15px rgb(129 87 244);
+    border: 3px solid transparent;
 }
 
 .day-select:hover {
@@ -221,5 +270,33 @@ function emitArtistSelect(item: SpotifyArtist) {
 
 .search-wrapper {
     text-align: left;
+}
+.search-wrapper {
+    text-align: left;
+}
+
+.multi-day {
+    line-height: 1;
+    display: grid;
+    height: 100%;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.months,
+.days {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    grid-column: span 2;
+}
+
+.month {
+    font-weight: 600;
+}
+
+.day {
+    padding: 0 6px;
+    box-sizing: border-box;
 }
 </style>
