@@ -5,6 +5,7 @@ import { onMounted, reactive, provide, watch, ref } from 'vue'
 import moment from 'moment';
 import { GeocodeFeature, TMEvent, SpotifyArtist, Coordinates } from "../interface"
 import { EVENT_TYPES } from "../constants"
+import Error from './Error.vue';
 interface Props {
   darkMode: boolean
 }
@@ -29,7 +30,8 @@ interface State {
   events: TMEvent[],
   hoveredEvent: string,
   selectedClusterEvents: TMEvent[],
-  selectedClusterVenue: string
+  selectedClusterVenue: string,
+  isError: boolean
 }
 let selectedClusterEvent = reactive([])
 const state: State = reactive({
@@ -38,7 +40,8 @@ const state: State = reactive({
   hoveredEvent: '',
   selectedClusterEvents: [],
   selectedClusterVenue: '',
-  drawerOpen: true
+  drawerOpen: true,
+  isError: true
 });
 const token = ref('')
 provide('spotifyToken', token)
@@ -411,6 +414,9 @@ function toggleDrawer() {
     :selected-venue="state.selectedClusterVenue"
     :drawer-open="state.drawerOpen"
   />
+  <Error v-show="state.isError" :value="state.isError">
+    <div class="error">Error Alert</div>
+  </Error>
 </template>
 
 <style>
@@ -420,5 +426,10 @@ function toggleDrawer() {
   bottom: 0;
   width: 100%;
   height: 100%;
+}
+
+.error {
+  color: var(--dynamic-border-color);
+  font-size: 22px;
 }
 </style>

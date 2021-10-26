@@ -59,13 +59,7 @@ function emitClear(): void {
                 <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
                 <div class="scrollbox edan" v-if="selectedEvents.length">
                     <div class="selected-header">
-                        <Icon
-                            :size="15"
-                            color="var(--dynamic-title-color)"
-                            icon="arrow_back"
-                            class="back-btn"
-                            @click="emitClear"
-                        />
+                        <span @click="emitClear" class="material-icons back-btn">&#xe5cb;</span>
                         {{ selectedEvents.length }} events at {{ selectedVenue }}
                     </div>
                     <div v-for="(event, idx) in selectedEvents" :id="event.id" :key="event.id">
@@ -204,7 +198,7 @@ button {
     justify-content: flex-start;
     align-items: center;
     height: 40px;
-    color: var(--button-color);
+    color: var(--dynamic-title-color);
 }
 
 .back-btn {
