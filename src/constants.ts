@@ -2,12 +2,12 @@ export const EVENT_TYPES = {
   Basketball: {
     key: "Basketball",
     icon: "basketball",
-    color: "#ffbc42",
+    color: "#d5e68d",
   },
   Sports: {
     key: "Sports",
     icon: "volleyball",
-    color: "#ffbc42",
+    color: "#d5e68d",
   },
   Music: {
     key: "Music",
@@ -17,26 +17,26 @@ export const EVENT_TYPES = {
   Miscellaneous: {
     key: "Miscellaneous",
     icon: "star",
-    color: "#90fcf9",
+    color: "#d5e68d",
   },
   "Lecture/Seminar": {
     key: "Lecture/Seminar",
     icon: "library",
-    color: "#90fcf9",
+    color: "#d5e68d",
   },
   "Arts & Theatre": {
     key: "Arts & Theatre",
     icon: "art-gallery",
-    color: "#c4d6b0",
+    color: "#d5e68d",
   },
   Comedy: {
     key: "Comedy",
     icon: "bar",
-    color: "#c4d6b0",
+    color: "#d5e68d",
   },
   Film: {
     key: "Film",
     icon: "attraction",
-    color: "#c4d6b0",
+    color: "#d5e68d",
   },
 };

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { GeocodeFeature, TMImage, TMVenue } from "../interface";
-import 'flag-icon-css/css/flag-icon.css'
 import moment from "moment";
 
 defineProps<{
@@ -10,6 +9,7 @@ defineProps<{
     images: TMImage[],
     venue: TMVenue,
     ticketLink: string,
+    hover: boolean,
 }>()
 const emit = defineEmits<{
     (e: 'select', item: GeocodeFeature): void,
@@ -26,7 +26,7 @@ function truncate(str: string, length: number = 16): string {
 </script>
 
 <template>
-    <div class="item-wrapper">
+    <div :class="['item-wrapper', { ['hover']: hover }]">
         <div class="item">
             <div class="top-row">
                 <div class="header">
@@ -40,13 +40,8 @@ function truncate(str: string, length: number = 16): string {
                     <div class="image-filter">
                         <img
                             decoding="async"
+                            class="item-image"
                             :src="images[0].url"
-                            style="position: absolute;
-    top: 50%;
-    left: 50%;
-    height: 84px;
-    -webkit-transform: translateY(-50%) translateX(-50%);
-    transform: translateY(-50%) translateX(-50%);"
                             aria-hidden="true"
                         />
                     </div>
@@ -66,7 +61,7 @@ function truncate(str: string, length: number = 16): string {
     border-bottom: 1 px solid var(--dynamic-border-color);
 }
 
-.item-wrapper:hover {
+.hover {
     background: var(--background-highlight-color);
     box-shadow: 0 2px 4px rgb(0 0 0 / 20%), 0 -1px 0 rgb(0 0 0 / 2%);
 }
@@ -127,6 +122,15 @@ function truncate(str: string, length: number = 16): string {
     justify-content: center;
     padding: 8px 18px;
     align-items: flex-start;
+}
+
+.item-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 84px;
+    -webkit-transform: translateY(-50%) translateX(-50%);
+    transform: translateY(-50%) translateX(-50%);
 }
 
 .top-row {

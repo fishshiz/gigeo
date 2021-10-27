@@ -181,7 +181,6 @@ function emitArtistSelect(item: SpotifyArtist) {
 .search {
     margin: 8px 0px 8px 16px;
     position: sticky;
-    height: 80px;
     z-index: 100;
 }
 

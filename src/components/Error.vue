@@ -1,31 +1,45 @@
 <script setup lang="ts">
 // This starter template is using Vue 3 <script setup> SFCs
 // Check out https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup
-import { watch } from 'vue';
+import { onMounted, watch } from 'vue';
 interface Props {
-    value: boolean,
+    active: boolean,
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-    (e: "update:value", val: boolean): void
+    (e: "update:active", val: boolean): void
 }>()
 
-watch(() => props.value, (val) => {
-    console.log('ji')
-    if (val) {
-        setTimeout(() => {
-            emit('update:value', false)
-        }, 500)
+onMounted(() => {
+    if (props.active) {
+        setActiveTimeout()
     }
 })
+
+watch(() => props.active, (val) => {
+    console.log('ji')
+    if (val) {
+        setActiveTimeout()
+    }
+})
+
+function setActiveTimeout() {
+    setTimeout(() => {
+        emit('update:active', false)
+    }, 5000)
+}
 </script>
 
 <template>
-    <div class="error-wrapper" v-show="props.value">
-        <span class="material-icons error">&#xe002;</span>
-        <slot class="slot"></slot>
-    </div>
+    <transition name="fade">
+        <div class="error-wrapper" v-show="props.active">
+            <div class="error-container">
+                <span class="material-icons error">&#xe002;</span>
+                <slot class="slot"></slot>
+            </div>
+        </div>
+    </transition>
 </template>
 
 <style lang="scss">
@@ -40,15 +54,32 @@ watch(() => props.value, (val) => {
     border-radius: 12px;
 }
 
+.error-container {
+    position: relative;
+}
+
 .material-icons.error {
-    cursor: pointer;
     color: rgba(255, 255, 255, 1);
     color: #f6a38e;
     text-shadow: 0 0 1px #f9b4a3;
+    position: absolute;
+    top: 16px;
+    left: 16px;
 }
 
 .slot {
-    color: var(--dynamic-border-color);
-    font-size: 30px;
+    position: absolute;
+    top: 16px;
+    left: 32px;
+}
+.fade-enter-active,
+.fade-leave-active {
+    transition: all 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    transform: translateY(200px);
+    opacity: 0;
 }
 </style>

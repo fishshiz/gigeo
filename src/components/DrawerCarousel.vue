@@ -3,26 +3,32 @@ import { GeocodeFeature, SpotifyArtist, TMEvent, Coordinates } from "../interfac
 import 'flag-icon-css/css/flag-icon.css'
 import DrawerItem from './DrawerItem.vue';
 import SearchWrapper from './SearchWrapper.vue'
-import Icon from './Icon.vue';
-import { reactive, inject } from 'vue'
+import DrawerSelectedItem from './DrawerSelectedItem.vue';
+import Loadings from './Loading.vue';
+import { computed, ref } from 'vue'
 
 interface Props {
     events: TMEvent[],
     selectedEvents: TMEvent[],
     selectedVenue: string,
     drawerOpen: boolean,
+    selectedEvent: TMEvent,
+    loading: boolean,
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'geocode', obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }): void,
     (e: 'artist', item: SpotifyArtist): void,
     (e: 'hover', id: string | null): void,
-    (e: 'item-click', location: Coordinates): void,
+    (e: 'item-click', event: TMEvent): void,
+    (e: 'clear-cluster'): void,
+    (e: 'toggle'): void,
     (e: 'clear'): void,
-    (e: "toggle"): void
 }>()
+
+const hoverId = ref<string>('')
 
 function toggleDrawer() {
     emit('toggle')
@@ -39,16 +45,20 @@ function emitSelect(e: SpotifyArtist | GeocodeFeature) {
 }
 
 function emitMouseOver(id: string | null) {
+    hoverId.value = id ? id : '';
     emit('hover', id);
 }
 
 function emitClick(event: TMEvent) {
-    const { location } = event._embedded.venues[0];
-    emit('item-click', location)
+    emit('item-click', event)
 }
 
 function emitClear(): void {
     emit('clear');
+}
+
+function emitClearCluster(): void {
+    emit('clear-cluster');
 }
 </script>
 
@@ -57,45 +67,64 @@ function emitClear(): void {
         <div class="pane-content">
             <div class="pane-content-holder">
                 <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
-                <div class="scrollbox edan" v-if="selectedEvents.length">
-                    <div class="selected-header">
-                        <span @click="emitClear" class="material-icons back-btn">&#xe5cb;</span>
-                        {{ selectedEvents.length }} events at {{ selectedVenue }}
-                    </div>
-                    <div v-for="(event, idx) in selectedEvents" :id="event.id" :key="event.id">
-                        <DrawerItem
-                            @mouseover="emitMouseOver(event.id)"
-                            @mouseleave="emitMouseOver(null)"
-                            @click="emitClick(event)"
-                            :title="event.name"
-                            :images="event.images"
-                            :time="event.dates.start.localTime"
-                            :day="event.dates.start.dateTime"
-                            :venue="event._embedded.venues[0]"
-                            :ticket-link="event.url"
-                            :price-range="event.priceRanges"
+                <div>
+                    <Loadings class="loading" v-if="loading" />
+                    <transition v-else name="fade" class="transition">
+                        <DrawerSelectedItem
+                            v-if="!!selectedEvent"
+                            :event="selectedEvent"
+                            @back="emitClear"
                         />
-                    </div>
-                </div>
-                <div class="scrollbox" v-else-if="events.length">
-                    <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
-                        <DrawerItem
-                            @mouseover="emitMouseOver(event.id)"
-                            @mouseleave="emitMouseOver(null)"
-                            @click="emitClick(event)"
-                            :title="event.name"
-                            :images="event.images"
-                            :time="event.dates.start.localTime"
-                            :day="event.dates.start.dateTime"
-                            :venue="event._embedded.venues[0]"
-                            :ticket-link="event.url"
-                            :price-range="event.priceRanges"
-                        />
-                    </div>
-                </div>
-                <div v-else class="empty-wrapper">
-                    <h2>Nothing to see here...</h2>
-                    <span>Try searching by city and date, or by individual artist</span>
+                        <div class="scrollbox" v-else-if="selectedEvents.length">
+                            <div class="selected-header">
+                                <span
+                                    @click="emitClearCluster"
+                                    class="material-icons back-btn"
+                                >&#xe5cb;</span>
+                                {{ selectedEvents.length }} events at {{ selectedVenue }}
+                            </div>
+                            <div
+                                v-for="(event, idx) in selectedEvents"
+                                :id="event.id"
+                                :key="event.id"
+                            >
+                                <DrawerItem
+                                    @mouseover="emitMouseOver(event.id)"
+                                    @mouseleave="emitMouseOver(null)"
+                                    @click="emitClick(event)"
+                                    :title="event.name"
+                                    :images="event.images"
+                                    :time="event.dates.start.localTime"
+                                    :day="event.dates.start.dateTime"
+                                    :venue="event._embedded.venues[0]"
+                                    :ticket-link="event.url"
+                                    :price-range="event.priceRanges"
+                                    :hover="hoverId.value === event.id"
+                                />
+                            </div>
+                        </div>
+                        <div class="scrollbox" v-else-if="events.length">
+                            <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
+                                <DrawerItem
+                                    @mouseover="emitMouseOver(event.id)"
+                                    @mouseleave="emitMouseOver(null)"
+                                    @click="emitClick(event)"
+                                    :title="event.name"
+                                    :images="event.images"
+                                    :time="event.dates.start.localTime"
+                                    :day="event.dates.start.dateTime"
+                                    :venue="event._embedded.venues[0]"
+                                    :ticket-link="event.url"
+                                    :price-range="event.priceRanges"
+                                    :hover="hoverId === event.id"
+                                />
+                            </div>
+                        </div>
+                        <div v-else class="empty-wrapper">
+                            <h2>Nothing to see here...</h2>
+                            <span>Try searching by city and date, or by individual artist</span>
+                        </div>
+                    </transition>
                 </div>
             </div>
         </div>
@@ -116,7 +145,6 @@ function emitClear(): void {
     opacity: 1;
     height: 100%;
     box-shadow: 0 0 20px rgb(0 0 0 / 30%);
-    // background: $dark0;
     left: 0;
     -webkit-transform: translateX(0px);
     transform: translateX(0px);
@@ -150,7 +178,7 @@ function emitClear(): void {
     -ms-flex-direction: column;
     flex-direction: column;
     text-align: left;
-    overflow: visible;
+    overflow-x: hidden;
     position: absolute;
     height: 100%;
     width: 100%;
@@ -188,10 +216,12 @@ button {
     color: var(--dynamic-title-color);
 }
 
-.edan {
-    background: var(--app-background-color);
+.loading {
+    height: 340px;
 }
-
+.transition {
+    z-index: 2;
+}
 .selected-header {
     background: var(--dynamic-border-color);
     display: flex;
@@ -206,5 +236,20 @@ button {
     cursor: pointer;
     color: var(--dynamic-title-color);
     width: 15px;
+}
+.fade-enter-active,
+.fade-leave-active {
+    transition-duration: 0.3s;
+    transition-property: opacity;
+    transition-timing-function: cubic-bezier(0.55, 0, 0.1, 1);
+    overflow: hidden;
+}
+
+.fade-leave-active {
+    opacity: 0;
+}
+
+.fade-enter {
+    opacity: 0;
 }
 </style>

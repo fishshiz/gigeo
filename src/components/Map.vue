@@ -5,6 +5,7 @@ import { onMounted, reactive, provide, watch, ref } from 'vue'
 import moment from 'moment';
 import { GeocodeFeature, TMEvent, SpotifyArtist, Coordinates } from "../interface"
 import { EVENT_TYPES } from "../constants"
+import { RateLimiter } from "limiter";
 import Error from './Error.vue';
 interface Props {
   darkMode: boolean
@@ -31,7 +32,11 @@ interface State {
   hoveredEvent: string,
   selectedClusterEvents: TMEvent[],
   selectedClusterVenue: string,
-  isError: boolean
+  isError: boolean,
+  errorMessage: string,
+  selectedEvent: TMEvent | null,
+  drawerOpen: boolean,
+  loading: boolean,
 }
 let selectedClusterEvent = reactive([])
 const state: State = reactive({
@@ -41,7 +46,10 @@ const state: State = reactive({
   selectedClusterEvents: [],
   selectedClusterVenue: '',
   drawerOpen: true,
-  isError: true
+  isError: false,
+  errorMessage: "",
+  selectedEvent: null,
+  loading: false,
 });
 const token = ref('')
 provide('spotifyToken', token)
@@ -58,14 +66,17 @@ onMounted(() => {
   state.map.on('click', () => {
     state.selectedClusterEvents = [];
     state.selectedClusterVenue = '';
+    state.selectedEvent = null;
   })
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e: any) => {
     const element = document.getElementById(e.features[0].id);
-    console.log(e)
+    console.log(e.features)
     const location = { longitude: e.lngLat.lng, latitude: e.lngLat.lat };
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+      const event = state.events.find(event => event.id === e.features[0].id);
+      state.selectedEvent = event;
+      console.log(event)
     } else {
       state.selectedClusterVenue = e.features[0].properties.clusterVenue
       state.map.getSource('event-data').getClusterLeaves(e.features[0].properties.cluster_id, e.features[0].properties.points_count, 0, (error, features) => {
@@ -105,6 +116,10 @@ onMounted(() => {
 })
 
 function clearSelection() {
+  state.selectedEvent = null;
+}
+
+function clearCluster() {
   state.selectedClusterVenue = '';
   state.selectedClusterEvents = [];
 }
@@ -113,7 +128,7 @@ function clearSelection() {
 async function switchBasemap(map: any, styleID: string) {
   const newStyle = await fetch(
     `https://api.mapbox.com/styles/v1/${styleID}?access_token=${mapboxgl.accessToken}`
-  ).then(res => res.json());
+  ).then(res => res.json()).catch(e => setError(e));
   const currentStyle = map.getStyle();
   // ensure any sources from the current style are copied across to the new style
   newStyle.sources = Object.assign(
@@ -177,8 +192,8 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       properties: {
         description: place.name,
         venue: place._embedded.venues[0].name,
-        icon: EVENT_TYPES[eventType].icon,
-        color: EVENT_TYPES[eventType].color,
+        icon: 'star',
+        color: "#d5e68d",
         id: place.id,
       },
       geometry: {
@@ -239,6 +254,12 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
   let bounds = coordinates.reduce(function (bounds, coord) {
     return bounds.extend(coord);
   }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+  // console.log(bounds)
+  // var w = window.innerWidth;
+  // var h = window.innerHeight;
+  // const goToPoint = state.map.project({ lng: location.longitude, lat: location.latitude })
+  // console.log(drawerWidth, Math.round(h / 2), goToPoint)
+  // const coords = state.map.unproject([goToPoint.x - (drawerWidth / 2), Math.round(h / 2)])
   state.map.fitBounds(bounds, {
     padding: 80
   });
@@ -258,7 +279,6 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       'text-field': [
         'case',
         ['boolean', ['has', 'point_count'], false],
-        // ['concat', ['get', 'clusterEvent'], ' and ', ['-', ['to-number', ['get', 'point_count']], 1], ' others'],
         ['concat', ['get', 'point_count'], ' events at ', ['get', 'clusterVenue']],
         ['get', 'description'],
       ],
@@ -274,8 +294,10 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
         'case',
         ['boolean', ['feature-state', 'hover'], false],
         '#627BC1',
-        ['get', 'color']],
-      'text-halo-color': '#9dc5bb',
+        ['boolean', ['has', 'point_count'], false],
+        '#d5e68d',
+        ['get', 'color'],],
+      'text-halo-color': '#000',
       'text-halo-width': 1,
     }
   });
@@ -283,6 +305,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
 
 function clearMarkerState() {
   state.events = [];
+  console.log('evemts: ', state.events)
   if (state.map.getLayer('events')) {
     state.map.removeLayer('events')
   }
@@ -298,12 +321,15 @@ function clearMarkerState() {
 }
 
 async function handleArtistSearch(artist: SpotifyArtist) {
+  state.loading = true;
   const key = import.meta.env.VITE_TM_KEY
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${artist.name}`);
   markEvents(events, true)
+  state.loading = false;
 }
 
 async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
+  state.loading = true;
   const key = import.meta.env.VITE_TM_KEY
   const { geocode, dateRange } = obj;
   const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
@@ -323,6 +349,7 @@ async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date
   // TICKETMASTER
   const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&startDateTime=${dateStart}Z&endDateTime=${dateEnd}Z&city=${city}&state=${region.text}&countryCode=${country.short_code}`);
   markEvents(events)
+  state.loading = false;
 }
 
 function handleHover(id: string | null) {
@@ -342,18 +369,27 @@ function handleHover(id: string | null) {
     state.hoveredEvent = "";
   }
 }
-async function getPage(url: string) {
-  const results = await fetch(url).then(res => res.json());
+async function getPage(url: string, limiter: any) {
+  const remainingMessages = await limiter.removeTokens(1);
+  console.log(console.log(limiter.getTokensRemaining()))
+  const results = await fetch(url).then(res => res.json()).catch(e => setError(e));
   return results;
 }
 
+function setError(e: ErrorCallback) {
+  console.log(e);
+  state.isError = true;
+  state.errorMessage = e.name;
+}
+
+const limiter = new RateLimiter({ tokensPerInterval: 5, interval: "second" });
 async function getAllEvents(url: string) {
-  const firstResult = await getPage(url);
+  const firstResult = await getPage(url, limiter);
   if (!!firstResult._links.next) {
     const totalPages = firstResult.page.totalPages;
     const promises = [];
     for (let i = 0; i < totalPages - 1; i++) {
-      promises.push(getPage(`${url}&page=${i + 1}&size=20`))
+      promises.push(getPage(`${url}&page=${i + 1}&size=20`, limiter))
     }
     const results = await Promise.all(promises);
     return [firstResult._embedded.events, ...results].reduce((acc, d) => [...acc, ...d._embedded.events]);
@@ -361,6 +397,13 @@ async function getAllEvents(url: string) {
     return firstResult._embedded.events;
   }
 };
+
+function handleItemClick(event: TMEvent) {
+  const { location } = event._embedded.venues[0];
+  state.selectedEvent = event;
+  handleHover(event.id)
+  flyToItem(location);
+}
 
 function flyToItem(location: Coordinates) {
   var w = window.innerWidth;
@@ -392,7 +435,7 @@ function spotifySignIn() {
     return res.json()
   }).then(resp => {
     token.value = resp.access_token;
-  })
+  }).catch(e => setError(e))
 }
 
 function toggleDrawer() {
@@ -405,17 +448,20 @@ function toggleDrawer() {
   <DrawerCarousel
     @artist="handleArtistSearch"
     @geocode="handleCitySearch"
-    @item-click="flyToItem"
+    @item-click="handleItemClick"
     @hover="handleHover"
     @clear="clearSelection"
+    @clear-cluster="clearCluster"
     @toggle="toggleDrawer"
     :events="state.events"
     :selected-events="state.selectedClusterEvents"
     :selected-venue="state.selectedClusterVenue"
     :drawer-open="state.drawerOpen"
+    :selected-event="state.selectedEvent"
+    :loading="state.loading"
   />
-  <Error v-show="state.isError" :value="state.isError">
-    <div class="error">Error Alert</div>
+  <Error v-model:active="state.isError">
+    <div class="error">{{ state.errorMessage }}</div>
   </Error>
 </template>
 
