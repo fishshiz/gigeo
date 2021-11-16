@@ -1,42 +1,54 @@
 export const EVENT_TYPES = {
   Basketball: {
     key: "Basketball",
-    icon: "basketball",
+    icon: "basketball-ball-solid",
     color: "#d5e68d",
   },
   Sports: {
     key: "Sports",
-    icon: "volleyball",
+    icon: "basketball-ball-solid",
     color: "#d5e68d",
   },
   Music: {
     key: "Music",
-    icon: "music",
+    icon: "music-solid",
     color: "#d5e68d",
   },
   Miscellaneous: {
     key: "Miscellaneous",
-    icon: "star",
+    icon: "football-ball-solid",
     color: "#d5e68d",
   },
   "Lecture/Seminar": {
     key: "Lecture/Seminar",
-    icon: "library",
+    icon: "football-ball-solid",
     color: "#d5e68d",
   },
   "Arts & Theatre": {
     key: "Arts & Theatre",
-    icon: "art-gallery",
+    icon: "theater-masks-solid",
     color: "#d5e68d",
   },
   Comedy: {
     key: "Comedy",
-    icon: "bar",
+    icon: "theater-masks-solid",
     color: "#d5e68d",
   },
   Film: {
     key: "Film",
-    icon: "attraction",
+    icon: "film-solid",
     color: "#d5e68d",
   },
 };
+
+export const ICONS = [
+  "baseball-ball-solid",
+  "basketball-ball-solid",
+  "bullseye-solid",
+  "film-solid",
+  "football-ball-solid",
+  "futbol-solid",
+  "guitar-solid",
+  "music-solid",
+  "theater-masks-solid",
+];

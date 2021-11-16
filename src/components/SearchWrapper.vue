@@ -5,54 +5,55 @@ import debounce from "just-debounce-it";
 import moment from 'moment';
 import Datepicker from 'vue3-date-time-picker';
 import 'vue3-date-time-picker/dist/main.css'
-import { reactive, inject, computed, onMounted, nextTick, watch } from 'vue'
+import { reactive, computed, inject, nextTick, watch } from 'vue'
+import { dateRangeKey, activeGeocodeKey, updateDateRangeKey, injectStrict, updateSearchTermKey, searchTermKey, spotifyTokenKey, updateActiveGeocodeKey } from '../utils/injections';
 import { GeocodeResponse, GeocodeFeature, SpotifyArtist } from "../interface"
 interface Props {
     value: string
 }
 
 interface State {
-    searchTerm: string,
     dropdownItems: GeocodeFeature[],
-    activeGeocode: GeocodeFeature | undefined,
     dateRange: [Date, Date],
 }
 
+
 const state = reactive<State>({
-    searchTerm: '',
     dropdownItems: [],
-    activeGeocode: undefined,
     dateRange: [new Date(), new Date()],
 })
 
-const token = inject('spotifyToken');
+const searchTerm = injectStrict(searchTermKey)
+const token = injectStrict(spotifyTokenKey);
+const dateRange = injectStrict(dateRangeKey)
+const activeGeocode = injectStrict(activeGeocodeKey)
+const updateActiveGeocode = injectStrict(updateActiveGeocodeKey);
+const updateSearchTerm = injectStrict(updateSearchTermKey);
+const updateDateRange = injectStrict(updateDateRangeKey);
 
-watch(
-    () => state.dateRange,
-    (s, prevState) => {
-        if (!!state.activeGeocode) {
-            emitGeoSelect()
-        }
-    },
-    { deep: true }
-)
-
+watch(() => state.dateRange, (s, prevState) => {
+    if (typeof s !== undefined) {
+        console.log('jos')
+        updateDateRange(s)
+    }
+},
+    { deep: true })
 function isToday(someDate: Date): boolean {
     const today = new Date()
     return someDate.getDate() == today.getDate() &&
         someDate.getMonth() == today.getMonth() &&
         someDate.getFullYear() == today.getFullYear()
 }
-const singleDayPicked = computed(() => moment(state.dateRange[0]).isSame(moment(state.dateRange[1])))
+const singleDayPicked = computed(() => moment(dateRange.value[0]).isSame(moment(dateRange.value[1])))
 const todayPicked = computed(() => {
-    const compareDate = state.dateRange[0];
+    const compareDate = dateRange.value[0];
     const today = new Date()
     return singleDayPicked && compareDate.getDate() === today.getDate() &&
         compareDate.getMonth() === today.getMonth() &&
         compareDate.getFullYear() === today.getFullYear()
 })
 const tomorrowPicked = computed(() => {
-    const compareDate = moment(state.dateRange[0]);
+    const compareDate = moment(dateRange.value[0]);
     const tomorrow = moment().add(1, 'days');
     return compareDate.isSame(tomorrow, "day");
 })
@@ -63,21 +64,22 @@ const singleDayText = computed(() => {
     if (tomorrowPicked.value) {
         return 'Tomorrow'
     }
-    return moment(state.dateRange[0]).format("MMM Do")
+    return moment(dateRange.value[0]).format("MMM Do")
 })
 const multiDayDay = computed(() => {
-    const startDay = ordinalSuffix(moment(state.dateRange[0]).date());
-    const endDay = ordinalSuffix(moment(state.dateRange[1]).date());;
+    const startDay = ordinalSuffix(moment(dateRange.value[0]).date());
+    const endDay = ordinalSuffix(moment(dateRange.value[1]).date());;
     return [startDay, endDay]
 })
 const multiDayMonth = computed(() => {
-    const startMonth = moment(state.dateRange[0]).format("MMM");
-    const endMonth = moment(state.dateRange[1]).format("MMM");
+    const startMonth = moment(dateRange.value[0]).format("MMM");
+    const endMonth = moment(dateRange.value[1]).format("MMM");
     return startMonth === endMonth ? [startMonth] : [startMonth, endMonth];
 })
 const emit = defineEmits<{
-    (e: 'geocode', item: GeocodeFeature): void
-    (e: 'artist', item: SpotifyArtist): void
+    (e: 'geocode', item: GeocodeFeature): void,
+    (e: 'dateRange', dateRange: [Date, Date]): void,
+    (e: 'artist', name: string): void
 }>()
 
 function ordinalSuffix(i: number) {
@@ -96,7 +98,7 @@ function ordinalSuffix(i: number) {
 }
 const queryTypeahead = debounce(() => {
     // Spotify
-    const spotifyCall = fetch(`https://api.spotify.com/v1/search?q=${state.searchTerm}&type=artist&limit=5`, {
+    const spotifyCall = fetch(`https://api.spotify.com/v1/search?q=${searchTerm.value}&type=artist&limit=5`, {
         headers: {
             'Authorization': `Bearer ${token.value}`
         }
@@ -104,7 +106,7 @@ const queryTypeahead = debounce(() => {
 
     const key = import.meta.env.VITE_MB_KEY
     const geocodeCall = fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${state.searchTerm}.json?types=place&access_token=${key}`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${searchTerm.value}.json?types=place&access_token=${key}`
     ).then(response => response.json());
     const promises: Promise<any>[] = [spotifyCall, geocodeCall];
     Promise.all(promises).then(values => {
@@ -115,27 +117,28 @@ const queryTypeahead = debounce(() => {
 }, 300);
 
 function handleUpdate(query: string) {
-    state.searchTerm = query;
+    searchTerm.value = query;
     queryTypeahead()
 }
 
 function handleSelect(item: GeocodeFeature | SpotifyArtist) {
     if (item.type === 'artist') {
-        state.searchTerm = (item as SpotifyArtist).name;
-        emitArtistSelect((item as SpotifyArtist))
+        emitArtistSelect((item as SpotifyArtist).name)
     } else {
-        state.activeGeocode = (item as GeocodeFeature);
-        state.searchTerm = (item as GeocodeFeature).place_name;
-        emitGeoSelect()
+        console.log('poop')
+        updateActiveGeocode(item as GeocodeFeature)
+        updateSearchTerm((item as GeocodeFeature).place_name)
     }
     state.dropdownItems = [];
 }
 
-function emitGeoSelect() {
-    emit('geocode', { geocode: state.activeGeocode, dateRange: state.dateRange });
+function emitDateRange(dateRange: [Date, Date]) {
+    updateDateRange(dateRange)
 }
-function emitArtistSelect(item: SpotifyArtist) {
-    emit('artist', item);
+function emitArtistSelect(name: string) {
+    searchTerm.value = name;
+
+    emit('artist', name);
 }
 </script>
 
@@ -143,7 +146,7 @@ function emitArtistSelect(item: SpotifyArtist) {
     <div class="search">
         <div class="search-wrapper">
             <div class="search_dropdown">
-                <Search class="search-bar" :value="state.searchTerm" @update="handleUpdate" />
+                <Search class="search-bar" @update="handleUpdate" />
                 <Dropdown
                     v-show="!!state.dropdownItems.length"
                     :items="state.dropdownItems"
@@ -180,8 +183,9 @@ function emitArtistSelect(item: SpotifyArtist) {
 <style scoped lang="scss">
 .search {
     margin: 8px 0px 8px 16px;
-    position: sticky;
+    height: 50px;
     z-index: 100;
+    grid-row: 1;
 }
 
 .search-bar {
@@ -206,7 +210,6 @@ function emitArtistSelect(item: SpotifyArtist) {
 .datepicker {
     cursor: pointer;
     padding: 0px 15px;
-    position: absolute;
     right: 0;
     top: 0;
     display: block;
@@ -266,12 +269,10 @@ function emitArtistSelect(item: SpotifyArtist) {
     color: var(--button-hover-color);
     border: 3px solid var(--button-hover-color);
 }
-
 .search-wrapper {
-    text-align: left;
-}
-.search-wrapper {
-    text-align: left;
+    position: absolute;
+    display: flex;
+    justify-content: space-evenly;
 }
 
 .multi-day {

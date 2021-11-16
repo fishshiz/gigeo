@@ -1,18 +1,36 @@
 <script setup lang="ts">
 import DrawerCarousel from './DrawerCarousel.vue';
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl.js';
-import { onMounted, reactive, provide, watch, ref } from 'vue'
+import { onMounted, reactive, provide, readonly, watch, ref } from 'vue'
 import moment from 'moment';
 import { GeocodeFeature, TMEvent, SpotifyArtist, Coordinates } from "../interface"
-import { EVENT_TYPES } from "../constants"
+import { EVENT_TYPES, ICONS } from "../constants"
 import { RateLimiter } from "limiter";
 import Error from './Error.vue';
+import { MapMouseEvent } from 'mapbox-gl';
+import { activeGeocodeKey, updateActiveGeocodeKey, dateRangeKey, updateDateRangeKey, searchTermKey, updateSearchTermKey, spotifyTokenKey } from '../utils/injections';
 interface Props {
   darkMode: boolean
 }
 const props = defineProps<Props>()
 const darkMap = 'fishshiz/ckukigrtdav6m17n3jfw2jx3j';
 const lightMap = 'fishshiz/ckv1v5li01lx514piujpqwkqa';
+const drawerWidth = 408;
+const spotifyToken = ref<string>('')
+provide(spotifyTokenKey, readonly(spotifyToken))
+const searchTerm = ref<string>('');
+const updateSearchTerm = (t: string) => searchTerm.value = t;
+provide(searchTermKey, searchTerm)
+provide(updateSearchTermKey, updateSearchTerm);
+const dateRange = ref<[Date, Date]>([new Date(), new Date()]);
+const updateDateRange = (d: [Date, Date]) => dateRange.value = d;
+provide(dateRangeKey, dateRange)
+provide(updateDateRangeKey, updateDateRange)
+const activeGeocode = ref<GeocodeFeature | undefined>()
+const updateActiveGeocode = (g: GeocodeFeature | undefined) => activeGeocode.value = g;
+provide(activeGeocodeKey, activeGeocode)
+provide(updateActiveGeocodeKey, updateActiveGeocode)
+
 watch(() => props.darkMode, (s, prevState) => {
   if (s) {
     switchBasemap(state.map, darkMap)
@@ -26,6 +44,19 @@ watch(() => props.darkMode, (s, prevState) => {
   //   markEvents(state.events, false);
   // }
 })
+
+watch(() => activeGeocode.value, (s, prevState) => {
+  if (typeof s !== undefined) {
+    handleCitySearch()
+  }
+},
+  { deep: true })
+
+watch(() => dateRange.value, (d, prevState) => {
+  handleCitySearch()
+},
+  { deep: true })
+
 interface State {
   map: any,
   events: TMEvent[],
@@ -38,7 +69,6 @@ interface State {
   drawerOpen: boolean,
   loading: boolean,
 }
-let selectedClusterEvent = reactive([])
 const state: State = reactive({
   map: undefined,
   events: [],
@@ -51,8 +81,6 @@ const state: State = reactive({
   selectedEvent: null,
   loading: false,
 });
-const token = ref('')
-provide('spotifyToken', token)
 onMounted(() => {
   mapboxgl.accessToken = import.meta.env.VITE_MB_KEY;
   const style = props.darkMode ? darkMap : lightMap;
@@ -62,24 +90,32 @@ onMounted(() => {
     center: [-96, 37.8], // starting position
     zoom: 3 // starting zoom
   });
+  Promise.all(
+    ICONS.map(img => new Promise<void>((resolve, reject) => {
+      state.map.loadImage(`./src/icons/${img}.png`, ((error, res) => {
+        console.log(img, res)
+        state.map.addImage(img, res, { sdf: true })
+        resolve();
+      }))
+    }))
+  )
   spotifySignIn();
-  state.map.on('click', () => {
-    state.selectedClusterEvents = [];
-    state.selectedClusterVenue = '';
-    state.selectedEvent = null;
-  })
+
   // Set an event listener for a specific layer
   state.map.on('click', 'events', (e: any) => {
-    const element = document.getElementById(e.features[0].id);
-    console.log(e.features)
+    console.log(e)
+    const mapEvent = e.features[0];
     const location = { longitude: e.lngLat.lng, latitude: e.lngLat.lat };
-    if (element) {
-      const event = state.events.find(event => event.id === e.features[0].id);
-      state.selectedEvent = event;
-      console.log(event)
+    if (!mapEvent.properties.cluster_id) {
+      const event = state.events.find(event => event.id === mapEvent.id);
+      if (!!event) {
+        state.selectedEvent = event;
+      }
     } else {
-      state.selectedClusterVenue = e.features[0].properties.clusterVenue
+      state.selectedClusterEvents = []
+      state.selectedClusterVenue = mapEvent.properties.clusterVenue
       state.map.getSource('event-data').getClusterLeaves(e.features[0].properties.cluster_id, e.features[0].properties.points_count, 0, (error, features) => {
+        console.log('Cluster leaves:', error, features);
         features.forEach((feature: any) => {
           const event = state.events.find(event => event.id === feature.properties.id);
           state.selectedClusterEvents.push((event as TMEvent));
@@ -92,6 +128,14 @@ onMounted(() => {
     flyToItem(location);
   });
 
+  state.map.on('click', (e: MapMouseEvent) => {
+    const features = state.map.queryRenderedFeatures(e.point, { layers: ['events'] });
+    if (!features.length) {
+      state.selectedClusterEvents = [];
+      state.selectedClusterVenue = '';
+      state.selectedEvent = null;
+    }
+  })
   // Change the cursor to a pointer when the it enters a feature in the 'circle' layer.
   state.map.on('mouseenter', 'events', () => {
     state.map.getCanvas().style.cursor = 'pointer';
@@ -165,6 +209,10 @@ async function switchBasemap(map: any, styleID: string) {
 
 function markEvents(events: TMEvent[], drawLine: boolean = false) {
   clearMarkerState()
+  if (!events.length) {
+    state.events = [];
+    return;
+  }
   console.log('in marking', events)
   const dataSource = { type: 'FeatureCollection', features: [] }
   let coordinates: [number, number][] = [];
@@ -192,7 +240,7 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       properties: {
         description: place.name,
         venue: place._embedded.venues[0].name,
-        icon: 'star',
+        icon: EVENT_TYPES[eventType].icon,
         color: "#d5e68d",
         id: place.id,
       },
@@ -250,24 +298,25 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       }
     });
   }
-  console.log(coordinates)
   let bounds = coordinates.reduce(function (bounds, coord) {
     return bounds.extend(coord);
   }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
-  // console.log(bounds)
-  // var w = window.innerWidth;
-  // var h = window.innerHeight;
-  // const goToPoint = state.map.project({ lng: location.longitude, lat: location.latitude })
-  // console.log(drawerWidth, Math.round(h / 2), goToPoint)
-  // const coords = state.map.unproject([goToPoint.x - (drawerWidth / 2), Math.round(h / 2)])
-  state.map.fitBounds(bounds, {
-    padding: 80
+  console.log('YAHOO', bounds)
+  const goToPoint = state.map.project(bounds._sw)
+  const adjustedSWCoords = state.map.unproject([goToPoint.x - (drawerWidth / 2), goToPoint.y])
+  const adjustedBounds = new mapboxgl.LngLatBounds([adjustedSWCoords.lng, adjustedSWCoords.lat], [bounds._ne.lng, bounds._ne.lat]);
+  console.log('adjustedBounds', adjustedBounds)
+  console.log('adjustedSWCoords', adjustedSWCoords)
+  console.log('goToPoint', goToPoint)
+  state.map.fitBounds(adjustedBounds, {
+    padding: 40,
+    offset: [-(drawerWidth / 2), 0]
   });
   state.map.addSource('event-data', {
     'type': 'geojson',
     'promoteId': 'id',
     'cluster': true,
-    'clusterRadius': 1,
+    'clusterRadius': 0,
     'clusterProperties': { "clusterEvent": ["string", ["get", "description"]], "clusterVenue": ["string", ["get", "venue"]] },
     'data': dataSource
   })
@@ -285,11 +334,18 @@ function markEvents(events: TMEvent[], drawLine: boolean = false) {
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
       'text-radial-offset': 0.5,
       'text-justify': 'auto',
-      'icon-image': ['get', 'icon'],
-      'icon-size': 1.5,
+      'icon-image': [
+        'case',
+        ['boolean', ['has', 'icon'], false],
+        ['get', 'icon'],
+        'bullseye-solid'
+      ],
+      'icon-size': 0.6,
     },
     'paint': {
-      'icon-color': ['get', 'color'],
+      'icon-color': '#d5e68d',
+      'icon-halo-color': '#000',
+      'icon-halo-width': 1,
       'text-color': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
@@ -320,20 +376,23 @@ function clearMarkerState() {
   }
 }
 
-async function handleArtistSearch(artist: SpotifyArtist) {
+async function handleArtistSearch(name: string) {
+  searchTerm.value = name;
   state.loading = true;
+  state.selectedEvent = null;
   const key = import.meta.env.VITE_TM_KEY
-  const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${artist.name}`);
+  const events = await getAllEvents(`https://app.ticketmaster.com/discovery/v2/events?apikey=${key}&keyword=${name}`);
+  console.log(events);
   markEvents(events, true)
   state.loading = false;
 }
 
-async function handleCitySearch(obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }) {
+async function handleCitySearch() {
+  const geocode = activeGeocode.value
   state.loading = true;
   const key = import.meta.env.VITE_TM_KEY
-  const { geocode, dateRange } = obj;
-  const dateStart = moment(dateRange[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
-  const dateEnd = moment(dateRange[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
+  const dateStart = moment(dateRange.value[0]).startOf('day').format('YYYY-MM-DDTHH:mm:ss')
+  const dateEnd = moment(dateRange.value[1]).endOf('day').format('YYYY-MM-DDTHH:mm:ss')
   const region = geocode.context.filter(context => context.id.startsWith('region'))[0];
   const country = geocode.context.filter(context => context.id.startsWith('country'))[0];
 
@@ -385,6 +444,7 @@ function setError(e: ErrorCallback) {
 const limiter = new RateLimiter({ tokensPerInterval: 5, interval: "second" });
 async function getAllEvents(url: string) {
   const firstResult = await getPage(url, limiter);
+  console.log(firstResult)
   if (!!firstResult._links.next) {
     const totalPages = firstResult.page.totalPages;
     const promises = [];
@@ -393,9 +453,10 @@ async function getAllEvents(url: string) {
     }
     const results = await Promise.all(promises);
     return [firstResult._embedded.events, ...results].reduce((acc, d) => [...acc, ...d._embedded.events]);
-  } else {
+  } else if (!!firstResult._embedded) {
     return firstResult._embedded.events;
   }
+  return []
 };
 
 function handleItemClick(event: TMEvent) {
@@ -408,7 +469,6 @@ function handleItemClick(event: TMEvent) {
 function flyToItem(location: Coordinates) {
   var w = window.innerWidth;
   var h = window.innerHeight;
-  const drawerWidth = 408;
   const goToPoint = state.map.project({ lng: location.longitude, lat: location.latitude })
   console.log(drawerWidth, Math.round(h / 2), goToPoint)
   const coords = state.map.unproject([goToPoint.x - (drawerWidth / 2), Math.round(h / 2)])
@@ -434,7 +494,7 @@ function spotifySignIn() {
   }).then(res => {
     return res.json()
   }).then(resp => {
-    token.value = resp.access_token;
+    spotifyToken.value = resp.access_token;
   }).catch(e => setError(e))
 }
 
@@ -447,7 +507,6 @@ function toggleDrawer() {
   <div id="map" />
   <DrawerCarousel
     @artist="handleArtistSearch"
-    @geocode="handleCitySearch"
     @item-click="handleItemClick"
     @hover="handleHover"
     @clear="clearSelection"

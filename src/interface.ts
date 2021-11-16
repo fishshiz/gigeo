@@ -69,25 +69,29 @@ export interface TMEvent {
   url: string;
   _embedded: {
     venues: TMVenue[];
-    attractions:TMAttraction[]
+    attractions: TMAttraction[];
   };
 }
 
 export interface TMAttraction {
-  name: string,
-  type:"attraction",
-  id:string,
-  test:boolean,
-  url:string,
-  locale:"en-us",
-  aliases:string[],
-  images: TMImage[],
-  classifications:[{"primary":true,"segment":{"id":"KZFzniwnSyZfZ7v7nE","name":"Sports"},"genre":{"id":"KnvZfZ7vAAk","name":"Wrestling"},"subGenre":{"id":"KZazBEonSMnZfZ7vFna","name":"Wrestling"},"type":{"id":"KZAyXgnZfZ7v7lt","name":"Event Style"},"subType":{"id":"KZFzBErXgnZfZ7vAkJ","name":"Competition"},"family":false}],
-  upcomingEvents:{_total:number,ticketmaster:number},_links:{"self":{"href":"/discovery/v2/attractions/K8vZ917b2x7?locale=en-us"}}}
-
+  name: string;
+  type: string;
+  id: string;
+  test: boolean;
+  url: string;
+  locale: string;
+  aliases: string[];
+  images: TMImage[];
+  classifications: TMClassification[];
+  upcomingEvents: { _total: number; ticketmaster: number };
+  _links: {
+    self: {
+      href: string;
+    };
+  };
 }
 
-interface TMClassification {
+export interface TMClassification {
   family: boolean;
   genre: { id: string; name: keyof typeof EVENT_TYPES };
   primary: boolean;

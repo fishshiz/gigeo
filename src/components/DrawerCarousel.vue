@@ -19,8 +19,9 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-    (e: 'geocode', obj: { geocode: GeocodeFeature, dateRange: [Date, Date] }): void,
-    (e: 'artist', item: SpotifyArtist): void,
+    (e: 'geocode', geocode: GeocodeFeature): void,
+    (e: 'artist', name: string): void,
+    (e: 'dateRange', dateRange: [Date, Date]): void,
     (e: 'hover', id: string | null): void,
     (e: 'item-click', event: TMEvent): void,
     (e: 'clear-cluster'): void,
@@ -34,14 +35,16 @@ function toggleDrawer() {
     emit('toggle')
 }
 
-function emitSelect(e: SpotifyArtist | GeocodeFeature) {
-    if (e.type === 'artist') {
-        //@ts-ignore
-        emit('artist', e)
-    } else {
-        //@ts-ignore
-        emit('geocode', e)
-    }
+function emitGeocode(geocode: GeocodeFeature) {
+    emit('geocode', geocode)
+}
+
+function emitDateRange(dateRange: any) {
+    emit('dateRange', dateRange)
+}
+
+function emitArtistSelect(name: string) {
+    emit('artist', name)
 }
 
 function emitMouseOver(id: string | null) {
@@ -66,66 +69,62 @@ function emitClearCluster(): void {
     <div :class="[{ 'pane-collapsed': !drawerOpen }, 'pane']">
         <div class="pane-content">
             <div class="pane-content-holder">
-                <SearchWrapper @artist="emitSelect" @geocode="emitSelect" />
-                <div>
-                    <Loadings class="loading" v-if="loading" />
-                    <transition v-else name="fade" class="transition">
-                        <DrawerSelectedItem
-                            v-if="!!selectedEvent"
-                            :event="selectedEvent"
-                            @back="emitClear"
-                        />
-                        <div class="scrollbox" v-else-if="selectedEvents.length">
-                            <div class="selected-header">
-                                <span
-                                    @click="emitClearCluster"
-                                    class="material-icons back-btn"
-                                >&#xe5cb;</span>
-                                {{ selectedEvents.length }} events at {{ selectedVenue }}
-                            </div>
-                            <div
-                                v-for="(event, idx) in selectedEvents"
-                                :id="event.id"
-                                :key="event.id"
-                            >
-                                <DrawerItem
-                                    @mouseover="emitMouseOver(event.id)"
-                                    @mouseleave="emitMouseOver(null)"
-                                    @click="emitClick(event)"
-                                    :title="event.name"
-                                    :images="event.images"
-                                    :time="event.dates.start.localTime"
-                                    :day="event.dates.start.dateTime"
-                                    :venue="event._embedded.venues[0]"
-                                    :ticket-link="event.url"
-                                    :price-range="event.priceRanges"
-                                    :hover="hoverId.value === event.id"
-                                />
-                            </div>
+                <SearchWrapper
+                    @artist="emitArtistSelect"
+                    @geocode="emitGeocode"
+                    @date-range="emitDateRange"
+                />
+                <Loadings class="loading" v-if="loading" />
+                <transition v-else name="fade" class="transition">
+                    <DrawerSelectedItem
+                        v-if="!!selectedEvent"
+                        :event="selectedEvent"
+                        @back="emitClear"
+                        @artist-select="emitArtistSelect"
+                    />
+                    <div class="scrollbox" v-else-if="selectedEvents.length">
+                        <div class="selected-header">
+                            <span @click="emitClearCluster" class="material-icons back-btn">&#xe5cb;</span>
+                            {{ selectedEvents.length }} events at {{ selectedVenue }}
                         </div>
-                        <div class="scrollbox" v-else-if="events.length">
-                            <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
-                                <DrawerItem
-                                    @mouseover="emitMouseOver(event.id)"
-                                    @mouseleave="emitMouseOver(null)"
-                                    @click="emitClick(event)"
-                                    :title="event.name"
-                                    :images="event.images"
-                                    :time="event.dates.start.localTime"
-                                    :day="event.dates.start.dateTime"
-                                    :venue="event._embedded.venues[0]"
-                                    :ticket-link="event.url"
-                                    :price-range="event.priceRanges"
-                                    :hover="hoverId === event.id"
-                                />
-                            </div>
+                        <div v-for="(event, idx) in selectedEvents" :id="event.id" :key="event.id">
+                            <DrawerItem
+                                @mouseover="emitMouseOver(event.id)"
+                                @mouseleave="emitMouseOver(null)"
+                                @click="emitClick(event)"
+                                :title="event.name"
+                                :images="event.images"
+                                :time="event.dates.start.localTime"
+                                :day="event.dates.start.dateTime"
+                                :venue="event._embedded.venues[0]"
+                                :ticket-link="event.url"
+                                :price-range="event.priceRanges"
+                                :hover="hoverId === event.id"
+                            />
                         </div>
-                        <div v-else class="empty-wrapper">
-                            <h2>Nothing to see here...</h2>
-                            <span>Try searching by city and date, or by individual artist</span>
+                    </div>
+                    <div class="scrollbox" v-else-if="events.length">
+                        <div v-for="(event, idx) in events" :id="event.id" :key="event.id">
+                            <DrawerItem
+                                @mouseover="emitMouseOver(event.id)"
+                                @mouseleave="emitMouseOver(null)"
+                                @click="emitClick(event)"
+                                :title="event.name"
+                                :images="event.images"
+                                :time="event.dates.start.localTime"
+                                :day="event.dates.start.dateTime"
+                                :venue="event._embedded.venues[0]"
+                                :ticket-link="event.url"
+                                :price-range="event.priceRanges"
+                                :hover="hoverId === event.id"
+                            />
                         </div>
-                    </transition>
-                </div>
+                    </div>
+                    <div v-else class="empty-wrapper">
+                        <h2 class="empty-header">Nothing to see here...</h2>
+                        <span>Try searching by city and date, or by individual artist</span>
+                    </div>
+                </transition>
             </div>
         </div>
         <div class="pane-btn-holder">
@@ -160,26 +159,16 @@ function emitClearCluster(): void {
 }
 
 .pane-content {
-    position: absolute;
-    z-index: 1;
-    left: 0;
-    top: 0;
-    width: 100%;
     background-color: var(--app-background-color);
     height: 100%;
     font-family: Roboto, Arial, sans-serif;
 }
 
 .pane-content-holder {
-    display: -webkit-flex;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-flex-direction: column;
-    -ms-flex-direction: column;
-    flex-direction: column;
+    display: grid;
     text-align: left;
-    overflow-x: hidden;
-    position: absolute;
+    grid-template-columns: 100%;
+    grid-template-rows: 66px auto;
     height: 100%;
     width: 100%;
 }
@@ -214,6 +203,15 @@ button {
 .empty-wrapper {
     margin: 16px;
     color: var(--dynamic-title-color);
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.empty-header {
+    font-size: 30px;
+    margin-bottom: 12px;
 }
 
 .loading {
@@ -221,6 +219,7 @@ button {
 }
 .transition {
     z-index: 2;
+    grid-row: 2;
 }
 .selected-header {
     background: var(--dynamic-border-color);

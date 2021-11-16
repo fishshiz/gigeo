@@ -20,6 +20,9 @@ function formatDate(date: string) {
 }
 
 function truncate(str: string, length: number = 16): string {
+    if (!str) {
+        return '';
+    }
     return str.length <= length ? str : str.slice(0, length - 3).concat('...')
 }
 

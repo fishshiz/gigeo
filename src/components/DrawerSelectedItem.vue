@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { GeocodeFeature, SpotifyArtist, TMEvent, Coordinates } from "../interface";
-import { computed } from 'vue';
+import { GeocodeFeature, TMClassification, TMEvent, Coordinates } from "../interface";
+import { computed, reactive } from 'vue';
 import moment from 'moment'
 interface Props {
     event: TMEvent,
 }
+interface State {
+    attractionHoverIdx: number
+}
+const state: State = reactive({
+    attractionHoverIdx: -1
+})
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'back'): void,
+    (e: 'artist-select', artist: string): void
 }>()
 
 function emitBack() {
@@ -19,6 +26,7 @@ const eventLocation = computed(() => {
     if (venues.length) {
         console.log('yup', venues)
         const venue = venues[0];
+        console.log('y', venue, venue.name, venue.city.name, venue.state.name)
         const venueName = venue.name;
         const city = venue.city.name;
         const state = venue.state.name;
@@ -54,6 +62,22 @@ const date = computed(() => {
     // Create our number formatter.
     return moment(startDate).format('MMM Do h:mm a')
 })
+
+function emitArtist(name: string): void {
+    emit('artist-select', name);
+}
+
+const classifications = computed(() => {
+    const c: TMClassification = props.event.classifications.length ? props.event.classifications[0] : {}
+    console.log(c);
+    return {
+        genre: c.genre.name,
+        subGenre: c.subGenre.name,
+        segment: c.segment.name,
+        type: c.type ? c.type.name : '',
+        subType: c.subType ? c.subType.name : '',
+    }
+})
 </script>
 
 <template>
@@ -70,12 +94,28 @@ const date = computed(() => {
                 <div>{{ eventLocation }}</div>
                 <div>Starts at {{ priceRange }}</div>
             </div>
-
             <div v-if="attractions.length">
-                <div v-for="attraction in attractions" :key="attraction.id">
-                    <img class="attr-img" :src="attraction.images[0].url" />
-                    {{ attraction.name }}
+                <div class="label">Featuring</div>
+                <div class="attraction-wrapper">
+                    <div
+                        v-for="(attraction, idx) in attractions"
+                        :key="attraction.id"
+                        @mouseover="state.attractionHoverIdx = idx"
+                        @mouseleave="state.attractionHoverIdx = -1"
+                        :class="['attraction', { ['hover-attr']: state.attractionHoverIdx === idx }]"
+                    >
+                        <div class="circular--landscape" @click="emitArtist(attraction.name)">
+                            <img class="attr-img" :src="attraction.images[0].url" />
+                        </div>
+                        <span class="attr-name">{{ attraction.name }}</span>
+                    </div>
                 </div>
+            </div>
+            <div class="label">Tags</div>
+            <div class="classifications">
+                <div class="tag">{{ classifications.genre }}</div>
+                <div class="tag">{{ classifications.subGenre }}</div>
+                <div class="tag">{{ classifications.segment }}</div>
             </div>
 
             <div class="note" v-if="event.pleaseNote">
@@ -88,7 +128,7 @@ const date = computed(() => {
 
 <style scoped lang="scss">
 .wrapper {
-    overflow: visible;
+    overflow: scroll;
 }
 
 .banner {
@@ -106,8 +146,69 @@ const date = computed(() => {
     width: 408px;
 }
 
-.attr-img {
-    width: 108px;
+.label {
+    font-size: 18px;
+    color: var(--dynamic-title-color);
+    margin: 16px 0 12px 0;
+}
+
+.attraction {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 1em;
+    color: var(--dynamic-subtitle-color);
+}
+
+.hover-attr {
+    transform: scale(1.1);
+    cursor: pointer;
+}
+
+.hover-attr.circular--landscape {
+    filter: blur(1px);
+}
+.attraction-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    margin-bottom: 12px;
+}
+
+.circular--landscape {
+    display: inline-block;
+    position: relative;
+    width: 80px;
+    height: 80px;
+    overflow: hidden;
+    border-radius: 50%;
+}
+
+.circular--landscape img {
+    width: auto;
+    height: 100%;
+    margin-left: -40%;
+}
+
+.classifications {
+    background-image: linear-gradient(
+        var(--background-highlight-color),
+        var(--button-color)
+    );
+    background: linear-gravar(--background-highlight-color);
+    color: var(--dynamic-title-color);
+    height: 60px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 12px 0;
+    border-radius: 6px;
+}
+
+.tag {
+    border: 1px solid var(--dynamic-subtitle-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--dynamic-subtitle-color);
 }
 .selected-title {
     color: var(--dynamic-title-color);
@@ -148,5 +249,11 @@ const date = computed(() => {
 
 .content {
     margin: 0 12px;
+}
+
+.attr-name {
+    font-size: 12px;
+    padding: 6px;
+    color: var(--dynamic-subtitle-color);
 }
 </style>

@@ -1,11 +1,9 @@
 <script setup lang="ts">
-interface Props {
-    value: string
-}
+import { searchTermKey, injectStrict } from '../utils/injections'
+import { inject } from 'vue'
 
-const props = withDefaults(defineProps<Props>(), {
-    value: ''
-})
+const value = injectStrict(searchTermKey);
+
 
 const emit = defineEmits<{
     (e: 'update', value: string): void
@@ -13,6 +11,7 @@ const emit = defineEmits<{
 
 function updateValue(event: Event) {
     const input = event.target as HTMLInputElement;
+    value.value = input.value;
     emit('update', input.value);
 }
 </script>
