@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  apps/web:
+  web:
     dependencies:
       dotenv:
         specifier: ^10.0.0

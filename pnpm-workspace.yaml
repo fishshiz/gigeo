@@ -1,4 +1,4 @@
 packages:
-  - "apps/web"
+  - "web"
   - "packages/**"
-  - "!apps/api"
+  - "!api"
