@@ -1,7 +1,8 @@
 [package]
-name = "concert-scraper"
+name = "gigeo-api"
 version = "0.1.0"
 edition = "2021"
+
 
 [dependencies]
 # Web framework
