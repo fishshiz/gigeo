@@ -3,6 +3,7 @@ interface Event {
   name: string
   venue: Venue
   images: Image[]
+  dates: string
 }
 
 type Image = {

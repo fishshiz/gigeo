@@ -69,8 +69,8 @@ const MapWrapper = () => {
     const events = await fetch(
       `/api/concerts?latitude=${center[1]}&longitude=${center[0]}&radius=10&start=${range.start}T00:00:00Z&end=${range.end}T23:59:59Z`
     ).then((r) => r.json())
-
-    eventsContext.setEvents(events)
+    const eventsToUpdate = [...events]
+    eventsContext.setEvents(eventsToUpdate)
 
     const dataSource: FeatureCollection = {
       type: "FeatureCollection",
@@ -180,7 +180,7 @@ const MapWrapper = () => {
   }
 
   return (
-    <div className="flex-auto">
+    <div className="absolute top-0 left-0 block h-full w-full">
       <div className="align-center absolute top-5 right-0 left-0 z-10 m-auto flex w-min justify-center p-2">
         <Search dispatchPlace={setCoordinates} />
         <DateRangePicker value={range} onChange={(e) => setDateRange(e)} />

@@ -150,8 +150,19 @@ struct TmEvent {
     id: String,
     name: String,
     images: Vec<Images>,
+    dates: TmDate,
     #[serde(rename = "_embedded")]
     embedded: Option<EventEmbedded>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmDate {
+    start: TmDateStart,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmDateStart {
+    dateTime: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,6 +188,7 @@ struct EventResponse {
     name: String,
     venue: Option<VenueResponse>,
     images: Vec<Images>,
+    dates: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -259,11 +271,14 @@ async fn get_concerts_tm(
                 }),
             });
 
+            let dates = e.dates.start.dateTime;
+
             EventResponse {
                 id: e.id,
                 name: e.name,
                 venue,
                 images: e.images,
+                dates,
             }
         })
         .collect::<Vec<_>>();

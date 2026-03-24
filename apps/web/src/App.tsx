@@ -3,7 +3,7 @@ import { Drawer } from "./Drawer"
 
 function App() {
   return (
-    <main className="flex h-full">
+    <main className="h-full">
       <Drawer />
       <MapWrapper />
     </main>

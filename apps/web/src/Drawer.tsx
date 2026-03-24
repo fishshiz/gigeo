@@ -8,9 +8,9 @@ const Drawer = () => {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
-    <div className="w-64 flex-auto shadow-xl">
+    <div className="absolute top-20 bottom-0 left-0 z-10 w-full flex-auto overflow-y-scroll bg-white p-4 shadow-xl sm:top-0 sm:w-64">
       {events.map((event) => (
-        <EventCard event={event} />
+        <EventCard key={event.id} event={event} />
       ))}
     </div>
   )
