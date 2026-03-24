@@ -1,0 +1,50 @@
+{
+  "name": "web",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint",
+    "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@internationalized/date": "^3.12.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/geojson": "^7946.0.16",
+    "@workspace/ui": "*",
+    "dayjs": "^1.11.12",
+    "lucide-react": "^1.0.1",
+    "mapbox-gl": "^3.20.0",
+    "react": "^19.2.4",
+    "react-aria-components": "^1.16.0",
+    "react-dom": "^19.2.4",
+    "react-tailwindcss-datepicker": "^2.0.0",
+    "shaders": "^2.4.78",
+    "tailwind-merge": "^3.5.0",
+    "tailwind-variants": "^3.2.2",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@eslint/js": "^9.39.2",
+    "@rolldown/plugin-babel": "^0.2.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^25.1.0",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^17.2.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vite": "^8.0.1"
+  }
+}
