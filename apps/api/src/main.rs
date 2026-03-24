@@ -1,7 +1,6 @@
 mod config;
 
 use geohash::{encode, Coord};
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use axum::extract::{Query, State};
@@ -41,7 +40,7 @@ async fn main() -> Result<()> {
 
     // Load configuration.
     let config = AppConfig::from_env()?;
-    
+
     // Extract mapbox key before moving `config` into the worker.
     let mapbox_key_clone = config.mapbox_private_key.clone();
 
@@ -79,12 +78,6 @@ async fn main() -> Result<()> {
 async fn health_check() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "ok" }))
 }
-
-#[derive(Deserialize)]
-struct ConcertsQuery {
-    city: Option<String>,
-}
-
 #[derive(Deserialize)]
 struct CitiesQuery {
     q: Option<String>,
@@ -138,7 +131,7 @@ struct EventsQuery {
     longitude: f64,
     radius: u8,
     start: String,
-    end: String
+    end: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -188,11 +181,11 @@ struct EventResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Images {
-    ratio: String,
+    ratio: Option<String>,
     url: String,
-    width: i32,
-    height: i32,
-    fallback: bool
+    width: Option<i32>,
+    height: Option<i32>,
+    fallback: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -270,7 +263,7 @@ async fn get_concerts_tm(
                 id: e.id,
                 name: e.name,
                 venue,
-                images: e.images
+                images: e.images,
             }
         })
         .collect::<Vec<_>>();
