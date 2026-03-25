@@ -240,6 +240,7 @@ async fn get_concerts_tm(
         "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200",
         hash, state.ticketmaster_key, radius, start, end
     );
+    println!("{}", &url);
     let resp = state
         .client
         .get(&url)

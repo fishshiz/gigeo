@@ -6,6 +6,17 @@ interface Event {
   dates: string
 }
 
+interface GroupedEvents {
+  name: string
+  grouped: boolean
+  venue: string
+  dateRange: {
+    start: string
+    end: string
+  }
+  events: Event[]
+}
+
 type Image = {
   ratio: string
   url: string
@@ -24,4 +35,4 @@ type Location = {
   longitude: string
 }
 
-export type { Event }
+export type { Event, GroupedEvents }

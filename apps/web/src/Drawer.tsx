@@ -1,17 +1,92 @@
-import { EventCard } from "./EventCard"
+import { EventCard, GroupedEventCard } from "./EventCard"
 import { useEvents } from "./components/events-provider"
 import { useState } from "react"
+import type { Event, GroupedEvents } from "./lib/types"
+import {
+  parseAbsolute,
+  DateFormatter,
+  getLocalTimeZone,
+} from "@internationalized/date"
 const Drawer = () => {
   const eventsContext = useEvents()
   const { events } = eventsContext
 
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const normalizedEvents: (Event | GroupedEvents)[] = Object.values(
+    events.reduce((acc: Record<string, Event | GroupedEvents>, curr: Event) => {
+      const key = `${curr.name}_${curr.venue.name}`
+      if (!acc[key]) {
+        acc[key] = curr
+      } else if ("grouped" in acc[key]) {
+        const oldEvent = acc[key]
+        acc[key].events.push(curr)
+        acc[key].dateRange.start =
+          parseAbsolute(curr.dates, "UTC").compare(
+            parseAbsolute(oldEvent.dateRange.start, "UTC")
+          ) < 0
+            ? curr.dates
+            : oldEvent.dateRange.start
+        acc[key].dateRange.end =
+          parseAbsolute(curr.dates, "UTC").compare(
+            parseAbsolute(oldEvent.dateRange.end, "UTC")
+          ) > 0
+            ? curr.dates
+            : oldEvent.dateRange.end
+      } else {
+        const oldEvent = acc[key]
+        acc[key] = {
+          name: curr.name,
+          grouped: true,
+          venue: curr.venue.name,
+          dateRange: {
+            start:
+              parseAbsolute(curr.dates, "UTC").compare(
+                parseAbsolute(oldEvent.dates, "UTC")
+              ) < 0
+                ? curr.dates
+                : oldEvent.dates,
+            end:
+              parseAbsolute(curr.dates, "UTC").compare(
+                parseAbsolute(oldEvent.dates, "UTC")
+              ) > 0
+                ? curr.dates
+                : oldEvent.dates,
+          },
+          events: [oldEvent, curr],
+        }
+      }
+      return acc
+    }, {})
+  )
 
   return (
-    <div className="absolute top-20 bottom-0 left-0 z-10 w-full flex-auto overflow-y-scroll bg-white p-4 shadow-xl sm:top-0 sm:w-64">
-      {events.map((event) => (
-        <EventCard key={event.id} event={event} />
-      ))}
+    <div className="absolute top-20 bottom-0 left-0 z-10 w-full overflow-y-scroll bg-white p-4 shadow-xl sm:top-0 sm:w-64 dark:bg-black">
+      <ul className="flex h-full w-full flex-col justify-between gap-4">
+        {normalizedEvents.map((event: Event | GroupedEvents) => (
+          <li className="relative">
+            {"grouped" in event ? (
+              <GroupedEventCard key={event.name} events={event} />
+            ) : (
+              <EventCard
+                key={event.id}
+                event={event}
+                date={
+                  <span className="text-gray-600">
+                    {new DateFormatter("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                      timeZone: getLocalTimeZone(), // or a specific IANA tz
+                    }).format(parseAbsolute(event.dates, "UTC").toDate())}
+                  </span>
+                }
+              />
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
