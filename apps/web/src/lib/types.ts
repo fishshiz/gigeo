@@ -18,17 +18,19 @@ type Attraction = {
     instagram?: Link[]
     wiki?: Link[]
   }
-  classifications: {
-    family: boolean
-    primary: boolean
-    genre: ClassificationSegment
-    subGenre: ClassificationSegment
-    segment: ClassificationSegment
-    subType: ClassificationSegment
-  }[]
+  classifications: Classification[]
 }
 
 type Link = { url: string }
+
+type Classification = {
+  family: boolean
+  primary: boolean
+  genre: ClassificationSegment
+  subGenre: ClassificationSegment
+  segment: ClassificationSegment
+  subType: ClassificationSegment
+}
 
 type ClassificationSegment = { id: string; name: string }
 
@@ -62,4 +64,4 @@ type Location = {
   longitude: string
 }
 
-export type { TmEvent, Event, GroupedEvents, Attraction }
+export type { TmEvent, Event, GroupedEvents, Attraction, Classification }

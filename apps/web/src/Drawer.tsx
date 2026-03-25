@@ -66,7 +66,7 @@ const Drawer = () => {
   )
   console.log(normalizedEvents)
   return (
-    <div className="absolute top-20 bottom-0 left-0 z-10 w-full overflow-y-scroll bg-white shadow-xl sm:top-0 sm:w-64 dark:bg-black">
+    <div className="absolute top-20 bottom-0 left-0 z-10 w-full overflow-y-scroll bg-white shadow-xl sm:top-0 sm:w-md dark:bg-black">
       {eventsContext.selectedEvent ? (
         <EventDetails eventData={eventsContext.selectedEvent} />
       ) : (
