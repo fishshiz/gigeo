@@ -15,7 +15,8 @@ import { type RangeValue } from "react-aria"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
-import type { Event } from "./lib/types"
+import type { Event, TmEvent } from "./lib/types"
+import { formatDateTime } from "./lib/formats"
 
 const INITIAL_CENTER: [number, number] = [-74.0242, 40.6941]
 const INITIAL_ZOOM = 12.12
@@ -28,6 +29,18 @@ const MapWrapper = () => {
     start: today(getLocalTimeZone()),
     end: today(getLocalTimeZone()).add({ weeks: 1 }),
   })
+
+  useEffect(() => {
+    if (eventsContext.selectedEvent?.venue.location !== undefined) {
+      const { latitude, longitude } =
+        eventsContext.selectedEvent?.venue.location
+
+      mapRef.current?.flyTo({
+        center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
+        speed: 0.8,
+      })
+    }
+  }, [eventsContext.selectedEvent])
 
   const [center, setCenter] = useState<[number, number]>(INITIAL_CENTER)
   const theme =
@@ -69,7 +82,12 @@ const MapWrapper = () => {
     const events = await fetch(
       `/api/concerts?latitude=${center[1]}&longitude=${center[0]}&radius=10&start=${range.start}T00:00:00Z&end=${range.end}T23:59:59Z`
     ).then((r) => r.json())
-    const eventsToUpdate = [...events]
+    const eventsToUpdate: Event[] = [
+      ...events.map((e: TmEvent) => ({
+        datesPretty: formatDateTime(e.dates),
+        ...e,
+      })),
+    ]
     eventsContext.setEvents(eventsToUpdate)
 
     const dataSource: FeatureCollection = {
@@ -183,7 +201,11 @@ const MapWrapper = () => {
     <div className="absolute top-0 left-0 block h-full w-full">
       <div className="align-center absolute top-5 right-0 left-0 z-10 m-auto flex w-min justify-center p-2">
         <Search dispatchPlace={setCoordinates} />
-        <DateRangePicker value={range} onChange={(e) => setDateRange(e)} />
+        <DateRangePicker
+          aria-label="Select timeframe"
+          value={range}
+          onChange={(e) => setDateRange(e)}
+        />
       </div>
       <Map mapContainerRef={mapContainerRef} />
     </div>

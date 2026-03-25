@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fortawesome/react-fontawesome": "^3.3.0",
     "@internationalized/date": "^3.12.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/geojson": "^7946.0.16",
@@ -23,6 +24,8 @@
     "react-aria": "^3.47.0",
     "react-aria-components": "^1.16.0",
     "react-dom": "^19.2.4",
+    "react-social-icons": "^6.25.0",
+    "react-svg": "^17.2.4",
     "react-tailwindcss-datepicker": "^2.0.0",
     "shaders": "^2.4.78",
     "tailwind-merge": "^3.5.0",

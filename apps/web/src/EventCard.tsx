@@ -5,22 +5,18 @@ import {
   getLocalTimeZone,
 } from "@internationalized/date"
 import { HouseIcon } from "lucide-react"
+import { useEvents } from "./components/events-provider"
 
 import { useState, type ReactElement } from "react"
 const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
   let [src, setSrc] = useState(event.images.find((i) => i.ratio === "4_3")?.url)
-  const parsedDate = parseAbsolute(event.dates, "UTC")
-  const dateFormatter = new DateFormatter("en-US", {
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: getLocalTimeZone(), // or a specific IANA tz
-  })
-  const dateString = dateFormatter.format(parsedDate.toDate())
+  const eventsContext = useEvents()
+
   return (
-    <div className="shadow-8 rounded-xl border border-slate-200 bg-white p-4 dark:bg-[#494949]">
+    <div
+      className="shadow-8 rounded-xl border border-slate-200 bg-white p-4 dark:bg-[#494949]"
+      onClick={() => eventsContext.setSelectedEvent(event)}
+    >
       <div className="photo-detail">
         <img src={src} className="h-auto w-full" />
       </div>

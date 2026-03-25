@@ -1,10 +1,36 @@
-interface Event {
+interface TmEvent {
   id: string
   name: string
   venue: Venue
   images: Image[]
   dates: string
+  attractions: Attraction[]
 }
+
+interface Event extends TmEvent {
+  datesPretty: string
+}
+
+type Attraction = {
+  name: string
+  externalLinks?: {
+    homepage?: Link[]
+    instagram?: Link[]
+    wiki?: Link[]
+  }
+  classifications: {
+    family: boolean
+    primary: boolean
+    genre: ClassificationSegment
+    subGenre: ClassificationSegment
+    segment: ClassificationSegment
+    subType: ClassificationSegment
+  }[]
+}
+
+type Link = { url: string }
+
+type ClassificationSegment = { id: string; name: string }
 
 interface GroupedEvents {
   name: string
@@ -14,6 +40,7 @@ interface GroupedEvents {
     start: string
     end: string
   }
+  attractions: Attraction[]
   events: Event[]
 }
 
@@ -35,4 +62,4 @@ type Location = {
   longitude: string
 }
 
-export type { Event, GroupedEvents }
+export type { TmEvent, Event, GroupedEvents, Attraction }

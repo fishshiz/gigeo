@@ -168,15 +168,51 @@ struct TmDateStart {
 #[derive(Debug, Deserialize)]
 struct EventEmbedded {
     venues: Option<Vec<TmVenue>>,
+    attractions: Option<Vec<TmAttraction>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+struct TmAttraction {
+    name: Option<String>,
+    classifications: Option<Vec<TmClassification>>,
+    externalLinks: Option<TmExternalLinks>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TmExternalLinks {
+    wiki: Option<Vec<TmExternalLink>>,
+    homepage: Option<Vec<TmExternalLink>>,
+    instagram: Option<Vec<TmExternalLink>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TmExternalLink {
+    url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TmClassification {
+    primary: bool,
+    segment: Option<TmSegment>,
+    genre: Option<TmSegment>,
+    subGenre: Option<TmSegment>,
+    subType: Option<TmSegment>,
+    family: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TmSegment {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 struct TmVenue {
     name: Option<String>,
     location: Option<TmLocation>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct TmLocation {
     latitude: Option<String>,
     longitude: Option<String>,
@@ -189,6 +225,14 @@ struct EventResponse {
     venue: Option<VenueResponse>,
     images: Vec<Images>,
     dates: String,
+    attractions: Option<Vec<TmAttraction>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Attraction {
+    name: Option<String>,
+    classifications: Option<Vec<TmClassification>>,
+    externalLinks: Option<TmExternalLinks>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -261,8 +305,9 @@ async fn get_concerts_tm(
         .map(|e| {
             let venue = e
                 .embedded
-                .and_then(|emb| emb.venues)
-                .and_then(|mut vs| vs.pop()); // first venue
+                .as_ref()
+                .and_then(|emb| emb.venues.as_ref())
+                .and_then(|mut vs| vs.last().cloned()); // first venue
 
             let venue = venue.map(|v| VenueResponse {
                 name: v.name,
@@ -272,14 +317,15 @@ async fn get_concerts_tm(
                 }),
             });
 
-            let dates = e.dates.start.dateTime;
+            let attractions = e.embedded.and_then(|a| a.attractions);
 
             EventResponse {
                 id: e.id,
                 name: e.name,
                 venue,
                 images: e.images,
-                dates,
+                dates: e.dates.start.dateTime,
+                attractions,
             }
         })
         .collect::<Vec<_>>();

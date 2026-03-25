@@ -51,6 +51,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
       <TextField
         id="search"
         type="text"
+        aria-label="Search for a city"
         name="search"
         value={searchedTerm ? searchedTerm : searchTerm}
         placeholder="Search for ..."

@@ -6,7 +6,7 @@ type EventsProviderState = {
   events: Event[]
   setEvents: (events: Event[]) => void
   selectedEvent: Event | undefined
-  setSelectedEvent: (event: Event) => void
+  setSelectedEvent: (event: Event | undefined) => void
 }
 
 type EventsProviderProps = {
