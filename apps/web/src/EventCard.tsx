@@ -14,16 +14,14 @@ const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
 
   return (
     <div
-      className="shadow-8 rounded-xl border border-slate-200 bg-white p-4 dark:bg-[#494949]"
+      className="shadow-8 flex overflow-hidden rounded-xl border border-slate-100 bg-white dark:bg-[#494949]"
       onClick={() => eventsContext.setSelectedEvent(event)}
     >
-      <div className="photo-detail">
+      <div className="photo-detail max-w-[160px]">
         <img src={src} className="h-auto w-full" />
       </div>
-      <div>
-        <h3 className="text-base/7 font-semibold text-indigo-600">
-          {event.name}
-        </h3>
+      <div className="p-2">
+        <h3 className="font-semibold text-black">{event.name}</h3>
         <div>{date}</div>
         <div className="flex items-center text-base/7 font-semibold text-indigo-600">
           <HouseIcon aria-hidden className="h-4 w-4" />

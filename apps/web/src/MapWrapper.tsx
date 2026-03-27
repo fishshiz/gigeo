@@ -16,19 +16,15 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { Event, TmEvent } from "./lib/types"
-import { formatDateTime } from "./lib/formats"
+import { formatDate } from "./lib/formats"
 
-const INITIAL_CENTER: [number, number] = [-74.0242, 40.6941]
 const INITIAL_ZOOM = 12.12
 
 const MapWrapper = () => {
   const eventsContext = useEvents()
+  const { selectedCoordinates, dateRange } = eventsContext
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const mapContainerRef = useRef<HTMLElement | string>("map-container")
-  let [range, setRange] = useState<RangeValue<CalendarDate>>({
-    start: today(getLocalTimeZone()),
-    end: today(getLocalTimeZone()).add({ weeks: 1 }),
-  })
 
   useEffect(() => {
     if (eventsContext.selectedEvent?.venue.location !== undefined) {
@@ -42,7 +38,6 @@ const MapWrapper = () => {
     }
   }, [eventsContext.selectedEvent])
 
-  const [center, setCenter] = useState<[number, number]>(INITIAL_CENTER)
   const theme =
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -53,7 +48,7 @@ const MapWrapper = () => {
     mapRef.current = new mapboxgl.Map({
       style: theme,
       container: mapContainerRef.current,
-      center: center,
+      center: selectedCoordinates,
       zoom: INITIAL_ZOOM,
     })
     Promise.all(
@@ -80,14 +75,22 @@ const MapWrapper = () => {
       mapRef.current.removeSource("event-data-source")
     }
     const events = await fetch(
-      `/api/concerts?latitude=${center[1]}&longitude=${center[0]}&radius=10&start=${range.start}T00:00:00Z&end=${range.end}T23:59:59Z`
+      `/api/concerts?latitude=${selectedCoordinates[1]}&longitude=${selectedCoordinates[0]}&radius=10&start=${dateRange.start}T00:00:00Z&end=${dateRange.end}T23:59:59Z`
     ).then((r) => r.json())
-    const eventsToUpdate: Event[] = [
-      ...events.map((e: TmEvent) => ({
-        datesPretty: formatDateTime(e.dates),
-        ...e,
-      })),
-    ]
+    const eventsToUpdate: Record<string, Event[]> = events.reduce(
+      (acc: Record<string, Event[]>, curr: TmEvent) => {
+        const date = formatDate(curr.dates)
+        console.log(date)
+        const obj = { datesPretty: date, ...curr }
+        if (!acc[date]) {
+          acc[date] = [obj]
+        } else {
+          acc[date].push(obj)
+        }
+        return acc
+      },
+      {}
+    )
     eventsContext.setEvents(eventsToUpdate)
 
     const dataSource: FeatureCollection = {
@@ -180,33 +183,14 @@ const MapWrapper = () => {
 
   useEffect(() => {
     mapRef.current?.easeTo({
-      center: { lat: center[1], lng: center[0] },
+      center: { lat: selectedCoordinates[1], lng: selectedCoordinates[0] },
       speed: 0.8,
     })
     queryEvents()
-  }, [center])
-
-  const setCoordinates = (place: mapboxgl.GeoJSONFeature) => {
-    const { coordinates } = place.properties
-    console.log(coordinates)
-    setCenter([coordinates.longitude, coordinates.latitude])
-  }
-
-  const setDateRange = (dateRange: RangeValue<CalendarDate>) => {
-    setRange(dateRange)
-    queryEvents()
-  }
+  }, [selectedCoordinates])
 
   return (
     <div className="absolute top-0 left-0 block h-full w-full">
-      <div className="align-center absolute top-5 right-0 left-0 z-10 m-auto flex w-min justify-center p-2">
-        <Search dispatchPlace={setCoordinates} />
-        <DateRangePicker
-          aria-label="Select timeframe"
-          value={range}
-          onChange={(e) => setDateRange(e)}
-        />
-      </div>
       <Map mapContainerRef={mapContainerRef} />
     </div>
   )

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import { useEvents } from "./components/events-provider"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { TextField } from "@workspace/ui/components/ui/TextField"
 
@@ -17,6 +18,7 @@ const useDebounce = (value: string, delayTime: number) => {
 }
 
 const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
+  const { setSelectedCoordinates } = useEvents()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchedTerm, setSearchedTerm] = useState("")
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
@@ -41,13 +43,15 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
   const listboxId = "typeahead-listbox"
 
   const selectPlace = (place: GeoJSONFeature) => {
+    console.log(place)
+    const { coordinates } = place.properties
     setPlaces([place])
-    dispatchPlace(place)
+    setSelectedCoordinates([coordinates.longitude, coordinates.latitude])
     setSearchedTerm(place.properties.full_address)
   }
 
   return (
-    <div>
+    <div className="flex-1">
       <TextField
         id="search"
         type="text"
@@ -55,7 +59,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
         name="search"
         value={searchedTerm ? searchedTerm : searchTerm}
         placeholder="Search for ..."
-        className="block min-w-0 grow pr-3 pl-1 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm/6"
+        className="block grow pr-3 pl-1 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm/6"
         onChange={(e) => updateSearchTerm(e)}
       />
       {places.length > 1 && (
@@ -63,7 +67,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
           ref={listRef}
           id={listboxId}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+          className="absolute z-10 mt-1 max-h-60 w-[calc(100%-var(--spacing))] overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
         >
           {places.map((option, index) => (
             <li
@@ -71,7 +75,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
               id={`typeahead-option-${index}`}
               role="option"
               tabIndex={-1}
-              className={`flex cursor-pointer items-center px-3 py-1.5 ${
+              className={`flex w-full cursor-pointer items-center px-3 py-1.5 ${
                 index === activeIndex
                   ? "bg-indigo-600 text-white"
                   : "text-gray-900 hover:bg-gray-100"

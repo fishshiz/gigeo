@@ -1,29 +1,40 @@
+mod apple_music;
+mod apple_music_updater_handlers;
+mod auth;
 mod config;
+mod error;
+mod spotify;
+mod spotify_handlers;
+mod state;
+mod updater;
+
+use std::sync::Arc;
 
 use geohash::{encode, Coord};
+use tower_http::cors::CorsLayer;
 
 use anyhow::{Context, Result};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use tracing::info;
-
 use crate::config::AppConfig;
+use auth::{ClientCredentialsManager, SpotifyCredentials, UserTokenManager};
 use reqwest::Client;
+use spotify::SpotifyClient;
+use state::AppState;
+use tracing::info;
+use updater::ArtistQueue;
+
+use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager, MusicUserTokenStore};
+use apple_music::client::AppleMusicClient;
+use apple_music::updater::AppleArtistQueue;
 
 use geojson::FeatureCollection;
-
-#[derive(Clone)]
-struct AppState {
-    client: Client,
-    mapbox_key: String,
-    ticketmaster_key: String,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -38,6 +49,15 @@ async fn main() -> Result<()> {
         )
         .init();
 
+    // Load credentials from environment.
+    let creds = SpotifyCredentials::from_env();
+    let http = reqwest::Client::new();
+
+    let cc_manager = ClientCredentialsManager::new(creds.clone(), http.clone());
+    let user_manager = UserTokenManager::new(creds.clone(), http.clone());
+    let spotify = SpotifyClient::new(http.clone());
+    let artist_queue = ArtistQueue::new();
+
     // Load configuration.
     let config = AppConfig::from_env()?;
 
@@ -49,18 +69,61 @@ async fn main() -> Result<()> {
 
     let client = Client::new();
 
+    // -- Apple Music setup (optional — skip if env vars aren't set) ---------
+    let (apple_client, apple_dev, apple_user, apple_queue) = if std::env::var("APPLE_MUSIC_TEAM_ID")
+        .is_ok()
+    {
+        let creds = AppleMusicCredentials::from_env();
+        let storefront = std::env::var("APPLE_MUSIC_STOREFRONT").unwrap_or_else(|_| "us".into());
+        let client = AppleMusicClient::new(http.clone(), storefront);
+        let dev = DeveloperTokenManager::new(creds);
+        let user = MusicUserTokenStore::new();
+        let queue = AppleArtistQueue::new();
+        (Some(client), Some(dev), Some(user), Some(queue))
+    } else {
+        tracing::info!("Apple Music env vars not set — Apple Music routes will return errors");
+        (None, None, None, None)
+    };
+
     // Build the Axum router.
-    let state = AppState {
-        // pool,
+    let shared_state = Arc::new(AppState {
         client,
         mapbox_key: mapbox_key_clone,
         ticketmaster_key: ticketmaster_key_clone,
-    };
+        cc_manager,
+        user_manager,
+        spotify,
+        artist_queue,
+        apple_music_client: apple_client,
+        apple_dev_token: apple_dev,
+        apple_user_token: apple_user,
+        apple_artist_queue: apple_queue.clone(),
+    });
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/cities", get(get_cities))
         .route("/concerts", get(get_concerts_tm))
-        .with_state(state);
+        .route("/artists", get(spotify_handlers::get_artist_info))
+        // Apple Music routes
+        .route("/apple/artist", get(apple_music::handlers::get_artist_info))
+        .route(
+            "/apple/playlist",
+            post(apple_music::handlers::create_playlist),
+        )
+        .route(
+            "/apple/user-token",
+            post(apple_music::handlers::set_user_token),
+        )
+        .route(
+            "/apple/updater/config",
+            post(apple_music_updater_handlers::configure_apple_updater),
+        )
+        .route(
+            "/apple/updater/artists",
+            put(apple_music_updater_handlers::update_apple_artists),
+        )
+        .layer(CorsLayer::permissive())
+        .with_state(shared_state);
 
     // Start the HTTP server.
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
@@ -84,7 +147,7 @@ struct CitiesQuery {
 }
 
 async fn get_cities(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Query(params): Query<CitiesQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let query = params.q.unwrap_or_default();
@@ -142,6 +205,7 @@ struct TicketmasterResponse {
 
 #[derive(Debug, Deserialize)]
 struct Embedded {
+    #[serde(default)]
     events: Vec<TmEvent>,
 }
 
@@ -149,6 +213,7 @@ struct Embedded {
 struct TmEvent {
     id: String,
     name: String,
+    #[serde(default)]
     images: Vec<Images>,
     dates: TmDate,
     #[serde(rename = "_embedded")]
@@ -162,7 +227,13 @@ struct TmDate {
 
 #[derive(Debug, Deserialize)]
 struct TmDateStart {
-    dateTime: String,
+    // Ticketmaster may omit this for some events
+    #[serde(default)]
+    dateTime: Option<String>,
+    #[serde(default)]
+    localDate: Option<String>,
+    #[serde(default)]
+    localTime: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -176,6 +247,7 @@ struct TmAttraction {
     name: Option<String>,
     classifications: Option<Vec<TmClassification>>,
     externalLinks: Option<TmExternalLinks>,
+    images: Option<Vec<Images>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -224,7 +296,7 @@ struct EventResponse {
     name: String,
     venue: Option<VenueResponse>,
     images: Vec<Images>,
-    dates: String,
+    dates: Option<String>,
     attractions: Option<Vec<TmAttraction>>,
 }
 
@@ -257,7 +329,7 @@ struct LocationResponse {
 }
 
 async fn get_concerts_tm(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
     let latitude: f64 = params.latitude;
@@ -281,7 +353,7 @@ async fn get_concerts_tm(
     let start = params.start;
     let end = params.end;
     let url = format!(
-        "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200",
+        "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200&sort=date,asc",
         hash, state.ticketmaster_key, radius, start, end
     );
     println!("{}", &url);
@@ -292,10 +364,16 @@ async fn get_concerts_tm(
         .await
         .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
 
-    let body: TicketmasterResponse = resp
-        .json()
+    let status = resp.status();
+    let text = resp
+        .text()
         .await
-        .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("error reading body: {e}")))?;
+
+    println!("TM status = {status}, body = {text}");
+
+    let body: TicketmasterResponse = serde_json::from_str(&text)
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("serde error: {e:?}")))?;
 
     // 2) project into your flattened DTO
     let events = body
@@ -303,6 +381,17 @@ async fn get_concerts_tm(
         .into_iter()
         .flat_map(|e| e.events)
         .map(|e| {
+            // choose dateTime if present, else synthesize from localDate/localTime, else None
+            let dates = e.dates.start.dateTime.or_else(|| {
+                match (
+                    e.dates.start.localDate.as_ref(),
+                    e.dates.start.localTime.as_ref(),
+                ) {
+                    (Some(d), Some(t)) => Some(format!("{d}T{t}")),
+                    (Some(d), None) => Some(d.clone()),
+                    _ => None,
+                }
+            });
             let venue = e
                 .embedded
                 .as_ref()
@@ -324,7 +413,7 @@ async fn get_concerts_tm(
                 name: e.name,
                 venue,
                 images: e.images,
-                dates: e.dates.start.dateTime,
+                dates,
                 attractions,
             }
         })

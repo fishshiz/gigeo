@@ -1,12 +1,24 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import { type Event } from "@/lib/types"
+import {
+  type CalendarDate,
+  today,
+  getLocalTimeZone,
+} from "@internationalized/date"
+import { type RangeValue } from "react-aria"
+
+const INITIAL_CENTER: [number, number] = [-74.0242, 40.6941]
 
 type EventsProviderState = {
-  events: Event[]
-  setEvents: (events: Event[]) => void
+  events: Record<string, Event[]>
+  setEvents: (events: Record<string, Event[]>) => void
   selectedEvent: Event | undefined
   setSelectedEvent: (event: Event | undefined) => void
+  selectedCoordinates: [number, number]
+  setSelectedCoordinates: (coordinates: [number, number]) => void
+  dateRange: RangeValue<CalendarDate>
+  setDateRange: (date: RangeValue<CalendarDate>) => void
 }
 
 type EventsProviderProps = {
@@ -18,14 +30,30 @@ export const EventsProviderContext = React.createContext<
 >(undefined)
 
 export function EventsProvider({ children }: EventsProviderProps) {
-  const [events, setEvents] = React.useState<Event[]>([])
+  const [events, setEvents] = React.useState<Record<string, Event[]>>({})
   const [selectedEvent, setSelectedEvent] = React.useState<Event | undefined>(
     undefined
   )
+  const [selectedCoordinates, setSelectedCoordinates] =
+    React.useState<[number, number]>(INITIAL_CENTER)
+
+  const [dateRange, setDateRange] = React.useState<RangeValue<CalendarDate>>({
+    start: today(getLocalTimeZone()),
+    end: today(getLocalTimeZone()).add({ weeks: 1 }),
+  })
 
   return (
     <EventsProviderContext
-      value={{ events, selectedEvent, setEvents, setSelectedEvent }}
+      value={{
+        events,
+        selectedEvent,
+        setEvents,
+        setSelectedEvent,
+        selectedCoordinates,
+        setSelectedCoordinates,
+        dateRange,
+        setDateRange,
+      }}
     >
       {children}
     </EventsProviderContext>

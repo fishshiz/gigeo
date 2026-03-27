@@ -18,6 +18,7 @@ type Attraction = {
     instagram?: Link[]
     wiki?: Link[]
   }
+  images?: Image[]
   classifications: Classification[]
 }
 
@@ -64,4 +65,30 @@ type Location = {
   longitude: string
 }
 
-export type { TmEvent, Event, GroupedEvents, Attraction, Classification }
+type AmArtwork = {
+  url: string
+  width: number
+  height: number
+  bgColor: string
+}
+
+type AmArtist = {
+  name: string
+  id: string
+  apple_music_url: string
+  artwork: AmArtwork
+}
+
+interface AmArtistFull extends AmArtist {
+  genres: string[]
+  similar_artists: AmArtist[]
+}
+
+export type {
+  TmEvent,
+  Event,
+  GroupedEvents,
+  Attraction,
+  Classification,
+  AmArtistFull,
+}

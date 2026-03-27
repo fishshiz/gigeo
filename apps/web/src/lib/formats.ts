@@ -18,4 +18,15 @@ const formatDateTime = (date: string) => {
   return dateFormatter.format(parsedDate.toDate())
 }
 
-export { formatDateTime }
+const formatDate = (date: string) => {
+  const parsedDate = parseAbsolute(date, "UTC")
+
+  const dateFormatter = new DateFormatter("en-US", {
+    month: "long",
+    day: "numeric",
+    // or a specific IANA tz
+  })
+  return dateFormatter.format(parsedDate.toDate())
+}
+
+export { formatDateTime, formatDate }
