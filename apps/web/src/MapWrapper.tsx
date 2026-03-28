@@ -47,40 +47,33 @@ const MapWrapper = () => {
     mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
     mapRef.current = new mapboxgl.Map({
       style: theme,
-      container: mapContainerRef.current,
+      container: "map-container",
       center: selectedCoordinates,
       zoom: INITIAL_ZOOM,
     })
-    Promise.all(
-      ICONS.map(
-        (img) =>
-          new Promise<void>((resolve, reject) => {
-            mapRef.current?.loadImage(
-              `./src/assets/${img}.png`,
-              (error, res: any) => {
-                mapRef.current?.addImage(img, res, { sdf: true })
-                resolve()
-              }
-            )
-          })
-      )
-    )
+    // Promise.all(
+    //   ICONS.map(
+    //     (img) =>
+    //       new Promise<void>((resolve, reject) => {
+    //         mapRef.current?.loadImage(
+    //           `./src/assets/${img}.png`,
+    //           (error, res: any) => {
+    //             mapRef.current?.addImage(img, res, { sdf: true })
+    //             resolve()
+    //           }
+    //         )
+    //       })
+    //   )
+    // )
   }, [])
 
   const queryEvents = async () => {
-    if (mapRef.current?.getLayer("events")) {
-      mapRef.current.removeLayer("events")
-    }
-    if (mapRef.current?.getSource("event-data-source")) {
-      mapRef.current.removeSource("event-data-source")
-    }
     const events = await fetch(
       `/api/concerts?latitude=${selectedCoordinates[1]}&longitude=${selectedCoordinates[0]}&radius=10&start=${dateRange.start}T00:00:00Z&end=${dateRange.end}T23:59:59Z`
     ).then((r) => r.json())
     const eventsToUpdate: Record<string, Event[]> = events.reduce(
       (acc: Record<string, Event[]>, curr: TmEvent) => {
         const date = formatDate(curr.dates)
-        console.log(date)
         const obj = { datesPretty: date, ...curr }
         if (!acc[date]) {
           acc[date] = [obj]
@@ -125,6 +118,12 @@ const MapWrapper = () => {
       }
       dataSource.features.push(feature)
     })
+    if (mapRef.current?.getLayer("events")) {
+      mapRef.current.removeLayer("events")
+    }
+    if (mapRef.current?.getSource("event-data-source")) {
+      mapRef.current.removeSource("event-data-source")
+    }
     mapRef.current?.addSource("event-data-source", {
       type: "geojson",
       promoteId: "id",
@@ -187,13 +186,9 @@ const MapWrapper = () => {
       speed: 0.8,
     })
     queryEvents()
-  }, [selectedCoordinates])
+  }, [selectedCoordinates, dateRange])
 
-  return (
-    <div className="absolute top-0 left-0 block h-full w-full">
-      <Map mapContainerRef={mapContainerRef} />
-    </div>
-  )
+  return <div id="map-container" style={{ height: "100vh", width: "100%" }} />
 }
 
 export { MapWrapper }

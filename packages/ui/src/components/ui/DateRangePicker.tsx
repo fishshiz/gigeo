@@ -18,7 +18,11 @@ import { RangeCalendar } from "@workspace/ui/components/ui/RangeCalendar"
 import { composeTailwindRenderProps } from "@workspace/ui/lib/react-aria-utils"
 import { FieldButton } from "@workspace/ui/components/ui/FieldButton"
 import { useDateFormatter } from "react-aria"
-import { isSameMonth, isSameDay } from "@internationalized/date"
+import {
+  isSameMonth,
+  isSameDay,
+  getLocalTimeZone,
+} from "@internationalized/date"
 
 export interface DateRangePickerProps<
   T extends DateValue,
@@ -58,10 +62,13 @@ export function DateRangePicker<T extends DateValue>({
       <FieldGroup className="disabled:cursor-default">
         <FieldButton className="mr-1 w-full cursor-pointer outline-offset-0">
           <div className="flex w-fit flex-1 items-center overflow-x-auto overflow-y-clip [scrollbar-width:none]">
-            <span className="w-max ps-3 pe-2 text-sm">
-              {monthDayFormat.format(start?.toDate())}
-            </span>
-            {!isSameDay(start, end) && (
+            {start && (
+              <span className="w-max ps-3 pe-2 text-sm">
+                {monthDayFormat.format(start?.toDate(getLocalTimeZone()))}
+              </span>
+            )}
+
+            {start && end && !isSameDay(start, end) && (
               <>
                 <span
                   aria-hidden="true"
@@ -70,9 +77,11 @@ export function DateRangePicker<T extends DateValue>({
                   –
                 </span>
                 <span className="w-max flex-1 ps-2 pe-3 text-sm">
-                  {isSameMonth(start, end)
-                    ? dayFormat.format(end?.toDate())
-                    : monthDayFormat.format(end?.toDate())}
+                  {start &&
+                    end &&
+                    (isSameMonth(start, end)
+                      ? dayFormat.format(end?.toDate(getLocalTimeZone()))
+                      : monthDayFormat.format(end?.toDate(getLocalTimeZone())))}
                 </span>
               </>
             )}

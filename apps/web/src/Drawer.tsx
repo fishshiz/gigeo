@@ -5,11 +5,14 @@ import { EventDetails } from "./EventDetails"
 import { Search } from "./Search"
 import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
 import type { Event, GroupedEvents } from "./lib/types"
+import { formatDate } from "./lib/formats"
+import { ChevronRight } from "lucide-react"
 import {
   parseAbsolute,
   DateFormatter,
   getLocalTimeZone,
 } from "@internationalized/date"
+import { Link } from "@workspace/ui/components/ui/Link"
 const Drawer = () => {
   const eventsContext = useEvents()
   const {
@@ -73,33 +76,42 @@ const Drawer = () => {
   //   }, {})
   // )
   return (
-    <div className="absolute top-20 bottom-0 left-0 z-10 h-full max-h-screen w-full bg-white shadow-xl sm:top-0 sm:w-md dark:bg-black">
-      <div className="relative top-0 z-10 flex border-b border-b-slate-200 bg-white px-1 py-2">
+    <div className="z-10 flex h-full max-h-screen min-h-screen w-full basis-2xl flex-col bg-white shadow-xl sm:top-0 sm:w-md dark:bg-(--color-bg-dark-900)">
+      <div className="relative top-0 z-10 flex border-b border-b-slate-200 bg-white px-1 py-2 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-900)">
         <Search dispatchPlace={setSelectedCoordinates} />
         <DateRangePicker
           aria-label="Select timeframe"
           value={dateRange}
-          onChange={(_e) => setDateRange}
+          onChange={(date) => setDateRange(date)}
         />
       </div>
-      <div className="h-full">
-        {eventsContext.selectedEvent ? (
-          <EventDetails eventData={eventsContext.selectedEvent} />
-        ) : (
-          <EventList events={events} />
-        )}
-      </div>
+      {eventsContext.selectedEvent ? (
+        <EventDetails eventData={eventsContext.selectedEvent} />
+      ) : (
+        <EventList events={events} />
+      )}
     </div>
   )
 }
 
 const EventList = ({ events }: { events: Record<string, Event[]> }) => {
+  const entries = Object.entries(events)
+  const formatDateId = (date: string) =>
+    date.toLocaleLowerCase().replace(" ", "")
   return (
-    <div className="h-full overflow-y-scroll">
-      {Object.entries(events).map(([date, events]) => (
-        <div>
-          <div className="sticky top-0 z-10 border-b border-b-slate-200 bg-white p-4 text-violet-600">
+    <div className="overflow-y-scroll scroll-smooth">
+      {entries.map(([date, events], idx) => (
+        <div key={formatDateId(date)}>
+          <div
+            id={formatDateId(date)}
+            className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) p-4 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
+          >
             <h3>{date}</h3>
+            {idx < entries.length - 1 && (
+              <Link href={`#${formatDateId(entries[idx + 1][0])}`}>
+                <ChevronRight />
+              </Link>
+            )}
           </div>
           <ul className="flex w-full flex-col justify-between gap-4 p-4">
             {events.map((event) => (
@@ -109,14 +121,7 @@ const EventList = ({ events }: { events: Record<string, Event[]> }) => {
                   event={event}
                   date={
                     <span className="text-gray-600">
-                      {new DateFormatter("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                        timeZone: getLocalTimeZone(), // or a specific IANA tz
-                      }).format(parseAbsolute(event.dates, "UTC").toDate())}
+                      {formatDate(event.dates)}
                     </span>
                   }
                 />

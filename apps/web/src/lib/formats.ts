@@ -1,5 +1,6 @@
 import {
   parseAbsolute,
+  parseDate,
   DateFormatter,
   getLocalTimeZone,
 } from "@internationalized/date"
@@ -19,14 +20,13 @@ const formatDateTime = (date: string) => {
 }
 
 const formatDate = (date: string) => {
-  const parsedDate = parseAbsolute(date, "UTC")
-
+  const hasTime = date.includes("T")
+  const parsedDate = hasTime ? parseAbsolute(date, "UTC") : parseDate(date)
   const dateFormatter = new DateFormatter("en-US", {
     month: "long",
     day: "numeric",
-    // or a specific IANA tz
   })
-  return dateFormatter.format(parsedDate.toDate())
+  return dateFormatter.format(parsedDate.toDate(getLocalTimeZone()))
 }
 
 export { formatDateTime, formatDate }

@@ -55,6 +55,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
       <TextField
         id="search"
         type="text"
+        autoComplete="off"
         aria-label="Search for a city"
         name="search"
         value={searchedTerm ? searchedTerm : searchTerm}
@@ -67,7 +68,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
           ref={listRef}
           id={listboxId}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-60 w-[calc(100%-var(--spacing))] overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+          className="absolute z-20 mt-1 max-h-60 w-[calc(100%-var(--spacing))] overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
         >
           {places.map((option, index) => (
             <li

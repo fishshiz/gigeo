@@ -2,6 +2,12 @@ interface TmEvent {
   id: string
   name: string
   venue: Venue
+  url?: string
+  priceRanges?: {
+    currency: string
+    max: number
+    min: number
+  }[]
   images: Image[]
   dates: string
   attractions: Attraction[]

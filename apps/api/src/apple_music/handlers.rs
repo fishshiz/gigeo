@@ -71,6 +71,7 @@ pub async fn get_artist_info(
     let mut results = Vec::with_capacity(q.name.len());
 
     for artist_name in &q.name {
+        println!("{}", artist_name);
         let search_results = am.search_artists(&token, artist_name, 1).await?;
         let artist = search_results
             .into_iter()

@@ -212,12 +212,21 @@ struct Embedded {
 #[derive(Debug, Deserialize)]
 struct TmEvent {
     id: String,
+    url: Option<String>,
+    priceRanges: Option<Vec<TmPriceRange>>,
     name: String,
     #[serde(default)]
     images: Vec<Images>,
     dates: TmDate,
     #[serde(rename = "_embedded")]
     embedded: Option<EventEmbedded>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TmPriceRange {
+    currency: String,
+    min: f32,
+    max: f32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -298,6 +307,8 @@ struct EventResponse {
     images: Vec<Images>,
     dates: Option<String>,
     attractions: Option<Vec<TmAttraction>>,
+    url: Option<String>,
+    priceRanges: Option<Vec<TmPriceRange>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -356,7 +367,7 @@ async fn get_concerts_tm(
         "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200&sort=date,asc",
         hash, state.ticketmaster_key, radius, start, end
     );
-    println!("{}", &url);
+
     let resp = state
         .client
         .get(&url)
@@ -411,10 +422,12 @@ async fn get_concerts_tm(
             EventResponse {
                 id: e.id,
                 name: e.name,
+                url: e.url,
                 venue,
                 images: e.images,
                 dates,
                 attractions,
+                priceRanges: e.priceRanges,
             }
         })
         .collect::<Vec<_>>();

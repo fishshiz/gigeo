@@ -172,6 +172,7 @@ impl AppleMusicClient {
             storefront = self.storefront,
             term = urlencoding(term),
         );
+        println!("{}", term);
         let resp: SearchResponse = self.get_json(developer_token, None, &url).await?;
         Ok(resp.results.artists.map(|a| a.data).unwrap_or_default())
     }
@@ -209,8 +210,7 @@ impl AppleMusicClient {
             "{BASE}/v1/catalog/{storefront}/artists/{artist_id}",
             storefront = self.storefront,
         );
-        let resp: DataResponse<ArtistResource> =
-            self.get_json(developer_token, None, &url).await?;
+        let resp: DataResponse<ArtistResource> = self.get_json(developer_token, None, &url).await?;
         resp.data
             .into_iter()
             .next()
@@ -230,8 +230,7 @@ impl AppleMusicClient {
             "{BASE}/v1/catalog/{storefront}/artists/{artist_id}/view/similar-artists",
             storefront = self.storefront,
         );
-        let resp: ViewResponse<ArtistResource> =
-            self.get_json(developer_token, None, &url).await?;
+        let resp: ViewResponse<ArtistResource> = self.get_json(developer_token, None, &url).await?;
         Ok(resp.data)
     }
 
@@ -249,8 +248,7 @@ impl AppleMusicClient {
             "{BASE}/v1/catalog/{storefront}/artists/{artist_id}/view/top-songs?limit={limit}",
             storefront = self.storefront,
         );
-        let resp: ViewResponse<SongResource> =
-            self.get_json(developer_token, None, &url).await?;
+        let resp: ViewResponse<SongResource> = self.get_json(developer_token, None, &url).await?;
         Ok(resp.data)
     }
 
@@ -281,10 +279,8 @@ impl AppleMusicClient {
             .await?;
 
         // Response is 201 Created with `{ "data": [...] }`.
-        let wrapper: DataResponse<LibraryPlaylistResource> = resp
-            .json()
-            .await
-            .map_err(AppError::from)?;
+        let wrapper: DataResponse<LibraryPlaylistResource> =
+            resp.json().await.map_err(AppError::from)?;
 
         wrapper
             .data
@@ -367,11 +363,7 @@ impl AppleMusicClient {
         body: &serde_json::Value,
     ) -> Result<reqwest::Response, AppError> {
         self.request_with_backoff(|| {
-            let mut req = self
-                .http
-                .post(url)
-                .bearer_auth(developer_token)
-                .json(body);
+            let mut req = self.http.post(url).bearer_auth(developer_token).json(body);
             if let Some(ut) = user_token {
                 req = req.header("Music-User-Token", ut);
             }
@@ -402,7 +394,11 @@ impl AppleMusicClient {
 
                 let server_wait = parse_retry_after(&resp);
                 let backoff = server_wait.max(1) * 2u64.pow(attempt - 1);
-                tracing::warn!(attempt, backoff, "Apple Music rate limited (429), backing off");
+                tracing::warn!(
+                    attempt,
+                    backoff,
+                    "Apple Music rate limited (429), backing off"
+                );
                 tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
                 continue;
             }
@@ -414,9 +410,10 @@ impl AppleMusicClient {
                 let message = serde_json::from_str::<AppleErrorResponse>(&text)
                     .ok()
                     .and_then(|e| {
-                        e.errors.into_iter().next().map(|err| {
-                            err.detail.unwrap_or(err.title)
-                        })
+                        e.errors
+                            .into_iter()
+                            .next()
+                            .map(|err| err.detail.unwrap_or(err.title))
                     })
                     .unwrap_or(text);
 

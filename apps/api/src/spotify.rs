@@ -178,6 +178,12 @@ impl SpotifyClient {
         self.get_json(token, &url).await
     }
 
+    /// `GET /artists/{id}`  — non-deprecated.
+    pub async fn get_artist_by_href(&self, token: &str, href: &str) -> Result<Artist, AppError> {
+        let url = format!("{href}");
+        self.get_json(token, &url).await
+    }
+
     // -- Playlists (require user-scoped token) ------------------------------
 
     /// `POST /me/playlists`
