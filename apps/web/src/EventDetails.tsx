@@ -10,10 +10,6 @@ import {
   MapPinIcon,
   DollarSignIcon,
   ClockIcon,
-  MicVocalIcon,
-  BotIcon,
-  HandMetalIcon,
-  GuitarIcon,
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
@@ -188,7 +184,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
   const primaryGenre = genres[0]
   const componentStyle = {
     "--tw-gradient-from": `${normalizeBg(artwork.bgColor)}80`,
-  }
+  } as React.CSSProperties
 
   return (
     <div

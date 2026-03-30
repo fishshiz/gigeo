@@ -1,6 +1,5 @@
 import { EventCard } from "./EventCard"
 import { useEvents } from "./components/events-provider"
-import { useState } from "react"
 import { EventDetails } from "./EventDetails"
 import { Search } from "./Search"
 import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
@@ -10,17 +9,16 @@ import { ChevronRight } from "lucide-react"
 import { Link } from "@workspace/ui/components/ui/Link"
 const Drawer = () => {
   const eventsContext = useEvents()
-  const { events, dateRange, setDateRange, setSelectedCoordinates } =
-    eventsContext
+  const { events, dateRange, setDateRange } = eventsContext
 
   return (
     <div className="z-10 flex h-full max-h-screen min-h-screen w-full basis-2xl flex-col bg-white shadow-xl sm:top-0 sm:w-md dark:bg-(--color-bg-dark-900)">
       <div className="relative top-0 z-10 flex border-b border-b-slate-200 bg-white px-1 py-2 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-900)">
-        <Search dispatchPlace={setSelectedCoordinates} />
+        <Search />
         <DateRangePicker
           aria-label="Select timeframe"
           value={dateRange}
-          onChange={(date) => setDateRange(date)}
+          onChange={(date) => date && setDateRange(date)}
         />
       </div>
       {eventsContext.selectedEvent ? (

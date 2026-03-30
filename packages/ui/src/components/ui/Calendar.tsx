@@ -1,15 +1,14 @@
 "use client"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import React from "react"
 import {
   Calendar as AriaCalendar,
   CalendarGridHeader as AriaCalendarGridHeader,
-  CalendarProps as AriaCalendarProps,
+  type CalendarProps as AriaCalendarProps,
   CalendarCell,
   CalendarGrid,
   CalendarGridBody,
   CalendarHeaderCell,
-  DateValue,
+  type DateValue,
   Heading,
   Text,
   useLocale,

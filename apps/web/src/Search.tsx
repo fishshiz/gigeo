@@ -43,10 +43,11 @@ const Search = () => {
 
   const selectPlace = (place: GeoJSONFeature) => {
     console.log(place)
-    const { coordinates } = place.properties
+    if (place.geometry.type === "GeometryCollection") return
+    const coordinates = place.geometry.coordinates as [number, number]
     setPlaces([place])
-    setSelectedCoordinates([coordinates.longitude, coordinates.latitude])
-    setSearchedTerm(place.properties.full_address)
+    setSelectedCoordinates([coordinates[0], coordinates[1]])
+    setSearchedTerm(place.properties?.full_address)
   }
 
   return (
@@ -79,7 +80,7 @@ const Search = () => {
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => selectPlace(option)}
             >
-              {option.properties.full_address}
+              {option.properties?.full_address}
             </li>
           ))}
         </ul>
