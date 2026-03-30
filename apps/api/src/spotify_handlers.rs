@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
-    Json,
 };
 use axum_extra::extract::Query as QueryArray;
 use serde::{Deserialize, Serialize};
@@ -223,6 +223,6 @@ fn generate_state() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     (0..16)
-        .map(|_| format!("{:02x}", rng.gen::<u8>()))
+        .map(|_| format!("{:02x}", rng.r#gen::<u8>()))
         .collect()
 }

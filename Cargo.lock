@@ -568,7 +568,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gigeo-api"
+name = "gigeo_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -589,9 +589,12 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tokio",
+ "tower",
  "tower-http",
+ "tower-service",
  "tracing",
  "tracing-subscriber",
+ "vercel_runtime",
 ]
 
 [[package]]
@@ -791,6 +794,7 @@ dependencies = [
  "socket2",
  "system-configuration",
  "tokio",
+ "tower-layer",
  "tower-service",
  "tracing",
  "windows-registry",
@@ -2072,6 +2076,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32da49809aab5c3bc678af03902d4ccddea2a87d028d86392a4b1560c6906c70"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2240,6 +2255,26 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
+
+[[package]]
+name = "vercel_runtime"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ae39c5605f595542c909f24ad181585a850adef13cba934f8279ac4848e106"
+dependencies = [
+ "base64",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "lazy_static",
+ "libc",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tower",
+]
 
 [[package]]
 name = "version_check"
