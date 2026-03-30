@@ -1,80 +1,18 @@
-import { EventCard, GroupedEventCard } from "./EventCard"
+import { EventCard } from "./EventCard"
 import { useEvents } from "./components/events-provider"
 import { useState } from "react"
 import { EventDetails } from "./EventDetails"
 import { Search } from "./Search"
 import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
-import type { Event, GroupedEvents } from "./lib/types"
+import type { Event } from "./lib/types"
 import { formatDate } from "./lib/formats"
 import { ChevronRight } from "lucide-react"
-import {
-  parseAbsolute,
-  DateFormatter,
-  getLocalTimeZone,
-} from "@internationalized/date"
 import { Link } from "@workspace/ui/components/ui/Link"
 const Drawer = () => {
   const eventsContext = useEvents()
-  const {
-    events,
-    dateRange,
-    setDateRange,
-    selectedCoordinates,
-    setSelectedCoordinates,
-  } = eventsContext
+  const { events, dateRange, setDateRange, setSelectedCoordinates } =
+    eventsContext
 
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  // const normalizedEvents: (Event | GroupedEvents)[] = Object.values(
-  //   Object.entries(events).forEach(entry).reduce((acc: Record<string, Event | GroupedEvents>, curr: Event) => {
-  //     const primaryAttraction = curr.attractions
-  //       ? curr.attractions[0].name
-  //       : curr.name
-  //     const key = `${primaryAttraction}_${curr.venue.name}`
-  //     if (!acc[key]) {
-  //       acc[key] = curr
-  //     } else if ("grouped" in acc[key]) {
-  //       const oldEvent = acc[key]
-  //       acc[key].events.push(curr)
-  //       acc[key].dateRange.start =
-  //         parseAbsolute(curr.dates, "UTC").compare(
-  //           parseAbsolute(oldEvent.dateRange.start, "UTC")
-  //         ) < 0
-  //           ? curr.dates
-  //           : oldEvent.dateRange.start
-  //       acc[key].dateRange.end =
-  //         parseAbsolute(curr.dates, "UTC").compare(
-  //           parseAbsolute(oldEvent.dateRange.end, "UTC")
-  //         ) > 0
-  //           ? curr.dates
-  //           : oldEvent.dateRange.end
-  //       acc[key].attractions = curr.attractions
-  //     } else {
-  //       const oldEvent = acc[key]
-  //       acc[key] = {
-  //         name: curr.name,
-  //         grouped: true,
-  //         venue: curr.venue.name,
-  //         attractions: curr.attractions,
-  //         dateRange: {
-  //           start:
-  //             parseAbsolute(curr.dates, "UTC").compare(
-  //               parseAbsolute(oldEvent.dates, "UTC")
-  //             ) < 0
-  //               ? curr.dates
-  //               : oldEvent.dates,
-  //           end:
-  //             parseAbsolute(curr.dates, "UTC").compare(
-  //               parseAbsolute(oldEvent.dates, "UTC")
-  //             ) > 0
-  //               ? curr.dates
-  //               : oldEvent.dates,
-  //         },
-  //         events: [oldEvent, curr],
-  //       }
-  //     }
-  //     return acc
-  //   }, {})
-  // )
   return (
     <div className="z-10 flex h-full max-h-screen min-h-screen w-full basis-2xl flex-col bg-white shadow-xl sm:top-0 sm:w-md dark:bg-(--color-bg-dark-900)">
       <div className="relative top-0 z-10 flex border-b border-b-slate-200 bg-white px-1 py-2 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-900)">

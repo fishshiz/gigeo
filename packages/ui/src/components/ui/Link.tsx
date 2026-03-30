@@ -1,8 +1,7 @@
 "use client"
-import React from "react"
 import {
   Link as AriaLink,
-  LinkProps as AriaLinkProps,
+  type LinkProps as AriaLinkProps,
   composeRenderProps,
 } from "react-aria-components"
 import { tv } from "tailwind-variants"

@@ -1,9 +1,4 @@
-import type {
-  Event,
-  Classification,
-  Attraction,
-  AmArtistFull,
-} from "./lib/types"
+import type { Event, Attraction, AmArtistFull } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { useEvents } from "./components/events-provider"
@@ -23,14 +18,12 @@ import {
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
 import { ReactSVG } from "react-svg"
-import { SocialIcon } from "react-social-icons/component"
 import "react-social-icons/instagram"
 
 const EventDetails = ({ eventData }: { eventData: Event }) => {
   const { attractions } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<Error | null>(null)
+
   const eventsContext = useEvents()
 
   useEffect(() => {
@@ -38,7 +31,6 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
 
     async function fetchData() {
       try {
-        setLoading(true)
         const artistInfoQuery = eventData.attractions
           .map((attraction) => `name=${encodeURIComponent(attraction.name)}`)
           .join("&")
@@ -46,11 +38,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()
         if (!cancelled) setArtistInfo(json)
-      } catch (e) {
-        if (!cancelled) setError(e as Error)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      } catch (e) {}
     }
 
     fetchData()
@@ -295,41 +283,6 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
 
         <span>{label}</span>
       </Link>
-    </li>
-  )
-}
-
-const AttractionCard = ({ attraction }: { attraction: Attraction }) => {
-  return (
-    <div>
-      {attraction.images && (
-        <img className="w-full" src={attraction.images[0].url} />
-      )}
-      {attraction.name}
-    </div>
-  )
-}
-
-const GenreBadge = ({ genre }: { genre: string }) => {
-  let icon
-  switch (genre) {
-    case "Dance/Electronic":
-      icon = <BotIcon aria-hidden className="h-10 w-10" />
-      break
-    case "Country":
-      icon = <GuitarIcon aria-hidden className="h-10 w-10" />
-      break
-    case "Rock":
-      icon = <HandMetalIcon aria-hidden className="h-10 w-10" />
-      break
-    case "Pop":
-    default:
-      icon = <MicVocalIcon aria-hidden className="h-10 w-10" />
-  }
-  return (
-    <li className="flex rounded-md bg-rose-400 text-white">
-      {icon}
-      <span>{genre}</span>
     </li>
   )
 }

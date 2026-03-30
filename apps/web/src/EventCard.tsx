@@ -8,9 +8,8 @@ import { HouseIcon } from "lucide-react"
 import { useEvents } from "./components/events-provider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 
-import { useState, type ReactElement } from "react"
+import { type ReactElement } from "react"
 const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
-  let [src, setSrc] = useState(event.images.find((i) => i.ratio === "4_3")?.url)
   const eventsContext = useEvents()
 
   return (
@@ -49,9 +48,6 @@ const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
 }
 
 const GroupedEventCard = ({ events }: { events: GroupedEvents }) => {
-  let [src, setSrc] = useState(
-    events.events[0].images.find((i) => i.ratio === "4_3")?.url
-  )
   const startDate = parseAbsolute(events.dateRange.start, "UTC")
   const endDate = parseAbsolute(events.dateRange.end, "UTC")
   const dateFormatter = new DateFormatter("en-US", {

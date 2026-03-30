@@ -1,16 +1,6 @@
-import { useRef, useEffect, useState } from "react"
-import { Search } from "./Search"
-import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
-import { Map } from "./Map"
+import { useRef, useEffect } from "react"
 import mapboxgl from "mapbox-gl"
-import { ICONS } from "./constants"
 import { useEvents } from "./components/events-provider"
-import {
-  today,
-  getLocalTimeZone,
-  type CalendarDate,
-} from "@internationalized/date"
-import { type RangeValue } from "react-aria"
 
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
@@ -24,7 +14,6 @@ const MapWrapper = () => {
   const eventsContext = useEvents()
   const { selectedCoordinates, dateRange } = eventsContext
   const mapRef = useRef<mapboxgl.Map | null>(null)
-  const mapContainerRef = useRef<HTMLElement | string>("map-container")
 
   useEffect(() => {
     if (eventsContext.selectedEvent?.venue.location !== undefined) {
@@ -51,20 +40,6 @@ const MapWrapper = () => {
       center: selectedCoordinates,
       zoom: INITIAL_ZOOM,
     })
-    // Promise.all(
-    //   ICONS.map(
-    //     (img) =>
-    //       new Promise<void>((resolve, reject) => {
-    //         mapRef.current?.loadImage(
-    //           `./src/assets/${img}.png`,
-    //           (error, res: any) => {
-    //             mapRef.current?.addImage(img, res, { sdf: true })
-    //             resolve()
-    //           }
-    //         )
-    //       })
-    //   )
-    // )
   }, [])
 
   const queryEvents = async () => {
