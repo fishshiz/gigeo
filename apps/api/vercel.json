@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "target/release"
+  "outputDirectory": "apps/api/target/release"
 }

@@ -17,12 +17,11 @@ const useDebounce = (value: string, delayTime: number) => {
   return debounceValue
 }
 
-const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
+const Search = () => {
   const { setSelectedCoordinates } = useEvents()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchedTerm, setSearchedTerm] = useState("")
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
-  const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const debounceValue = useDebounce(searchTerm, 1500)
@@ -76,11 +75,7 @@ const Search = ({ dispatchPlace }: { dispatchPlace: Function }) => {
               id={`typeahead-option-${index}`}
               role="option"
               tabIndex={-1}
-              className={`flex w-full cursor-pointer items-center px-3 py-1.5 ${
-                index === activeIndex
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-900 hover:bg-gray-100"
-              }`}
+              className={`flex w-full cursor-pointer items-center px-3 py-1.5`}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => selectPlace(option)}
             >
