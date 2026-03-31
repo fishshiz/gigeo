@@ -25,7 +25,7 @@ const Drawer = () => {
       <div>
         <EventFilter />
         <Button
-          onClick={async (e) => {
+          onClick={async () => {
             try {
               // 1. Perform the fetch request
               const response = await fetch("/api/spotify/playlist", {
@@ -68,7 +68,7 @@ const Drawer = () => {
           Create Spotify Playlist
         </Button>
         <Button
-          onClick={async (e) => {
+          onClick={async () => {
             try {
               // 1. Perform the fetch request
               const response = await fetch("/api/spotify/login", {
