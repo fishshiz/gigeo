@@ -21,6 +21,11 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
 
   const eventsContext = useEvents()
+  const { classifications } = eventData
+  const segment =
+    classifications && classifications.length > 0
+      ? classifications[0].segment.name
+      : null
 
   useEffect(() => {
     let cancelled = false
@@ -37,13 +42,14 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
       } catch (e) {}
     }
 
-    fetchData()
+    if (segment === "Music") {
+      fetchData()
+    }
 
     return () => {
       cancelled = true // avoid setting state after unmount
     }
   }, [])
-  console.log(eventData)
   return (
     <div className="overflow-y-scroll">
       <div className="relative">
@@ -95,16 +101,15 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
             </div>
           )}
         </div>
-
-        {artistInfo.map((artist, idx) => (
-          <ArtistCard
-            key={artist.id}
-            artist={artist}
-            similarArtists={artist.similar_artists}
-            attraction={attractions[idx]}
-          />
-        ))}
       </div>
+      {artistInfo.map((artist, idx) => (
+        <ArtistCard
+          key={artist.id}
+          artist={artist}
+          similarArtists={artist.similar_artists}
+          attraction={attractions[idx]}
+        />
+      ))}
     </div>
   )
 }
@@ -182,14 +187,11 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
   const imgUrl = buildArtworkUrl(artwork, artworkSize)
   const bgColor = normalizeBg(artwork.bgColor)
   const primaryGenre = genres[0]
-  const componentStyle = {
-    "--tw-gradient-from": `${normalizeBg(artwork.bgColor)}80`,
-  } as React.CSSProperties
 
   return (
     <div
-      className="flex gap-4 rounded-2xl bg-linear-to-t to-transparent p-4 text-slate-50 shadow-lg dark:text-(--color-text-secondary-600)"
-      style={componentStyle}
+      className={`flex gap-4 p-4 text-slate-50 shadow-lg dark:text-(--color-text-secondary-600)`}
+      style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
       <div className="relative flex shrink-0 flex-col">
@@ -201,12 +203,24 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             backgroundColor: bgColor,
           }}
         >
-          <img
+          <ResponsiveImage
+            sources={[
+              {
+                url: imgUrl,
+                width: artworkSize,
+                height: artworkSize,
+                ratio: "1:1",
+                fallback: true,
+              },
+            ]}
+            alt={`${name} artwork`}
+          />
+          {/* <img
             src={imgUrl}
             alt={`${name} artwork`}
             className="h-full w-full object-cover"
             loading="lazy"
-          />
+          /> */}
         </div>
         <ul className="flex flex-col">
           {attraction?.externalLinks?.wiki && (

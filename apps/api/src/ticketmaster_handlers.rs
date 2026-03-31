@@ -1,10 +1,10 @@
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum::{http::StatusCode, Json};
+use axum::{Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use geohash::{encode, Coord};
+use geohash::{Coord, encode};
 use geojson::FeatureCollection;
 
 use crate::state::AppState;
@@ -57,6 +57,11 @@ pub async fn get_cities(
 }
 
 #[derive(Deserialize)]
+pub struct AttractionEventsQuery {
+    id: String,
+}
+
+#[derive(Deserialize)]
 pub struct EventsQuery {
     latitude: f64,
     longitude: f64,
@@ -86,11 +91,12 @@ struct TmEvent {
     #[serde(default)]
     images: Vec<Images>,
     dates: TmDate,
+    classifications: Option<Vec<TmClassification>>,
     #[serde(rename = "_embedded")]
     embedded: Option<EventEmbedded>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct TmPriceRange {
     currency: String,
     min: f32,
@@ -119,37 +125,38 @@ struct EventEmbedded {
     attractions: Option<Vec<TmAttraction>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TmAttraction {
     name: Option<String>,
+    id: Option<String>,
     classifications: Option<Vec<TmClassification>>,
     externalLinks: Option<TmExternalLinks>,
     images: Option<Vec<Images>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TmExternalLinks {
     wiki: Option<Vec<TmExternalLink>>,
     homepage: Option<Vec<TmExternalLink>>,
     instagram: Option<Vec<TmExternalLink>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TmExternalLink {
     url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TmClassification {
-    primary: bool,
+    primary: Option<bool>,
     segment: Option<TmSegment>,
     genre: Option<TmSegment>,
     subGenre: Option<TmSegment>,
     subType: Option<TmSegment>,
-    family: bool,
+    family: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TmSegment {
     id: String,
     name: String,
@@ -167,13 +174,14 @@ struct TmLocation {
     longitude: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct EventResponse {
     id: String,
     name: String,
     venue: Option<VenueResponse>,
     images: Vec<Images>,
     dates: Option<String>,
+    classifications: Option<Vec<TmClassification>>,
     attractions: Option<Vec<TmAttraction>>,
     url: Option<String>,
     priceRanges: Option<Vec<TmPriceRange>>,
@@ -182,11 +190,12 @@ pub struct EventResponse {
 #[derive(Debug, Serialize, Deserialize)]
 struct Attraction {
     name: Option<String>,
+    id: Option<String>,
     classifications: Option<Vec<TmClassification>>,
     externalLinks: Option<TmExternalLinks>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Images {
     ratio: Option<String>,
     url: String,
@@ -195,13 +204,13 @@ struct Images {
     fallback: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct VenueResponse {
     name: Option<String>,
     location: Option<LocationResponse>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct LocationResponse {
     latitude: Option<String>,
     longitude: Option<String>,
@@ -294,11 +303,58 @@ pub async fn get_concerts_tm(
                 venue,
                 images: e.images,
                 dates,
+                classifications: e.classifications,
                 attractions,
                 priceRanges: e.priceRanges,
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+        .iter()
+        .fold(
+            std::collections::HashMap::new(),
+            |mut acc: std::collections::HashMap<String, EventResponse>, event: &EventResponse| {
+                // Remove duplicate events by datetime + venueID + attractionID (some events are duplicated in TM with different IDs but same content)
+                let venue_id = event.venue.as_ref().and_then(|v| v.name.clone());
+                let attraction_id =
+                    event
+                        .attractions
+                        .as_ref()
+                        .and_then(|attractions: &Vec<TmAttraction>| {
+                            attractions.first().and_then(|a| a.id.clone())
+                        });
+                let key = format!(
+                    "{}-{}-{}",
+                    event.dates.clone().unwrap_or_default(),
+                    venue_id.clone().unwrap_or_default(),
+                    attraction_id.clone().unwrap_or_default()
+                );
+                if !acc.contains_key(&key) {
+                    acc.insert(key, event.clone());
+                }
+                acc
+            },
+        )
+        .values()
+        .cloned()
+        .collect();
 
     Ok(Json(events))
 }
+
+// pub fn get_events_by_attraction(
+//     State(state): State<Arc<AppState>>,
+//     Query(query): AttractionEventsQuery,
+// ) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
+//     let url = format(
+//         "https://app.ticketmaster.com/discovery/v2/events.json?apikey={}&attractionId={}",
+//         state.ticketmaster_key,
+//         query.id,
+//     );
+//     let resp = state
+//         .client()
+//         .get(&url)
+//         .send()
+//         .await
+//         .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
+
+// }

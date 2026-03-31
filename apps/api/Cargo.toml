@@ -7,7 +7,7 @@ default-run = "gigeo_api"
 
 [dependencies]
 # Web framework
-axum = "0.7"
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 
 
@@ -43,12 +43,12 @@ geohash = "0.13.1"
 
 base64 = "0.22"
 rand = "0.8"
-axum-extra = { version = "0.9", features = ["query"] }
+axum-extra = { version = "0.12", features = ["query"] }
 jsonwebtoken = "9"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 
-vercel_runtime = { version = "2" }
+vercel_runtime = { version = "2", features = ["axum"] }
 tower-service = "0.3.3"
 tower = "0.5.3"
 [[bin]]

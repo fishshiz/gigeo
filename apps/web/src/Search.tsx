@@ -33,7 +33,6 @@ const Search = () => {
   }, [debounceValue])
 
   const updateSearchTerm = (e: string) => {
-    console.log("changed input")
     if (searchedTerm.length) {
       setSearchedTerm("")
     }

@@ -10,6 +10,7 @@ interface TmEvent {
   }[]
   images: Image[]
   dates: string
+  classifications?: Classification[]
   attractions: Attraction[]
 }
 
@@ -97,4 +98,5 @@ export type {
   Attraction,
   Classification,
   AmArtistFull,
+  ClassificationSegment,
 }

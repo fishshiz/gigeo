@@ -60,6 +60,7 @@ const MapWrapper = () => {
       {}
     )
     eventsContext.setEvents(eventsToUpdate)
+    console.log(eventsToUpdate)
 
     const dataSource: FeatureCollection = {
       type: "FeatureCollection",

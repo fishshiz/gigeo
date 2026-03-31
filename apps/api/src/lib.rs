@@ -101,6 +101,18 @@ pub fn build_app() -> Result<Router> {
             axum::routing::get(spotify_handlers::get_artist_info),
         )
         .route(
+            "/spotify/playlist",
+            axum::routing::post(spotify_handlers::create_playlist),
+        )
+        .route(
+            "/spotify/login",
+            axum::routing::get(spotify_handlers::login),
+        )
+        .route(
+            "/spotify/callback",
+            axum::routing::get(spotify_handlers::oauth_callback),
+        )
+        .route(
             "/apple/artist",
             axum::routing::get(apple_music::handlers::get_artist_info),
         )
