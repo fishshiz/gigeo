@@ -50,4 +50,6 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 vercel_runtime = { version = "2", features = ["axum"] }
 tower-service = "0.3.3"
 tower = "0.5.3"
-
+[[bin]]
+name = "api"
+path = "api/index.rs"
