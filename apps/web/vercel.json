@@ -1,0 +1,9 @@
+{
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://$VITE_API_DOMAIN/$1",
+      "env": ["VITE_API_DOMAIN"]
+    }
+  ]
+}
