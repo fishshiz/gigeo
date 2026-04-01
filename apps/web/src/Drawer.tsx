@@ -21,7 +21,7 @@ import { useState, useEffect } from "react"
 const Drawer = () => {
   const eventsContext = useEvents()
   const [drawerOpen, setDrawerOpen] = useState(true)
-  const { events, dateRange, setDateRange } = eventsContext
+  const { events } = eventsContext
   useEffect(() => {
     setDrawerOpen(true)
   }, [events])

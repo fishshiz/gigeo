@@ -18,7 +18,7 @@ import {
   Text,
 } from "react-aria-components"
 import { twJoin, twMerge } from "tailwind-merge"
-import { Button, type ButtonProps } from "./button"
+import { Button, type ButtonProps } from "./Button"
 
 type PassThroughProps = {
   children: React.ReactNode
@@ -112,7 +112,16 @@ const DrawerContent = ({
             bounceDamping: 20,
           }}
           transition={{ duration: 0.15, ease: "easeInOut" }}
-          onDragEnd={(_, { offset, velocity }) => {
+          onDragEnd={(
+            _: React.MouseEvent<HTMLDivElement>,
+            {
+              offset,
+              velocity,
+            }: {
+              offset: { x: number; y: number }
+              velocity: { x: number; y: number }
+            }
+          ) => {
             if (
               side === "bottom" &&
               (velocity.y > 150 || offset.y > screen.height * 0.25)
@@ -226,21 +235,8 @@ const DrawerFooter = ({
   )
 }
 
-const DrawerClose = ({
-  className,
-  intent = "outline",
-  ref,
-  ...props
-}: ButtonProps) => {
-  return (
-    <Button
-      slot="close"
-      className={className}
-      ref={ref}
-      intent={intent}
-      {...props}
-    />
-  )
+const DrawerClose = ({ className, ...props }: ButtonProps) => {
+  return <Button slot="close" className={className} {...props} />
 }
 
 const DrawerTrigger = ButtonPrimitive

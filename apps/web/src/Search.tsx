@@ -52,7 +52,7 @@ const Search = () => {
 
   return (
     <div className="absolute top-0 left-[50%] z-10 grid w-full translate-x-[-50%] grid-cols-1 grid-rows-[auto_1fr] p-4 sm:top-10 sm:w-md">
-      <div className="relative flex h-fit max-h-[30px] items-center overflow-hidden rounded-xl border-1 border-gray-300">
+      <div className="relative flex h-fit max-h-[80px] items-center overflow-hidden rounded-xl border-1 border-gray-300 bg-white">
         <TextField
           id="search"
           type="text"
