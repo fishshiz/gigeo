@@ -258,8 +258,6 @@ pub async fn get_concerts_tm(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("error reading body: {e}")))?;
 
-    println!("TM status = {status}, body = {text}");
-
     let body: TicketmasterResponse = serde_json::from_str(&text)
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("serde error: {e:?}")))?;
 

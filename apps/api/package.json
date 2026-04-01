@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "cargo build --release",
-    "dev": "cargo run",
+    "dev": "cargo run --bin api",
     "start": "cargo run --release"
   }
 }

@@ -172,7 +172,6 @@ impl AppleMusicClient {
             storefront = self.storefront,
             term = urlencoding(term),
         );
-        println!("{}", term);
         let resp: SearchResponse = self.get_json(developer_token, None, &url).await?;
         Ok(resp.results.artists.map(|a| a.data).unwrap_or_default())
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useEvents } from "./components/events-provider"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { TextField } from "@workspace/ui/components/ui/TextField"
+import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
 
 const useDebounce = (value: string, delayTime: number) => {
   const [debounceValue, setDebounceValue] = useState(value)
@@ -18,7 +19,7 @@ const useDebounce = (value: string, delayTime: number) => {
 }
 
 const Search = () => {
-  const { setSelectedCoordinates } = useEvents()
+  const { setSelectedCoordinates, dateRange, setDateRange } = useEvents()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchedTerm, setSearchedTerm] = useState("")
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
@@ -50,24 +51,32 @@ const Search = () => {
   }
 
   return (
-    <div className="flex-1">
-      <TextField
-        id="search"
-        type="text"
-        autoComplete="off"
-        aria-label="Search for a city"
-        name="search"
-        value={searchedTerm ? searchedTerm : searchTerm}
-        placeholder="Search for ..."
-        className="block grow pr-3 pl-1 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm/6"
-        onChange={(e) => updateSearchTerm(e)}
-      />
+    <div className="absolute top-0 left-[50%] z-10 grid w-full translate-x-[-50%] grid-cols-1 grid-rows-[auto_1fr] p-4 sm:top-10 sm:w-md">
+      <div className="relative flex h-fit max-h-[30px] items-center overflow-hidden rounded-xl border-1 border-gray-300">
+        <TextField
+          id="search"
+          type="text"
+          autoComplete="off"
+          aria-label="Search for a city"
+          name="search"
+          value={searchedTerm ? searchedTerm : searchTerm}
+          placeholder="Search for ..."
+          className="block grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none sm:text-sm/6 [&>input]:border-none"
+          onChange={(e) => updateSearchTerm(e)}
+        />
+        <DateRangePicker
+          aria-label="Select timeframe"
+          value={dateRange}
+          onChange={(date) => date && setDateRange(date)}
+          className="[&>div]:border-none"
+        />
+      </div>
       {places.length > 1 && (
         <ul
           ref={listRef}
           id={listboxId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-60 w-[calc(100%-var(--spacing))] overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+          className="z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
         >
           {places.map((option, index) => (
             <li

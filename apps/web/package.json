@@ -17,7 +17,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@types/geojson": "^7946.0.16",
     "@workspace/ui": "*",
-    "dayjs": "^1.11.12",
+    "dayjs": "^1.11.20",
     "lucide-react": "^1.0.1",
     "mapbox-gl": "^3.20.0",
     "react": "^19.2.4",
@@ -30,7 +30,8 @@
     "shaders": "^2.4.78",
     "tailwind-merge": "^3.5.0",
     "tailwind-variants": "^3.2.2",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "usehooks-ts": "^3.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
