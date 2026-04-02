@@ -20,6 +20,7 @@ interface Event extends TmEvent {
 
 type Attraction = {
   name: string
+  id: string
   externalLinks?: {
     homepage?: Link[]
     instagram?: Link[]

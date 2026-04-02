@@ -97,6 +97,10 @@ pub fn build_app() -> Result<Router> {
             axum::routing::get(ticketmaster_handlers::get_concerts_tm),
         )
         .route(
+            "/future-events",
+            axum::routing::get(ticketmaster_handlers::get_events_by_attraction),
+        )
+        .route(
             "/artists",
             axum::routing::get(spotify_handlers::get_artist_info),
         )

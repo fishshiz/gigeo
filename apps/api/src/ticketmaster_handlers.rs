@@ -339,20 +339,89 @@ pub async fn get_concerts_tm(
     Ok(Json(events))
 }
 
-// pub fn get_events_by_attraction(
-//     State(state): State<Arc<AppState>>,
-//     Query(query): AttractionEventsQuery,
-// ) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
-//     let url = format(
-//         "https://app.ticketmaster.com/discovery/v2/events.json?apikey={}&attractionId={}",
-//         state.ticketmaster_key,
-//         query.id,
-//     );
-//     let resp = state
-//         .client()
-//         .get(&url)
-//         .send()
-//         .await
-//         .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
+pub async fn get_events_by_attraction(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<AttractionEventsQuery>,
+) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
+    let url: String = format!(
+        "https://app.ticketmaster.com/discovery/v2/events.json?apikey={}&attractionId={}&sort=date,asc",
+        state.ticketmaster_key, query.id,
+    );
+    let resp = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("error reading body: {e}")))?;
 
-// }
+    let body: TicketmasterResponse = serde_json::from_str(&text)
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("serde error: {e:?}")))?;
+    let events = body
+        .embedded
+        .into_iter()
+        .flat_map(|e| e.events)
+        .map(|e| EventResponse {
+            id: e.id,
+            name: e.name,
+            url: e.url,
+            venue: e
+                .embedded
+                .and_then(|emb| emb.venues)
+                .and_then(|mut vs| vs.last().cloned())
+                .map(|v| VenueResponse {
+                    name: v.name,
+                    location: v.location.map(|loc| LocationResponse {
+                        latitude: loc.latitude,
+                        longitude: loc.longitude,
+                    }),
+                }),
+            images: e.images,
+            dates: e.dates.start.dateTime.or_else(|| {
+                match (
+                    e.dates.start.localDate.as_ref(),
+                    e.dates.start.localTime.as_ref(),
+                ) {
+                    (Some(d), Some(t)) => Some(format!("{}T{}", d, t)),
+                    (Some(d), None) => Some(d.clone()),
+                    _ => None,
+                }
+            }),
+            classifications: e.classifications,
+            attractions: None,
+            priceRanges: e.priceRanges,
+        })
+        .collect::<Vec<_>>()
+        .iter()
+        .fold(
+            std::collections::HashMap::new(),
+            |mut acc: std::collections::HashMap<String, EventResponse>, event: &EventResponse| {
+                // Remove duplicate events by datetime + venueID + attractionID (some events are duplicated in TM with different IDs but same content)
+                let venue_id = event.venue.as_ref().and_then(|v| v.name.clone());
+                let attraction_id =
+                    event
+                        .attractions
+                        .as_ref()
+                        .and_then(|attractions: &Vec<TmAttraction>| {
+                            attractions.first().and_then(|a| a.id.clone())
+                        });
+                let key = format!(
+                    "{}-{}-{}",
+                    event.dates.clone().unwrap_or_default(),
+                    venue_id.clone().unwrap_or_default(),
+                    attraction_id.clone().unwrap_or_default()
+                );
+                if !acc.contains_key(&key) {
+                    acc.insert(key, event.clone());
+                }
+                acc
+            },
+        )
+        .values()
+        .cloned()
+        .collect();
+    Ok(Json(events))
+}

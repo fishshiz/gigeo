@@ -15,10 +15,12 @@ import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
+import { formatDate } from "./lib/formats"
 
 const EventDetails = ({ eventData }: { eventData: Event }) => {
   const { attractions } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
+  const [futureEvents, setFutureEvents] = useState<Event[]>([])
 
   const eventsContext = useEvents()
   const { classifications } = eventData
@@ -42,8 +44,19 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
       } catch (e) {}
     }
 
+    async function fetchFutureEvents() {
+      try {
+        const attractionQuery = eventData.attractions[0].id
+        const res = await fetch(`/api/future-events?id=${attractionQuery}`)
+        if (!res.ok) throw new Error("Request failed")
+        const json = await res.json()
+        if (!cancelled) setFutureEvents(json)
+      } catch (e) {}
+    }
+
     if (segment === "Music") {
       fetchData()
+      fetchFutureEvents()
     }
 
     return () => {
@@ -52,26 +65,26 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
   }, [])
   return (
     <div className="overflow-y-scroll">
+      <Button
+        className="absolute top-2 left-2 z-2 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
+        variant="secondary"
+        onClick={() => eventsContext.setSelectedEvent(undefined)}
+      >
+        <ArrowLeftIcon aria-hidden className="h-4 w-4" />
+      </Button>
+      {eventData.url && (
+        <Link
+          variant="button"
+          className="absolute top-2 right-2 z-2 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+          href={eventData.url}
+          target="_blank"
+        >
+          Tickets
+        </Link>
+      )}
       <div className="relative">
         <div className="absolute top-0 left-0 z-1 h-full w-full bg-linear-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
         <ResponsiveImage sources={eventData.images} alt="test" />
-        <Button
-          className="absolute top-2 left-2 z-2 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
-          variant="secondary"
-          onClick={() => eventsContext.setSelectedEvent(undefined)}
-        >
-          <ArrowLeftIcon aria-hidden className="h-4 w-4" />
-        </Button>
-        {eventData.url && (
-          <Link
-            variant="button"
-            className="absolute top-2 right-2 z-2 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
-            href={eventData.url}
-            target="_blank"
-          >
-            Tickets
-          </Link>
-        )}
         <ul className="absolute top-2 right-2 z-2">
           {/* {eventUniqueGenres.map((genre) => (
             <GenreBadge genre={genre} />
@@ -108,6 +121,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
           artist={artist}
           similarArtists={artist.similar_artists}
           attraction={attractions[idx]}
+          futureEvents={futureEvents}
         />
       ))}
     </div>
@@ -166,6 +180,7 @@ type ArtistCardProps = {
   similarArtists?: SimilarArtist[]
   artworkSize?: number
   attraction?: Attraction
+  futureEvents?: Event[]
 }
 
 const buildArtworkUrl = (artwork: Artwork, size: number) => {
@@ -180,6 +195,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
   artist,
   similarArtists = [],
   attraction,
+  futureEvents = [],
   artworkSize = 200,
 }) => {
   const { name, genres = [], artwork } = artist
@@ -190,7 +206,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
 
   return (
     <div
-      className={`flex gap-4 p-4 text-slate-50 shadow-lg dark:text-(--color-text-secondary-600)`}
+      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:text-(--color-text-secondary-600)"
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
@@ -270,6 +286,22 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             </ul>
           </div>
         )}
+
+        {/* Future events for this artist */}
+        <div className="mt-4">
+          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+            Upcoming events
+          </h3>
+          <ul className="mt-1 flex flex-col gap-2 text-sm">
+            {futureEvents.map((e) => (
+              <li key={e.id} className="flex items-center gap-2">
+                <span>{formatDate(e.dates)}</span>
+                <span>{e.name}</span>
+                <span className="text-slate-500">{e.venue.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )

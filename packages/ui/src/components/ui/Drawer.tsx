@@ -45,6 +45,7 @@ interface DrawerContentProps
   className?: string
   side?: "top" | "bottom" | "left" | "right"
   notch?: boolean
+  closeDrawer: () => void
 }
 
 const DrawerContent = ({
@@ -52,13 +53,14 @@ const DrawerContent = ({
   isFloat = false,
   isBlurred = true,
   notch = true,
+  closeDrawer = () => {},
   children,
   className,
   ...props
 }: DrawerContentProps) => {
   const state = use(OverlayTriggerStateContext)!
   const dragControls = useDragControls()
-
+  console.log(props)
   return (
     <AnimatePresence>
       {(props?.isOpen || state?.isOpen) && (
@@ -128,7 +130,7 @@ const DrawerContent = ({
               side === "bottom" &&
               (velocity.y > 150 || offset.y > screen.height * 0.25)
             ) {
-              state.close()
+              closeDrawer()
             }
             if (
               side === "top" &&
@@ -137,7 +139,7 @@ const DrawerContent = ({
               state.close()
             }
             if (side === "left" && velocity.x < -150) {
-              state.close()
+              closeDrawer()
             }
             if (side === "right" && velocity.x > 150) {
               state.close()
@@ -162,7 +164,11 @@ const DrawerContent = ({
             )}
           >
             {notch && side === "bottom" && (
-              <div className="notch sticky top-0 z-15 mx-auto mt-2.5 h-1.5 w-10 shrink-0 touch-pan-y rounded-full bg-gray-400" />
+              <div
+                className="notch absolute top-0 left-[50%] z-15 mx-auto mt-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"
+                onPointerDown={(e) => dragControls.start(e)}
+                style={{ touchAction: "none" }}
+              />
             )}
             {children as React.ReactNode}
             {notch && side === "left" && (

@@ -10,6 +10,12 @@ import {
   DrawerHeader,
 } from "@workspace/ui/components/ui/Drawer"
 
+import {
+  Disclosure,
+  DisclosureHeader,
+  DisclosurePanel,
+} from "@workspace/ui/components/ui/Disclosure"
+
 import type { Event } from "./lib/types"
 import { formatDate } from "./lib/formats"
 import { EventFilter } from "./EventFilter"
@@ -43,18 +49,17 @@ const DrawerWrapper = () => {
       {drawerOpen ? (
         <DrawerContent
           isOpen={drawerOpen}
-          onOpenChange={setDrawerOpen}
+          closeDrawer={() => setDrawerOpen(false)}
           isBlurred={false}
           notch={true}
           side={isDesktop ? "left" : "bottom"}
           className="z-10 flex h-[80dvh] w-full max-w-md flex-col bg-white sm:h-full"
         >
-          {!selectedEvent && (
+          {!selectedEvent && events && (
             <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
-              <EventFilter />
-              <DateSlider
-                dates={Object.keys(events).sort()}
-                handleChange={handleDateChange}
+              <FilterSection
+                handleDateChange={handleDateChange}
+                events={events}
               />
             </DrawerHeader>
           )}
@@ -69,7 +74,7 @@ const DrawerWrapper = () => {
       ) : (
         <DrawerTrigger
           onClick={() => setDrawerOpen(true)}
-          className="shadow:lg absolute bottom-0 z-10 flex w-full items-center justify-center border-t border-gray-300 bg-white p-0 p-4 text-sm font-medium text-gray-700"
+          className="shadow:lg absolute bottom-0 z-10 flex w-full items-center justify-center border-t border-gray-300 bg-white p-0 p-4 text-sm font-medium text-gray-700 sm:bottom-[50%] sm:left-0 sm:w-auto"
         >
           <ChevronUpIcon className="stroke-gray-700" />
           <span>Tap to open drawer</span>
@@ -117,6 +122,27 @@ const EventList = ({
         </div>
       ))}
     </div>
+  )
+}
+
+const FilterSection = ({
+  handleDateChange,
+  events,
+}: {
+  handleDateChange: (date: string) => void
+  events: Record<string, Event[]>
+}) => {
+  return (
+    <Disclosure>
+      <DisclosureHeader>Filter</DisclosureHeader>
+      <DisclosurePanel>
+        <EventFilter />
+        <DateSlider
+          dates={Object.keys(events).sort()}
+          handleChange={handleDateChange}
+        />
+      </DisclosurePanel>
+    </Disclosure>
   )
 }
 
