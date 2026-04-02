@@ -1,5 +1,5 @@
-import { useRef, useEffect } from "react"
-import mapboxgl from "mapbox-gl"
+import { useRef, useEffect, useState } from "react"
+import mapboxgl, { InteractionEvent } from "mapbox-gl"
 import { useEvents } from "./components/events-provider"
 
 import "mapbox-gl/dist/mapbox-gl.css"
@@ -12,13 +12,20 @@ const INITIAL_ZOOM = 12.12
 
 const MapWrapper = () => {
   const eventsContext = useEvents()
-  const { selectedCoordinates, dateRange } = eventsContext
+  const {
+    selectedCoordinates,
+    setSelectedEvent,
+    selectedEvent,
+    setEvents,
+    events,
+    dateRange,
+  } = eventsContext
   const mapRef = useRef<mapboxgl.Map | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState(null)
 
   useEffect(() => {
-    if (eventsContext.selectedEvent?.venue.location !== undefined) {
-      const { latitude, longitude } =
-        eventsContext.selectedEvent?.venue.location
+    if (selectedEvent?.venue.location !== undefined) {
+      const { latitude, longitude } = selectedEvent?.venue.location
 
       mapRef.current?.flyTo({
         center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
@@ -40,6 +47,51 @@ const MapWrapper = () => {
       center: selectedCoordinates,
       zoom: INITIAL_ZOOM,
     })
+    // mapRef.current?.addInteraction("event-click-interaction", {
+    //   type: "click",
+    //   target: { layerId: "events" },
+    //   handler: (e) => {
+    //     const event = [...Object.values(events)]
+    //       .flat()
+    //       ?.find((ev) => ev.id === e?.feature?.id)
+
+    //     setSelectedEvent(event)
+    //   },
+    // })
+
+    // When a click event occurs on a feature in the places layer, open a popup at the
+    // location of the feature, with description HTML from its properties.
+
+    mapRef.current?.addInteraction("map-click", {
+      type: "click",
+      handler: () => {
+        if (selectedFeature) {
+          mapRef.current?.setFeatureState(selectedFeature, { selected: false })
+          setSelectedFeature(null)
+        }
+      },
+    })
+    // Change the cursor to a pointer when the mouse is over a POI.
+    mapRef.current?.addInteraction("places-mouseenter-interaction", {
+      type: "mouseenter",
+      target: { layerId: "events" },
+      handler: () => {
+        if (mapRef.current) {
+          mapRef.current.getCanvas().style.cursor = "pointer"
+        }
+      },
+    })
+
+    // Change the cursor back to a pointer when it stops hovering over a POI.
+    mapRef.current?.addInteraction("places-mouseleave-interaction", {
+      type: "mouseleave",
+      target: { layerId: "events" },
+      handler: () => {
+        if (mapRef.current) {
+          mapRef.current.getCanvas().style.cursor = ""
+        }
+      },
+    })
   }, [])
 
   const queryEvents = async () => {
@@ -59,8 +111,8 @@ const MapWrapper = () => {
       },
       {}
     )
-    eventsContext.setEvents(eventsToUpdate)
-    console.log(eventsToUpdate)
+    setEvents(eventsToUpdate)
+    mapRef.current?.removeInteraction("event-click-interaction")
 
     const dataSource: FeatureCollection = {
       type: "FeatureCollection",
@@ -86,6 +138,7 @@ const MapWrapper = () => {
           venue: venue.name,
           color: "#373630",
           id: place.id,
+          selected: "false",
         },
         geometry: {
           type: "Point",
@@ -94,6 +147,7 @@ const MapWrapper = () => {
       }
       dataSource.features.push(feature)
     })
+
     if (mapRef.current?.getLayer("events")) {
       mapRef.current.removeLayer("events")
     }
@@ -130,13 +184,8 @@ const MapWrapper = () => {
         "text-variable-anchor": ["top", "bottom", "left", "right"],
         "text-radial-offset": 0.5,
         "text-justify": "auto",
-        "icon-image": [
-          "case",
-          ["boolean", ["has", "icon"], false],
-          ["get", "icon"],
-          "bullseye-solid",
-        ],
-        "icon-size": 0.6,
+        "icon-image": "marker-red",
+        "icon-size": 1.6,
       },
       paint: {
         "icon-color": "#ea4236",
@@ -155,6 +204,29 @@ const MapWrapper = () => {
       },
     })
   }
+  console.log("Event clicked:")
+  if (mapRef.current?.removeInteraction("event-click-interaction")) {
+    console.log("Removed existing event-click-interaction")
+  }
+  mapRef.current?.addInteraction("event-click-interaction", {
+    type: "click",
+    target: { layerId: "events" },
+    handler: ({ feature }: InteractionEvent) => {
+      const event: Event | undefined = [...Object.values(events)]
+        .flat()
+        ?.find((ev) => ev.id === feature?.id)
+      if (event && feature) {
+        mapRef.current?.setLayoutProperty("events", "icon-image", [
+          "match",
+          ["get", "id"],
+          feature.id,
+          "rocket", //image when id is the hovered feature id
+          "marker-red", // default
+        ])
+        setSelectedEvent(event)
+      }
+    },
+  })
 
   useEffect(() => {
     mapRef.current?.easeTo({

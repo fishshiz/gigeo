@@ -1,6 +1,6 @@
 "use client"
 
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion, useDragControls } from "motion/react"
 import { use, Children, cloneElement } from "react"
 import type {
   DialogProps,
@@ -57,6 +57,7 @@ const DrawerContent = ({
   ...props
 }: DrawerContentProps) => {
   const state = use(OverlayTriggerStateContext)!
+  const dragControls = useDragControls()
 
   return (
     <AnimatePresence>
@@ -107,6 +108,7 @@ const DrawerContent = ({
             left: 0,
             right: 0,
           }}
+          dragControls={dragControls}
           dragTransition={{
             bounceStiffness: 600,
             bounceDamping: 20,
@@ -147,7 +149,7 @@ const DrawerContent = ({
             left: side === "left" ? 1 : 0,
             right: side === "right" ? 1 : 0,
           }}
-          dragPropagation
+          dragListener={false}
         >
           <Dialog
             aria-label="Drawer"
@@ -163,6 +165,13 @@ const DrawerContent = ({
               <div className="notch sticky top-0 z-15 mx-auto mt-2.5 h-1.5 w-10 shrink-0 touch-pan-y rounded-full bg-gray-400" />
             )}
             {children as React.ReactNode}
+            {notch && side === "left" && (
+              <div
+                className="notch absolute top-[50%] right-0 z-15 mx-2.5 mx-auto h-10 w-1.5 shrink-0 translate-y-[-50%] touch-pan-y rounded-full bg-gray-400"
+                onPointerDown={(e) => dragControls.start(e)}
+                style={{ touchAction: "none" }}
+              />
+            )}
             {notch && side === "top" && (
               <div className="notch sticky bottom-0 z-15 mx-auto mb-2.5 h-1.5 w-10 shrink-0 touch-pan-y rounded-full bg-gray-400" />
             )}

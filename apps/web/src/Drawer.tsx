@@ -2,8 +2,8 @@ import { EventCard } from "./EventCard"
 import { useEvents } from "./components/events-provider"
 import { EventDetails } from "./EventDetails"
 import { ChevronUpIcon } from "lucide-react"
+import { DateSlider } from "./DateSlider"
 import {
-  Drawer as Cra,
   DrawerTrigger,
   DrawerBody,
   DrawerContent,
@@ -12,16 +12,15 @@ import {
 
 import type { Event } from "./lib/types"
 import { formatDate } from "./lib/formats"
-import { ChevronRight } from "lucide-react"
-import { Link } from "@workspace/ui/components/ui/Link"
 import { EventFilter } from "./EventFilter"
 import { useMediaQuery } from "usehooks-ts"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
-const Drawer = () => {
+const DrawerWrapper = () => {
   const eventsContext = useEvents()
   const [drawerOpen, setDrawerOpen] = useState(true)
-  const { events } = eventsContext
+  const eventListRef = useRef<HTMLDivElement>(null)
+  const { events, selectedEvent } = eventsContext
   useEffect(() => {
     setDrawerOpen(true)
   }, [events])
@@ -29,34 +28,50 @@ const Drawer = () => {
     defaultValue: false,
     initializeWithValue: false,
   })
+  const handleDateChange = (date: string) => {
+    if (eventListRef && eventListRef.current) {
+      const target = eventListRef.current.querySelector(
+        `#${date.replace(" ", "").toLocaleLowerCase()}`
+      )
+      if (target) {
+        target.scrollIntoView({ block: "start", behavior: "instant" })
+      }
+    }
+  }
   return (
     <>
       {drawerOpen ? (
-        <Cra isOpen={drawerOpen} onOpenChange={setDrawerOpen}>
-          <DrawerContent
-            isBlurred={false}
-            notch={true}
-            side={isDesktop ? "left" : "bottom"}
-            className="z-10 h-[80dvh] w-full overflow-y-scroll bg-white sm:h-full"
-          >
-            <DrawerHeader className="sticky top-0 z-10 my-2 bg-white">
+        <DrawerContent
+          isOpen={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          isBlurred={false}
+          notch={true}
+          side={isDesktop ? "left" : "bottom"}
+          className="z-10 flex h-[80dvh] w-full max-w-md flex-col bg-white sm:h-full"
+        >
+          {!selectedEvent && (
+            <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
               <EventFilter />
+              <DateSlider
+                dates={Object.keys(events).sort()}
+                handleChange={handleDateChange}
+              />
             </DrawerHeader>
-            <DrawerBody>
-              {eventsContext.selectedEvent ? (
-                <EventDetails eventData={eventsContext.selectedEvent} />
-              ) : (
-                <EventList events={events} />
-              )}
-            </DrawerBody>
-          </DrawerContent>
-        </Cra>
+          )}
+          <DrawerBody className="flex-5 overflow-y-scroll p-0">
+            {selectedEvent ? (
+              <EventDetails eventData={selectedEvent} />
+            ) : (
+              <EventList events={events} parentRef={eventListRef} />
+            )}
+          </DrawerBody>
+        </DrawerContent>
       ) : (
         <DrawerTrigger
           onClick={() => setDrawerOpen(true)}
-          className="absolute bottom-0 z-10 w-full bg-white"
+          className="shadow:lg absolute bottom-0 z-10 flex w-full items-center justify-center border-t border-gray-300 bg-white p-0 p-4 text-sm font-medium text-gray-700"
         >
-          <ChevronUpIcon />
+          <ChevronUpIcon className="stroke-gray-700" />
           <span>Tap to open drawer</span>
         </DrawerTrigger>
       )}
@@ -64,26 +79,25 @@ const Drawer = () => {
   )
 }
 
-const EventList = ({ events }: { events: Record<string, Event[]> }) => {
-  const entries = Object.entries(events).sort(([dateA], [dateB]) =>
-    dateA.localeCompare(dateB)
-  )
+const EventList = ({
+  events,
+  parentRef,
+}: {
+  events: Record<string, Event[]>
+  parentRef: React.RefObject<HTMLDivElement | null>
+}) => {
+  const entries = Object.entries(events).sort()
   const formatDateId = (date: string) =>
     date.toLocaleLowerCase().replace(" ", "")
   return (
-    <div className="overflow-y-scroll scroll-smooth">
-      {entries.map(([date, events], idx) => (
+    <div className="overflow-y-scroll scroll-smooth" ref={parentRef}>
+      {entries.map(([date, events]) => (
         <div key={formatDateId(date)}>
           <div
             id={formatDateId(date)}
-            className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) p-4 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
+            className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
           >
             <h3>{date}</h3>
-            {idx < entries.length - 1 && (
-              <Link href={`#${formatDateId(entries[idx + 1][0])}`}>
-                <ChevronRight />
-              </Link>
-            )}
           </div>
           <ul className="flex w-full flex-col justify-between gap-4 pt-4">
             {events.map((event) => (
@@ -106,4 +120,4 @@ const EventList = ({ events }: { events: Record<string, Event[]> }) => {
   )
 }
 
-export { Drawer }
+export { DrawerWrapper }

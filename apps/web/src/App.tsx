@@ -1,11 +1,11 @@
 import { MapWrapper } from "./MapWrapper"
-import { Drawer } from "./Drawer"
+import { DrawerWrapper } from "./Drawer"
 import { Search } from "./Search"
 import { PlaylistButtons } from "./PlaylistButtons"
 function App() {
   return (
     <main className="sm:flex">
-      <Drawer />
+      <DrawerWrapper />
       <Search />
       <PlaylistButtons />
       <MapWrapper />
