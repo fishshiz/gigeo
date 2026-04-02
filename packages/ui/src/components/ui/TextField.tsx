@@ -19,7 +19,7 @@ import {
 
 const inputStyles = tv({
   extend: focusRing,
-  base: "border-1 rounded-lg min-h-9 font-sans w-full text-sm py-0 px-3 box-border transition",
+  base: "border-1 rounded-lg min-h-9 font-sans w-full text-base py-0 px-3 box-border transition",
   variants: {
     isFocused: fieldBorderStyles.variants.isFocusWithin,
     isInvalid: fieldBorderStyles.variants.isInvalid,

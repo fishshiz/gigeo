@@ -60,8 +60,8 @@ const Search = () => {
           aria-label="Search for a city"
           name="search"
           value={searchedTerm ? searchedTerm : searchTerm}
-          placeholder="Search for ..."
-          className="block grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none sm:text-sm/6 [&>input]:border-none"
+          placeholder="Search for a city"
+          className="block grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
           onChange={(e) => updateSearchTerm(e)}
         />
         <DateRangePicker
