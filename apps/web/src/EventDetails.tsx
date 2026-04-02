@@ -15,7 +15,6 @@ import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
-import { formatDate } from "./lib/formats"
 
 const EventDetails = ({ eventData }: { eventData: Event }) => {
   const { attractions } = eventData
@@ -56,8 +55,8 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
 
     if (segment === "Music") {
       fetchData()
-      fetchFutureEvents()
     }
+    fetchFutureEvents()
 
     return () => {
       cancelled = true // avoid setting state after unmount
@@ -124,6 +123,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
           futureEvents={futureEvents}
         />
       ))}
+      <UpcomingEvents events={futureEvents} />
     </div>
   )
 }
@@ -287,21 +287,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
           </div>
         )}
 
-        {/* Future events for this artist */}
-        <div className="mt-4">
-          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
-            Upcoming events
-          </h3>
-          <ul className="mt-1 flex flex-col gap-2 text-sm">
-            {futureEvents.map((e) => (
-              <li key={e.id} className="flex items-center gap-2">
-                <span>{formatDate(e.dates)}</span>
-                <span>{e.name}</span>
-                <span className="text-slate-500">{e.venue.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <UpcomingEvents events={futureEvents} />
       </div>
     </div>
   )
@@ -326,6 +312,32 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
         <span>{label}</span>
       </Link>
     </li>
+  )
+}
+
+const UpcomingEvents = ({ events }: { events: Event[] }) => {
+  return (
+    <div className="mt-4">
+      <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+        Upcoming events
+      </h3>
+      <ul className="mt-1 flex flex-col gap-2 text-sm">
+        {events.map((e) => (
+          <li
+            key={e.id}
+            className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
+          >
+            <span>{e.datesPretty}</span>
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-600">{e.name}</span>
+              <span className="text-slate-500">
+                {e.venue.name}, {e.venue.city}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

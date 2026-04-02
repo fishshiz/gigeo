@@ -10,13 +10,12 @@ interface TmEvent {
   }[]
   images: Image[]
   dates: string
+  datesPretty: string
   classifications?: Classification[]
   attractions: Attraction[]
 }
 
-interface Event extends TmEvent {
-  datesPretty: string
-}
+interface Event extends TmEvent {}
 
 type Attraction = {
   name: string
@@ -66,6 +65,7 @@ type Image = {
 type Venue = {
   name: string
   location: Location
+  city: string
 }
 
 type Location = {

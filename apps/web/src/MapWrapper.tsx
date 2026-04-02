@@ -6,7 +6,6 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { Event, TmEvent } from "./lib/types"
-import { formatDate } from "./lib/formats"
 
 const INITIAL_ZOOM = 12.12
 
@@ -100,17 +99,17 @@ const MapWrapper = () => {
     ).then((r) => r.json())
     const eventsToUpdate: Record<string, Event[]> = events.reduce(
       (acc: Record<string, Event[]>, curr: TmEvent) => {
-        const date = formatDate(curr.dates)
-        const obj = { datesPretty: date, ...curr }
-        if (!acc[date]) {
-          acc[date] = [obj]
+        const obj = { ...curr }
+        if (!acc[curr.datesPretty]) {
+          acc[curr.datesPretty] = [obj]
         } else {
-          acc[date].push(obj)
+          acc[curr.datesPretty].push(obj)
         }
         return acc
       },
       {}
     )
+    setSelectedEvent(undefined)
     setEvents(eventsToUpdate)
     mapRef.current?.removeInteraction("event-click-interaction")
 

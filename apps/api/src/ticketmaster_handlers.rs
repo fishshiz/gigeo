@@ -1,6 +1,7 @@
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use axum::{Json, http::StatusCode};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -166,6 +167,12 @@ struct TmSegment {
 struct TmVenue {
     name: Option<String>,
     location: Option<TmLocation>,
+    city: Option<TmCity>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct TmCity {
+    name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -181,6 +188,7 @@ pub struct EventResponse {
     venue: Option<VenueResponse>,
     images: Vec<Images>,
     dates: Option<String>,
+    datesPretty: Option<String>,
     classifications: Option<Vec<TmClassification>>,
     attractions: Option<Vec<TmAttraction>>,
     url: Option<String>,
@@ -208,6 +216,7 @@ struct Images {
 struct VenueResponse {
     name: Option<String>,
     location: Option<LocationResponse>,
+    city: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -290,9 +299,16 @@ pub async fn get_concerts_tm(
                     latitude: loc.latitude,
                     longitude: loc.longitude,
                 }),
+                city: v.city.and_then(|c| c.name),
             });
 
             let attractions = e.embedded.and_then(|a| a.attractions);
+
+            let datesPretty = dates.as_ref().map(|d| {
+                DateTime::parse_from_rfc3339(d)
+                    .map(|dt| dt.with_timezone(&Local).format("%B %d").to_string())
+                    .unwrap_or_else(|_| d.clone())
+            });
 
             EventResponse {
                 id: e.id,
@@ -301,6 +317,7 @@ pub async fn get_concerts_tm(
                 venue,
                 images: e.images,
                 dates,
+                datesPretty,
                 classifications: e.classifications,
                 attractions,
                 priceRanges: e.priceRanges,
@@ -378,9 +395,10 @@ pub async fn get_events_by_attraction(
                         latitude: loc.latitude,
                         longitude: loc.longitude,
                     }),
+                    city: v.city.and_then(|c| c.name),
                 }),
             images: e.images,
-            dates: e.dates.start.dateTime.or_else(|| {
+            dates: e.dates.start.dateTime.as_ref().cloned().or_else(|| {
                 match (
                     e.dates.start.localDate.as_ref(),
                     e.dates.start.localTime.as_ref(),
@@ -390,38 +408,15 @@ pub async fn get_events_by_attraction(
                     _ => None,
                 }
             }),
+            datesPretty: e.dates.start.dateTime.as_ref().map(|d| {
+                DateTime::parse_from_rfc3339(d)
+                    .map(|dt| dt.with_timezone(&Local).format("%B %d").to_string())
+                    .unwrap_or_else(|_| d.clone())
+            }),
             classifications: e.classifications,
             attractions: None,
             priceRanges: e.priceRanges,
         })
-        .collect::<Vec<_>>()
-        .iter()
-        .fold(
-            std::collections::HashMap::new(),
-            |mut acc: std::collections::HashMap<String, EventResponse>, event: &EventResponse| {
-                // Remove duplicate events by datetime + venueID + attractionID (some events are duplicated in TM with different IDs but same content)
-                let venue_id = event.venue.as_ref().and_then(|v| v.name.clone());
-                let attraction_id =
-                    event
-                        .attractions
-                        .as_ref()
-                        .and_then(|attractions: &Vec<TmAttraction>| {
-                            attractions.first().and_then(|a| a.id.clone())
-                        });
-                let key = format!(
-                    "{}-{}-{}",
-                    event.dates.clone().unwrap_or_default(),
-                    venue_id.clone().unwrap_or_default(),
-                    attraction_id.clone().unwrap_or_default()
-                );
-                if !acc.contains_key(&key) {
-                    acc.insert(key, event.clone());
-                }
-                acc
-            },
-        )
-        .values()
-        .cloned()
-        .collect();
+        .collect::<Vec<_>>();
     Ok(Json(events))
 }
