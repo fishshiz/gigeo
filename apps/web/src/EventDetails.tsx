@@ -180,43 +180,6 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
   )
 }
 
-export const ArtistArtworkCard = ({
-  artwork,
-  size = 240,
-}: {
-  artwork: AmArtistFull["artwork"]
-  size: number
-}) => {
-  const { url, bgColor } = artwork
-
-  // Apple usually returns bgColor as "RRGGBB" (no '#'), so normalize it.
-  const normalizedBg = bgColor
-    ? bgColor.startsWith("#")
-      ? bgColor
-      : `#${bgColor}`
-    : "#111827" // fallback (Tailwind slate-900-ish)
-
-  // Replace {w} and {h} tokens in the URL
-  const imgUrl = url.replace("{w}", String(size)).replace("{h}", String(size))
-
-  return (
-    <div
-      className="relative flex items-center justify-center overflow-hidden rounded-xl"
-      style={{
-        width: size,
-        height: size,
-        backgroundColor: normalizedBg,
-      }}
-    >
-      <img
-        src={imgUrl}
-        alt="Artist artwork"
-        className="h-full w-full object-cover"
-        loading="lazy"
-      />
-    </div>
-  )
-}
 type Artwork = {
   url: string
   bgColor?: string
@@ -262,7 +225,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
-      <div className="relative flex shrink-0 flex-col">
+      <div className="relative flex shrink-0">
         <div
           className="overflow-hidden rounded-2xl"
           style={{
@@ -283,44 +246,37 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             ]}
             alt={`${name} artwork`}
           />
-          {/* <img
-            src={imgUrl}
-            alt={`${name} artwork`}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          /> */}
         </div>
-        <ul className="flex flex-col">
-          {attraction?.externalLinks?.wiki && (
-            <ExternalLink
-              url={attraction?.externalLinks?.wiki[0].url}
-              label="Wikipedia"
-            />
-          )}
-          {attraction?.externalLinks?.homepage && (
-            <ExternalLink
-              url={attraction?.externalLinks?.homepage[0].url}
-              label="Website"
-            />
-          )}
-          {attraction?.externalLinks?.instagram && (
-            <ExternalLink
-              url={attraction?.externalLinks?.instagram[0].url}
-              label="Instagram"
-            />
-          )}
-        </ul>
-      </div>
-
-      {/* Text / metadata */}
-      <div className="flex flex-1 flex-col justify-between">
         <div>
           <h2 className="truncate text-xl font-semibold">{name}</h2>
           {primaryGenre && (
             <p className="mt-1 text-sm text-slate-300">{primaryGenre}</p>
           )}
+          <ul className="flex flex-col">
+            {attraction?.externalLinks?.wiki && (
+              <ExternalLink
+                url={attraction?.externalLinks?.wiki[0].url}
+                label="Wikipedia"
+              />
+            )}
+            {attraction?.externalLinks?.homepage && (
+              <ExternalLink
+                url={attraction?.externalLinks?.homepage[0].url}
+                label="Website"
+              />
+            )}
+            {attraction?.externalLinks?.instagram && (
+              <ExternalLink
+                url={attraction?.externalLinks?.instagram[0].url}
+                label="Instagram"
+              />
+            )}
+          </ul>
         </div>
+      </div>
 
+      {/* Text / metadata */}
+      <div className="flex flex-1 flex-col justify-between">
         {similarArtists.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xs tracking-wide text-slate-400 uppercase">

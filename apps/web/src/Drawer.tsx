@@ -53,7 +53,7 @@ const DrawerWrapper = () => {
           isBlurred={false}
           notch={true}
           side={isDesktop ? "left" : "bottom"}
-          className="z-10 flex h-[80dvh] w-full max-w-md flex-col bg-white sm:h-full"
+          className="z-10 flex h-[50dvh] w-full max-w-md flex-col bg-white sm:h-full"
         >
           {!selectedEvent && events && (
             <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">

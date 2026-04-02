@@ -8,6 +8,7 @@ import type { Feature, FeatureCollection } from "geojson"
 import type { Event, TmEvent } from "./lib/types"
 
 const INITIAL_ZOOM = 12.12
+const isMobile = window.innerWidth < 768
 
 const MapWrapper = () => {
   const eventsContext = useEvents()
@@ -25,13 +26,27 @@ const MapWrapper = () => {
   useEffect(() => {
     if (selectedEvent?.venue.location !== undefined) {
       const { latitude, longitude } = selectedEvent?.venue.location
-
+      mapRef.current?.setLayoutProperty("events", "icon-image", [
+        "match",
+        ["get", "id"],
+        selectedEvent.id,
+        "marker-yellow", //image when id is the hovered feature id
+        "marker-red", // default
+      ])
+      const drawerHeight = window.innerHeight * 0.5
+      const drawerWidth = window.innerWidth * 0.3
       mapRef.current?.flyTo({
         center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
+        padding: {
+          top: 0,
+          right: 0,
+          bottom: isMobile ? drawerHeight : 0,
+          left: !isMobile ? drawerWidth : 0,
+        }, // Adjust padding to account for the drawer
         speed: 0.8,
       })
     }
-  }, [eventsContext.selectedEvent])
+  }, [selectedEvent])
 
   const theme =
     window.matchMedia &&
@@ -219,7 +234,7 @@ const MapWrapper = () => {
           "match",
           ["get", "id"],
           feature.id,
-          "rocket", //image when id is the hovered feature id
+          "marker-yellow", //image when id is the hovered feature id
           "marker-red", // default
         ])
         setSelectedEvent(event)
