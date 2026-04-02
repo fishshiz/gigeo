@@ -2,7 +2,7 @@ import type { Event, Attraction, AmArtistFull } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { useEvents } from "./components/events-provider"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import {
   ArrowLeftIcon,
@@ -20,6 +20,8 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
   const { attractions } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
   const [futureEvents, setFutureEvents] = useState<Event[]>([])
+  const [showStickyHeader, setShowStickyHeader] = useState(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const eventsContext = useEvents()
   const { classifications } = eventData
@@ -59,41 +61,90 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
     fetchFutureEvents()
 
     return () => {
-      cancelled = true // avoid setting state after unmount
+      cancelled = true
     }
+  }, [eventData, segment])
+
+  // scroll handler for the pane
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const handleScroll = () => {
+      // tweak threshold to taste (depends on hero height)
+      const threshold = 160
+      setShowStickyHeader(el.scrollTop > threshold)
+    }
+
+    handleScroll()
+    el.addEventListener("scroll", handleScroll)
+    return () => el.removeEventListener("scroll", handleScroll)
   }, [])
+
   return (
-    <div className="overflow-y-scroll">
+    <div ref={scrollRef} className="relative overflow-y-scroll">
+      {/* sticky compact header inside the pane */}
+      {showStickyHeader && (
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800/40 bg-slate-950/90 px-3 py-2 text-xs text-slate-100 backdrop-blur">
+          <div className="flex min-w-0 items-center">
+            <Button
+              className="z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
+              variant="secondary"
+              onClick={() => eventsContext.setSelectedEvent(undefined)}
+            >
+              <ArrowLeftIcon aria-hidden className="h-4 w-4" />
+            </Button>
+            <div className="ms-2 flex min-w-0 flex-col">
+              <div className="truncate font-semibold">{eventData.name}</div>
+              <div className="flex gap-2 text-[11px] text-slate-300">
+                <span className="truncate">{eventData.datesPretty}</span>
+                <span className="truncate">· {eventData.venue.name}</span>
+              </div>
+            </div>
+          </div>
+
+          {eventData.url && (
+            <Link
+              href={eventData.url}
+              target="_blank"
+              variant="button"
+              className="ml-2 shrink-0 rounded-full bg-(--color-toasted-almond-600) px-2 py-1 text-[11px] font-medium text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+            >
+              Tickets
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* back + top-right tickets over hero */}
       <Button
-        className="absolute top-2 left-2 z-2 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
+        className="absolute top-2 left-2 z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
         variant="secondary"
         onClick={() => eventsContext.setSelectedEvent(undefined)}
       >
         <ArrowLeftIcon aria-hidden className="h-4 w-4" />
       </Button>
+
       {eventData.url && (
         <Link
           variant="button"
-          className="absolute top-2 right-2 z-2 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+          className="absolute top-2 right-2 z-10 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
           href={eventData.url}
           target="_blank"
         >
           Tickets
         </Link>
       )}
-      <div className="relative">
-        <div className="absolute top-0 left-0 z-1 h-full w-full bg-linear-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
-        <ResponsiveImage sources={eventData.images} alt="test" />
-        <ul className="absolute top-2 right-2 z-2">
-          {/* {eventUniqueGenres.map((genre) => (
-            <GenreBadge genre={genre} />
-          ))} */}
-        </ul>
 
-        <h3 className="absolute bottom-2 left-2 z-2 text-2xl font-semibold text-(--color-jet-black-600) dark:text-(--color-text-primary-dark-600)">
+      <div className="relative">
+        <div className="absolute top-0 left-0 z-[1] h-full w-full bg-gradient-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
+        <ResponsiveImage sources={eventData.images} alt="test" />
+        <h3 className="absolute bottom-2 left-2 z-[2] text-2xl font-semibold text-(--color-ivory-100) dark:text-(--color-text-primary-dark-600)">
           {eventData.name}
         </h3>
       </div>
+
+      {/* rest of your content exactly as before */}
       <div className="p-2">
         <div className="flex flex-col justify-between">
           <div className="flex items-center gap-1">
@@ -114,6 +165,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
           )}
         </div>
       </div>
+
       {artistInfo.map((artist, idx) => (
         <ArtistCard
           key={artist.id}
