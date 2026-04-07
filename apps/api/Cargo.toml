@@ -45,11 +45,14 @@ rand = "0.8"
 axum-extra = { version = "0.12", features = ["query"] }
 jsonwebtoken = "9"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
+bytes = "1"
+async-stream = "0.3"
 
 
 vercel_runtime = { version = "2", features = ["axum"] }
 tower-service = "0.3.3"
 tower = "0.5.3"
+futures = "0.3.32"
 [[bin]]
 name = "api"
 path = "api/index.rs"

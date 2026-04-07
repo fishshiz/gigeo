@@ -60,13 +60,12 @@ const DrawerContent = ({
 }: DrawerContentProps) => {
   const state = use(OverlayTriggerStateContext)!
   const dragControls = useDragControls()
-  console.log(props)
   return (
     <AnimatePresence>
       {(props?.isOpen || state?.isOpen) && (
         <DrawerRoot
           className={twJoin(
-            "bg-bg text-fg fixed max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform",
+            "bg-bg text-fg h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform sm:h-[100vh]",
             side === "top" &&
               (isFloat
                 ? "inset-x-2 top-2 rounded-lg"
@@ -85,7 +84,7 @@ const DrawerContent = ({
                 : "inset-x-0 bottom-0 rounded-t-2xl"),
             side === "left" &&
               [
-                "w-full max-w-xs overflow-y-auto",
+                "overflow-y-auto",
                 "**:[[slot=header]]:text-start",
                 isFloat
                   ? "inset-y-2 left-2 rounded-lg"
@@ -157,36 +156,32 @@ const DrawerContent = ({
             aria-label="Drawer"
             role="dialog"
             className={twJoin(
-              "relative flex flex-col overflow-hidden outline-hidden will-change-auto",
+              "relative flex h-full flex-col overflow-hidden outline-hidden will-change-auto",
               side === "top" || side === "bottom"
                 ? "mx-auto max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] max-w-lg"
                 : "h-full"
             )}
           >
-            {notch && side === "bottom" && (
-              <div
-                className="notch absolute top-0 z-15 mx-auto my-2.5 h-1.5 w-full"
-                onPointerDown={(e) => dragControls.start(e)}
-                style={{ touchAction: "none" }}
-              >
+            <div className="relative bottom-0 left-0 z-15 h-[50vh] sm:h-[100vh]">
+              {notch && side === "bottom" && (
                 <div
-                  className="notch absolute top-0 left-[50%] z-15 mx-auto my-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"
+                  className="notch absolute top-0 left-[50%] z-15 mx-auto my-2 my-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"
                   onPointerDown={(e) => dragControls.start(e)}
                   style={{ touchAction: "none" }}
                 />
-              </div>
-            )}
-            {children as React.ReactNode}
-            {notch && side === "left" && (
-              <div
-                className="notch absolute top-[50%] right-0 z-15 mx-2.5 mx-auto h-10 w-1.5 shrink-0 translate-y-[-50%] touch-pan-y rounded-full bg-gray-400"
-                onPointerDown={(e) => dragControls.start(e)}
-                style={{ touchAction: "none" }}
-              />
-            )}
-            {notch && side === "top" && (
-              <div className="notch sticky bottom-0 z-15 mx-auto mb-2.5 h-1.5 w-10 shrink-0 touch-pan-y rounded-full bg-gray-400" />
-            )}
+              )}
+              {children as React.ReactNode}
+              {notch && side === "left" && (
+                <div
+                  className="notch absolute top-[50%] right-0 z-15 mx-2.5 mx-auto h-10 w-1.5 shrink-0 translate-y-[-50%] touch-pan-y rounded-full bg-gray-400"
+                  onPointerDown={(e) => dragControls.start(e)}
+                  style={{ touchAction: "none" }}
+                />
+              )}
+              {notch && side === "top" && (
+                <div className="notch sticky bottom-0 z-15 mx-auto mb-2.5 h-1.5 w-10 shrink-0 touch-pan-y rounded-full bg-gray-400" />
+              )}
+            </div>
           </Dialog>
         </DrawerRoot>
       )}
@@ -233,7 +228,7 @@ const DrawerBody = ({
   <div
     slot="body"
     className={twMerge(
-      "isolate flex max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] flex-col overflow-auto px-4 py-1 will-change-scroll",
+      "isolate flex h-full max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] flex-col overflow-auto px-4 py-1 will-change-scroll",
       className
     )}
     {...props}

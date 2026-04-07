@@ -1,4 +1,4 @@
-import type { Event, GroupedEvents } from "./lib/types"
+import type { GroupedEvents } from "./lib/types"
 import {
   parseAbsolute,
   DateFormatter,
@@ -9,7 +9,14 @@ import { useEvents } from "./components/events-provider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 
 import { type ReactElement } from "react"
-const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
+import type { EventResponse } from "./hooks/eventsStream"
+const EventCard = ({
+  event,
+  date,
+}: {
+  event: EventResponse
+  date: ReactElement
+}) => {
   const eventsContext = useEvents()
 
   return (
@@ -19,7 +26,7 @@ const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
     >
       <div className="photo-detail h-auto w-full flex-1 overflow-hidden">
         <ResponsiveImage
-          sources={event.images}
+          sources={event.images as any}
           style={{
             objectFit: "cover",
             objectPosition: "center",
@@ -39,7 +46,7 @@ const EventCard = ({ event, date }: { event: Event; date: ReactElement }) => {
           <div>{date}</div>
           <div className="flex items-center text-base/7 leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">
             <HouseIcon aria-hidden className="mr-1 h-4 w-4" />
-            <span className="">{event.venue.name}</span>
+            <span className="">{event.venue?.name}</span>
           </div>
         </div>
       </div>

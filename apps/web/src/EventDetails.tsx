@@ -15,11 +15,12 @@ import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
+import type { EventResponse } from "./hooks/eventsStream"
 
-const EventDetails = ({ eventData }: { eventData: Event }) => {
+const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { attractions } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
-  const [futureEvents, setFutureEvents] = useState<Event[]>([])
+  const [futureEvents, setFutureEvents] = useState<Record<string, Event[]>>({})
   const [showStickyHeader, setShowStickyHeader] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -27,7 +28,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
   const { classifications } = eventData
   const segment =
     classifications && classifications.length > 0
-      ? classifications[0].segment.name
+      ? (classifications[0] as any).segment.name
       : null
 
   useEffect(() => {
@@ -35,8 +36,10 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
 
     async function fetchData() {
       try {
-        const artistInfoQuery = eventData.attractions
-          .map((attraction) => `name=${encodeURIComponent(attraction.name)}`)
+        const artistInfoQuery = eventData
+          .attractions!.map(
+            (attraction) => `name=${encodeURIComponent(attraction.name || "")}`
+          )
           .join("&")
         const res = await fetch(`/api/apple/artist?${artistInfoQuery}`)
         if (!res.ok) throw new Error("Request failed")
@@ -45,20 +48,23 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
       } catch (e) {}
     }
 
-    async function fetchFutureEvents() {
+    async function fetchFutureEvents(id: string) {
       try {
-        const attractionQuery = eventData.attractions[0].id
-        const res = await fetch(`/api/future-events?id=${attractionQuery}`)
+        const res = await fetch(`/api/future-events?id=${id}`)
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()
-        if (!cancelled) setFutureEvents(json)
+        if (!cancelled) setFutureEvents((prev) => ({ ...prev, [id]: json }))
       } catch (e) {}
     }
 
     if (segment === "Music") {
       fetchData()
     }
-    fetchFutureEvents()
+    eventData.attractions?.forEach((attraction) => {
+      if (attraction.id) {
+        fetchFutureEvents(attraction.id)
+      }
+    })
 
     return () => {
       cancelled = true
@@ -98,7 +104,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
               <div className="truncate font-semibold">{eventData.name}</div>
               <div className="flex gap-2 text-[11px] text-slate-300">
                 <span className="truncate">{eventData.datesPretty}</span>
-                <span className="truncate">· {eventData.venue.name}</span>
+                <span className="truncate">· {eventData.venue?.name}</span>
               </div>
             </div>
           </div>
@@ -138,7 +144,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
 
       <div className="relative">
         <div className="absolute top-0 left-0 z-[1] h-full w-full bg-gradient-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
-        <ResponsiveImage sources={eventData.images} alt="test" />
+        <ResponsiveImage sources={eventData.images as any[]} alt="test" />
         <h3 className="absolute bottom-2 left-2 z-[2] text-2xl font-semibold text-(--color-ivory-100) dark:text-(--color-text-primary-dark-600)">
           {eventData.name}
         </h3>
@@ -153,7 +159,7 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
           </div>
           <div className="flex items-center gap-1">
             <MapPinIcon aria-hidden className="h-4 w-4" />
-            <span>{eventData.venue.name}</span>
+            <span>{eventData.venue?.name}</span>
           </div>
           {eventData.priceRanges && (
             <div className="flex items-center gap-1">
@@ -166,16 +172,24 @@ const EventDetails = ({ eventData }: { eventData: Event }) => {
         </div>
       </div>
 
-      {artistInfo.map((artist, idx) => (
-        <ArtistCard
-          key={artist.id}
-          artist={artist}
-          similarArtists={artist.similar_artists}
-          attraction={attractions[idx]}
-          futureEvents={futureEvents}
-        />
-      ))}
-      <UpcomingEvents events={futureEvents} />
+      {artistInfo.length
+        ? artistInfo.map((artist, idx) => (
+            <ArtistCard
+              key={artist.id}
+              artist={artist}
+              similarArtists={artist.similar_artists}
+              attraction={(attractions as any)[idx] as Attraction}
+              futureEvents={
+                futureEvents[(attractions as any)[idx].id as any] ?? []
+              }
+            />
+          ))
+        : attractions?.map((attraction) => (
+            <div key={attraction.id}>
+              <h4 className="text-lg font-semibold">{attraction.name}</h4>
+              <UpcomingEvents events={futureEvents[attraction.id as any]} />
+            </div>
+          ))}
     </div>
   )
 }
@@ -342,6 +356,13 @@ const UpcomingEvents = ({ events }: { events: Event[] }) => {
                 {e.venue.name}, {e.venue.city}
               </span>
             </div>
+            <Link
+              href={e.url}
+              target="_blank"
+              className="ml-auto text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+            >
+              Tickets
+            </Link>
           </li>
         ))}
       </ul>

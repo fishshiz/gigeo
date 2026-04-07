@@ -4,10 +4,12 @@ mod apple_music_updater_handlers;
 mod auth;
 mod config;
 mod error;
+mod mapbox_handlers;
 mod spotify;
 mod spotify_handlers;
 mod state;
 mod ticketmaster_handlers;
+mod ticketmaster_stream;
 mod updater;
 
 use std::sync::Arc;
@@ -88,13 +90,14 @@ pub fn build_app() -> Result<Router> {
 
     let app = axum::Router::new()
         .route("/health", axum::routing::get(health_check))
-        .route(
-            "/cities",
-            axum::routing::get(ticketmaster_handlers::get_cities),
-        )
+        .route("/cities", axum::routing::get(mapbox_handlers::get_cities))
         .route(
             "/concerts",
             axum::routing::get(ticketmaster_handlers::get_concerts_tm),
+        )
+        .route(
+            "/concerts/stream",
+            axum::routing::get(ticketmaster_stream::get_concerts_tm_stream),
         )
         .route(
             "/future-events",

@@ -7,14 +7,15 @@ import {
   getLocalTimeZone,
 } from "@internationalized/date"
 import { type RangeValue } from "react-aria"
+import type { EventResponse } from "@/hooks/eventsStream"
 
-const INITIAL_CENTER: [number, number] = [-74.0242, 40.6941]
+const INITIAL_CENTER: [number, number] = [-90.078202, 29.975962]
 
 type EventsProviderState = {
   events: Record<string, Event[]>
   setEvents: (events: Record<string, Event[]>) => void
-  selectedEvent: Event | undefined
-  setSelectedEvent: (event: Event | undefined) => void
+  selectedEvent: EventResponse | undefined
+  setSelectedEvent: (event: EventResponse | undefined) => void
   selectedCoordinates: [number, number]
   setSelectedCoordinates: (coordinates: [number, number]) => void
   dateRange: RangeValue<CalendarDate>
@@ -31,9 +32,9 @@ export const EventsProviderContext = React.createContext<
 
 export function EventsProvider({ children }: EventsProviderProps) {
   const [events, setEvents] = React.useState<Record<string, Event[]>>({})
-  const [selectedEvent, setSelectedEvent] = React.useState<Event | undefined>(
-    undefined
-  )
+  const [selectedEvent, setSelectedEvent] = React.useState<
+    EventResponse | undefined
+  >(undefined)
   const [selectedCoordinates, setSelectedCoordinates] =
     React.useState<[number, number]>(INITIAL_CENTER)
 

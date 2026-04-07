@@ -37,7 +37,6 @@ export function DateRangePicker<T extends DateValue>({
   errorMessage,
   ...props
 }: DateRangePickerProps<T>) {
-  console.log(props)
   const monthDayFormat = useDateFormatter({
     month: "long",
     day: "numeric",

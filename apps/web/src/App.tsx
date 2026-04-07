@@ -1,14 +1,8 @@
-import { MapWrapper } from "./MapWrapper"
-import { DrawerWrapper } from "./Drawer"
-import { Search } from "./Search"
-import { PlaylistButtons } from "./PlaylistButtons"
+import { AppWrapper } from "./AppWrapper"
 function App() {
   return (
-    <main className="sm:flex">
-      <DrawerWrapper />
-      <Search />
-      <PlaylistButtons />
-      <MapWrapper />
+    <main className="flex h-full w-full flex-col sm:flex-row">
+      <AppWrapper />
     </main>
   )
 }
