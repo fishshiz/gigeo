@@ -13,18 +13,10 @@ type EventsState = {
 }
 
 function eventDateKey(event: EventResponse): string {
-  if (event.datesPretty) {
-    return event.datesPretty
-  }
-  console.log("else", event)
   if (event.dates) {
     const date = new Date(event.dates)
     if (!Number.isNaN(date.getTime())) {
-      const formatted = date.toLocaleDateString("en-US", {
-        month: "long",
-        day: "2-digit",
-      })
-      console.log(formatted)
+      const formatted = date.toISOString().substring(0, 10)
       return formatted
     }
   }

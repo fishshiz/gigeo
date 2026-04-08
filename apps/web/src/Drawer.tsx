@@ -10,10 +10,11 @@ import {
   DrawerClose,
 } from "@workspace/ui/components/ui/Drawer"
 import { useEventsContext } from "./providers/eventsProvider"
-import { formatDate } from "./lib/formats"
 import { useMediaQuery } from "usehooks-ts"
-import { useEffect, useRef } from "react"
-import type { DateValue } from "@internationalized/date"
+import { useEffect, useRef, type Ref } from "react"
+import { type DateValue } from "@internationalized/date"
+import { useTopMostVisibleInScrollContainer } from "./hooks/listItemObserver"
+import { formatDate } from "./lib/formats"
 
 const DrawerWrapper = ({
   drawerOpen,
@@ -33,56 +34,23 @@ const DrawerWrapper = ({
     defaultValue: false,
     initializeWithValue: false,
   })
-  const handleDateChange = (date: DateValue) => {
+  const handleDateChange = (date: string) => {
     if (eventListRef && eventListRef.current) {
-      const target = eventListRef.current.querySelector(
-        `#${date
-          .toDate("UTC")
-          .toLocaleDateString("en-US", {
-            month: "long",
-            day: "2-digit",
-          })
-          .replace(" ", "")
-          .toLocaleLowerCase()}`
-      )
-      console.log(
-        target,
-        `#${date
-          .toDate("UTC")
-          .toLocaleDateString("en-US", {
-            month: "long",
-            day: "2-digit",
-          })
-          .replace(" ", "")
-          .toLocaleLowerCase()}`
-      )
+      const target = eventListRef.current.querySelector(`#a${date}`)
+
       if (target) {
         target.scrollIntoView({ block: "start", behavior: "instant" })
       }
     }
   }
 
-  const options = {
-    root: null, // Use the browser viewport
-    threshold: 0.5, // Trigger when 50% of the element is visible
-  }
-
-  const callback = (entries: any[]) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        // Logic for visible element (e.g., active class, lazy loading)
-      }
-    })
-  }
-
+  const { topMostId, registerItem } = useTopMostVisibleInScrollContainer(
+    eventListRef,
+    {
+      offsetTop: 0,
+    }
+  )
   const entries = Object.entries(eventsByDate).sort()
-  const formatDateId = (date: string) =>
-    date.toLocaleLowerCase().replace(" ", "")
-  const datesRef = useRef(new Map())
-  const observer = new IntersectionObserver(callback, options)
-  datesRef.current.forEach((section) => {
-    observer.observe(section)
-  })
 
   return (
     <DrawerContent
@@ -102,7 +70,11 @@ const DrawerWrapper = ({
                 handleDateChange={handleDateChange}
                 events={eventsByDate}
               /> */}
-          <DateSlider dateRange={dateRange} onSelect={handleDateChange} />
+          <DateSlider
+            dates={entries.map(([key, val]) => key)}
+            activeDateId={topMostId}
+            onSelect={handleDateChange}
+          />
         </DrawerHeader>
       )}
       <DrawerBody className="flex-5 overflow-y-scroll p-0">
@@ -111,25 +83,8 @@ const DrawerWrapper = ({
         ) : (
           <div className="overflow-y-scroll scroll-smooth" ref={eventListRef}>
             {entries.map(([date, events]) => (
-              <div key={formatDateId(date)}>
-                <div
-                  id={date.replace(" ", "").toLocaleLowerCase()}
-                  ref={(node) => {
-                    if (node) {
-                      datesRef.current.set(
-                        date.replace(" ", "").toLocaleLowerCase(),
-                        node
-                      )
-                    } else {
-                      datesRef.current.delete(
-                        date.replace(" ", "").toLocaleLowerCase()
-                      )
-                    }
-                  }}
-                  className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
-                >
-                  <h3>{date}</h3>
-                </div>
+              <div key={date}>
+                <DateAnchor date={date} ref={registerItem(date)} />
                 <ul className="flex w-full flex-col justify-between gap-4 pt-4">
                   {events.map((event) => (
                     <li className="relative" key={event.id}>
@@ -137,9 +92,7 @@ const DrawerWrapper = ({
                         key={event.id}
                         event={event}
                         date={
-                          <span className="text-gray-600">
-                            {formatDate(event.dates || "")}
-                          </span>
+                          <span className="text-gray-600">{event.dates}</span>
                         }
                       />
                     </li>
@@ -151,6 +104,19 @@ const DrawerWrapper = ({
         )}
       </DrawerBody>
     </DrawerContent>
+  )
+}
+
+const DateAnchor = ({ date, ref }: { date: string; ref: Ref<any> }) => {
+  const formattedDate = formatDate(date)
+  return (
+    <div
+      id={`a${date}`}
+      ref={ref}
+      className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
+    >
+      <h3>{formattedDate}</h3>
+    </div>
   )
 }
 
