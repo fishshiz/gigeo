@@ -1,7 +1,7 @@
 interface TmEvent {
   id: string
   name: string
-  venue: Venue
+  venue?: Venue
   url?: string
   priceRanges?: {
     currency: string

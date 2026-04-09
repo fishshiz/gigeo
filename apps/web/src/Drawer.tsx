@@ -34,12 +34,16 @@ const DrawerWrapper = ({
     defaultValue: false,
     initializeWithValue: false,
   })
-  const handleDateChange = (date: string) => {
+  const handleDateChange = (date: string, idx: number) => {
     if (eventListRef && eventListRef.current) {
       const target = eventListRef.current.querySelector(`#a${date}`)
 
       if (target) {
-        target.scrollIntoView({ block: "start", behavior: "instant" })
+        target.scrollIntoView({
+          block: "start",
+          behavior: "instant",
+          container: "nearest",
+        })
       }
     }
   }
@@ -82,7 +86,7 @@ const DrawerWrapper = ({
           <EventDetails eventData={selectedEvent} />
         ) : (
           <div className="overflow-y-scroll scroll-smooth" ref={eventListRef}>
-            {entries.map(([date, events]) => (
+            {entries.map(([date, events], idx) => (
               <div key={date}>
                 <DateAnchor date={date} ref={registerItem(date)} />
                 <ul className="flex w-full flex-col justify-between gap-4 pt-4">
@@ -110,13 +114,15 @@ const DrawerWrapper = ({
 const DateAnchor = ({ date, ref }: { date: string; ref: Ref<any> }) => {
   const formattedDate = formatDate(date)
   return (
-    <div
-      id={`a${date}`}
-      ref={ref}
-      className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
-    >
-      <h3>{formattedDate}</h3>
-    </div>
+    <>
+      <div id={`a${date}`} />
+      <div
+        ref={ref}
+        className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
+      >
+        <h3>{formattedDate}</h3>
+      </div>
+    </>
   )
 }
 

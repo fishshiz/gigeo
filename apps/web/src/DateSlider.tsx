@@ -21,11 +21,13 @@ const DateSlider = ({
       <ul className="flex w-full flex-1 justify-around">
         {dates.map((day) => (
           <li
-            className="h-6 w-6 rounded-xl bg-slate-400 text-center"
+            className="box-border h-10 w-10 cursor-pointer rounded-xl bg-slate-400 p-2 text-center text-sm/6 leading-none font-thin"
             onClick={() => onSelect(day)}
             style={{
               background:
-                activeDateId && activeDateId === day ? "red" : "green",
+                activeDateId && activeDateId === day
+                  ? "var(--color-green-400)"
+                  : "var(--color-slate-400)",
             }}
           >
             {dateFormatter.format(parseDate(day).toDate(getLocalTimeZone()))}

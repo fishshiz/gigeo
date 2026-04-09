@@ -187,7 +187,9 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
         : attractions?.map((attraction) => (
             <div key={attraction.id}>
               <h4 className="text-lg font-semibold">{attraction.name}</h4>
-              <UpcomingEvents events={futureEvents[attraction.id as any]} />
+              <UpcomingEvents
+                events={futureEvents[attraction.id as any] ?? []}
+              />
             </div>
           ))}
     </div>
@@ -338,6 +340,7 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
 }
 
 const UpcomingEvents = ({ events }: { events: Event[] }) => {
+  console.log(events)
   return (
     <div className="mt-4">
       <h3 className="text-xs tracking-wide text-slate-400 uppercase">
@@ -353,7 +356,7 @@ const UpcomingEvents = ({ events }: { events: Event[] }) => {
             <div className="flex flex-col">
               <span className="font-semibold text-slate-600">{e.name}</span>
               <span className="text-slate-500">
-                {e.venue.name}, {e.venue.city}
+                {e.venue?.name}, {e.venue?.city}
               </span>
             </div>
             <Link
