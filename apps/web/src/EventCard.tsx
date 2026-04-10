@@ -5,7 +5,7 @@ import {
   getLocalTimeZone,
 } from "@internationalized/date"
 import { HouseIcon } from "lucide-react"
-import { useEvents } from "./components/events-provider"
+import { useEventsContext } from "./providers/eventsProvider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 
 import { type ReactElement } from "react"
@@ -17,12 +17,12 @@ const EventCard = ({
   event: EventResponse
   date: ReactElement
 }) => {
-  const eventsContext = useEvents()
+  const { selectEvents } = useEventsContext()
 
   return (
     <div
       className="shadow-8 flex overflow-hidden rounded-xl border border-slate-100 bg-white dark:border-(--color-surface-dark-200) dark:bg-(--color-surface-dark-400)"
-      onClick={() => eventsContext.setSelectedEvent(event)}
+      onClick={() => selectEvents([event])}
     >
       <div className="photo-detail h-auto w-full flex-1 overflow-hidden">
         <ResponsiveImage
@@ -37,11 +37,9 @@ const EventCard = ({
         />
       </div>
       <div className="flex h-auto flex-3 flex-col justify-between p-2">
-        <div>
-          <h3 className="leading-none font-semibold text-black dark:text-(--color-primary-dark-900)">
-            {event.name}
-          </h3>
-        </div>
+        <h3 className="leading-none font-semibold text-black dark:text-(--color-primary-dark-900)">
+          {event.name}
+        </h3>
         <div className="">
           <div>{date}</div>
           <div className="flex items-center text-base/7 leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">

@@ -16,6 +16,7 @@ import IgLogo from "@/assets/instagram.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
+import { useEventsContext } from "./providers/eventsProvider"
 
 const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { attractions } = eventData
@@ -23,6 +24,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const [futureEvents, setFutureEvents] = useState<Record<string, Event[]>>({})
   const [showStickyHeader, setShowStickyHeader] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const { selectEvents } = useEventsContext()
 
   const eventsContext = useEvents()
   const { classifications } = eventData
@@ -96,7 +98,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
             <Button
               className="z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
               variant="secondary"
-              onClick={() => eventsContext.setSelectedEvent(undefined)}
+              onClick={() => selectEvents([])}
             >
               <ArrowLeftIcon aria-hidden className="h-4 w-4" />
             </Button>
@@ -173,16 +175,17 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
       </div>
 
       {artistInfo.length
-        ? artistInfo.map((artist, idx) => (
-            <ArtistCard
-              key={artist.id}
-              artist={artist}
-              similarArtists={artist.similar_artists}
-              attraction={(attractions as any)[idx] as Attraction}
-              futureEvents={
-                futureEvents[(attractions as any)[idx].id as any] ?? []
-              }
-            />
+        ? artistInfo.map((artist) => (
+            <>
+              {JSON.stringify(attractions)}
+              <ArtistCard
+                key={artist.id}
+                artist={artist}
+                similarArtists={artist.similar_artists}
+                attraction={undefined}
+                futureEvents={[]}
+              />
+            </>
           ))
         : attractions?.map((attraction) => (
             <div key={attraction.id}>
@@ -225,7 +228,7 @@ const normalizeBg = (bgColor?: string) => {
 export const ArtistCard: React.FC<ArtistCardProps> = ({
   artist,
   similarArtists = [],
-  attraction,
+  attraction = {},
   futureEvents = [],
   artworkSize = 200,
 }) => {

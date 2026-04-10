@@ -5,10 +5,12 @@ type EventsAction =
   | { type: "UPSERT_STREAMED_EVENT"; payload: EventResponse }
   | { type: "STREAM_ERROR"; payload: string }
   | { type: "STREAM_STATUS"; payload: { isStreaming: boolean } }
+  | { type: "SELECT_EVENTS"; payload: EventResponse[] }
 
 type EventsState = {
   eventsByDate: EventsByDate
   isStreaming: boolean
+  selectedEvents: EventResponse[]
   error: string | null
 }
 
@@ -55,6 +57,7 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
       return {
         eventsByDate: {},
         isStreaming: false,
+        selectedEvents: [],
         error: null,
       }
 
@@ -95,6 +98,13 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
       }
     }
 
+    case "SELECT_EVENTS":
+      const events = action.payload
+      return {
+        ...state,
+        selectedEvents: events,
+      }
+
     default:
       return state
   }
@@ -103,6 +113,7 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
 const initialEventsState: EventsState = {
   eventsByDate: {},
   isStreaming: false,
+  selectedEvents: [],
   error: null,
 }
 

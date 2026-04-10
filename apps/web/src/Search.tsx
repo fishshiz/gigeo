@@ -25,7 +25,7 @@ const Search = () => {
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
   const listRef = useRef<HTMLUListElement | null>(null)
 
-  const debounceValue = useDebounce(searchTerm, 1500)
+  const debounceValue = useDebounce(searchTerm, 500)
 
   useEffect(() => {
     fetch(`/api/cities?q=${debounceValue}`)

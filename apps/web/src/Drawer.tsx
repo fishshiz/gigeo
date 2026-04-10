@@ -1,7 +1,6 @@
 import { EventCard } from "./EventCard"
-import { useEvents } from "./components/events-provider"
 import { EventDetails } from "./EventDetails"
-import { PanelLeftCloseIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 import { DateSlider } from "./DateSlider"
 import {
   DrawerBody,
@@ -12,9 +11,9 @@ import {
 import { useEventsContext } from "./providers/eventsProvider"
 import { useMediaQuery } from "usehooks-ts"
 import { useEffect, useRef, type Ref } from "react"
-import { type DateValue } from "@internationalized/date"
 import { useTopMostVisibleInScrollContainer } from "./hooks/listItemObserver"
 import { formatDate } from "./lib/formats"
+import { VenueDetails } from "./VenueDetails"
 
 const DrawerWrapper = ({
   drawerOpen,
@@ -23,8 +22,7 @@ const DrawerWrapper = ({
   drawerOpen: boolean
   setDrawerOpen: (open: boolean) => void
 }) => {
-  const { eventsByDate } = useEventsContext()
-  const { selectedEvent, dateRange } = useEvents()
+  const { eventsByDate, selectedEvents } = useEventsContext()
   const eventListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,7 +32,7 @@ const DrawerWrapper = ({
     defaultValue: false,
     initializeWithValue: false,
   })
-  const handleDateChange = (date: string, idx: number) => {
+  const handleDateChange = (date: string) => {
     if (eventListRef && eventListRef.current) {
       const target = eventListRef.current.querySelector(`#a${date}`)
 
@@ -42,6 +40,7 @@ const DrawerWrapper = ({
         target.scrollIntoView({
           block: "start",
           behavior: "instant",
+          // @ts-ignore
           container: "nearest",
         })
       }
@@ -65,28 +64,30 @@ const DrawerWrapper = ({
       side={isDesktop ? "left" : "bottom"}
       className="z-10 flex h-[50dvh] w-full max-w-md flex-col bg-white"
     >
-      {!selectedEvent && eventsByDate && (
+      {!selectedEvents.length && eventsByDate && (
         <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
-          <DrawerClose onClick={() => setDrawerOpen(false)}>
-            <PanelLeftCloseIcon />
+          <DrawerClose onClick={() => setDrawerOpen(false)} className="right-0">
+            <XIcon />
           </DrawerClose>
           {/* <FilterSection
                 handleDateChange={handleDateChange}
                 events={eventsByDate}
               /> */}
           <DateSlider
-            dates={entries.map(([key, val]) => key)}
+            dates={entries.map(([key]) => key)}
             activeDateId={topMostId}
             onSelect={handleDateChange}
           />
         </DrawerHeader>
       )}
       <DrawerBody className="flex-5 overflow-y-scroll p-0">
-        {selectedEvent ? (
-          <EventDetails eventData={selectedEvent} />
+        {selectedEvents.length === 1 ? (
+          <EventDetails eventData={selectedEvents[0]} />
+        ) : selectedEvents.length ? (
+          <VenueDetails events={selectedEvents} />
         ) : (
           <div className="overflow-y-scroll scroll-smooth" ref={eventListRef}>
-            {entries.map(([date, events], idx) => (
+            {entries.map(([date, events]) => (
               <div key={date}>
                 <DateAnchor date={date} ref={registerItem(date)} />
                 <ul className="flex w-full flex-col justify-between gap-4 pt-4">

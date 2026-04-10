@@ -25,6 +25,7 @@ type StreamConcertsParams = {
 type EventsContextValue = EventsState & {
   streamEvents: (params: StreamConcertsParams) => Promise<void>
   cancelStream: () => void
+  selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
 }
 
@@ -53,6 +54,10 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   const resetEvents = useCallback(() => {
     dispatch({ type: "RESET_EVENTS" })
+  }, [])
+
+  const selectEvents = useCallback((events: EventResponse[]) => {
+    dispatch({ type: "SELECT_EVENTS", payload: events })
   }, [])
 
   const streamEvents = useCallback(async (params: StreamConcertsParams) => {
@@ -139,8 +144,9 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       streamEvents,
       cancelStream,
       resetEvents,
+      selectEvents,
     }),
-    [state, streamEvents, cancelStream, resetEvents]
+    [state, streamEvents, cancelStream, resetEvents, selectEvents]
   )
 
   return (

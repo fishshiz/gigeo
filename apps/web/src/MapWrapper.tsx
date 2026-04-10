@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react"
-import mapboxgl, { InteractionEvent } from "mapbox-gl"
+import mapboxgl, { GeoJSONSource, InteractionEvent } from "mapbox-gl"
 import { useEvents } from "./components/events-provider"
 import { useEventsContext } from "./providers/eventsProvider"
 
@@ -10,7 +10,7 @@ import type { EventResponse } from "./hooks/eventsStream"
 
 const INITIAL_ZOOM = 12.12
 
-const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
+const MapWrapper = () => {
   const eventsContext = useEvents()
   const {
     selectedCoordinates,
@@ -21,6 +21,7 @@ const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
     dateRange,
   } = eventsContext
   const mapRef = useRef<mapboxgl.Map | null>(null)
+  const mapContainer = useRef<HTMLDivElement | null>(null)
   const [selectedFeature, setSelectedFeature] = useState(null)
   // Initialize the GeolocateControl.
   const geolocate = new mapboxgl.GeolocateControl({
@@ -31,12 +32,12 @@ const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
     trackUserLocation: false,
   })
 
-  useEffect(() => {
-    setTimeout(() => {
-      console.log("FIRED", mapRef.current)
-      mapRef.current?.resize()
-    }, 10)
-  }, [drawerOpen])
+  const resizeObserver = new ResizeObserver(() => {
+    mapRef.current?.resize()
+  })
+  if (mapContainer.current) {
+    resizeObserver.observe(mapContainer.current)
+  }
 
   useEffect(() => {
     if (selectedEvent?.venue?.location !== undefined) {
@@ -134,7 +135,8 @@ const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
     })
   }, [])
 
-  const { streamEvents, cancelStream, eventsByDate } = useEventsContext()
+  const { streamEvents, cancelStream, eventsByDate, selectEvents } =
+    useEventsContext()
   const { latitude, longitude, radius, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
@@ -263,7 +265,30 @@ const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
       const event: EventResponse | undefined = [...Object.values(eventsByDate)]
         .flat()
         ?.find((ev) => ev.id === feature?.id)
-      console.log("clickity,", [...Object.values(events)], feature)
+      const eventSource = mapRef.current?.getSource(
+        "event-data-source"
+      ) as GeoJSONSource
+      eventSource.getClusterChildren(
+        feature?.properties.cluster_id as number,
+        (error, features) => {
+          if (!error) {
+            console.log("Cluster children:", features)
+            const eventIds = features?.map((feature) => feature?.properties?.id)
+            const selectedEvents = Object.values(eventsByDate).reduce(
+              (acc, curr) => {
+                const selectedEvents = [...curr].filter((i) =>
+                  eventIds?.includes(i.id)
+                )
+                acc.push(...selectedEvents)
+                return acc
+              },
+              []
+            )
+            selectEvents(selectedEvents)
+          }
+        }
+      )
+      console.log("clickity,", [...Object.values(eventsByDate)], event, feature)
       if (event && feature) {
         mapRef.current?.setLayoutProperty("events", "icon-image", [
           "match",
@@ -294,6 +319,7 @@ const MapWrapper = ({ drawerOpen }: { drawerOpen: boolean }) => {
 
   return (
     <div
+      ref={mapContainer}
       id="map-container"
       className="h-full w-full"
       style={{ height: "100%", width: "100%" }}

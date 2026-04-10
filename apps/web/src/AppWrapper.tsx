@@ -23,7 +23,7 @@ const AppWrapper = () => {
       <div className="relative h-full w-full">
         <Search />
         <PlaylistButtons />
-        <MapWrapper drawerOpen={drawerOpen} />
+        <MapWrapper />
         {!drawerOpen && (
           <div className="absolute">
             <DrawerTrigger
