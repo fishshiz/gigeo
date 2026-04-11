@@ -12,14 +12,18 @@ const INITIAL_ZOOM = 12.12
 
 const MapWrapper = () => {
   const eventsContext = useEvents()
+  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
+    eventsContext
+
   const {
-    selectedCoordinates,
-    setSelectedCoordinates,
-    setSelectedEvent,
-    selectedEvent,
-    events,
-    dateRange,
-  } = eventsContext
+    streamEvents,
+    cancelStream,
+    eventsByDate,
+    selectedClusterId,
+    selectClusterId,
+    selectEvents,
+    selectedEvents,
+  } = useEventsContext()
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const [selectedFeature, setSelectedFeature] = useState(null)
@@ -40,14 +44,23 @@ const MapWrapper = () => {
   }
 
   useEffect(() => {
-    if (selectedEvent?.venue?.location !== undefined) {
-      const { latitude, longitude } = selectedEvent?.venue.location
+    if (
+      selectedEvents.length &&
+      selectedEvents[0]?.venue?.location !== undefined
+    ) {
+      const { latitude, longitude } = selectedEvents[0]?.venue.location
       mapRef.current?.setLayoutProperty("events", "icon-image", [
-        "match",
-        ["get", "id"],
-        selectedEvent.id,
-        "marker-yellow", //image when id is the hovered feature id
-        "marker-red", // default
+        "case",
+        ["==", ["get", "id"], selectedEvents[0].id],
+        "marker-yellow",
+        [
+          "in",
+          ["get", "clusterVenue"],
+          ["literal", selectedEvents.map((e) => e.venue?.name)],
+        ],
+
+        "marker-yellow",
+        "marker-red",
       ])
       if (latitude && longitude) {
         mapRef.current?.flyTo({
@@ -56,7 +69,8 @@ const MapWrapper = () => {
         })
       }
     }
-  }, [selectedEvent])
+    console.log("CHANGER")
+  }, [selectedEvents])
 
   const theme =
     window.matchMedia &&
@@ -75,24 +89,23 @@ const MapWrapper = () => {
 
     if (!mapRef.current.hasControl(geolocate)) {
       // Add the control to the map.
-      console.log("dsf")
       mapRef.current.addControl(geolocate)
     }
     // Set an event listener that fires
     // when a geolocate event occurs.
     geolocate.on("geolocate", (e) => {
-      console.log("A geolocate event has occurred.", e)
       setSelectedCoordinates([e.coords.longitude, e.coords.latitude])
     })
     mapRef.current?.addInteraction("event-click-interaction", {
       type: "click",
       target: { layerId: "events" },
       handler: (e) => {
-        const event = [...Object.values(events)]
+        const event = [...Object.values(eventsByDate)]
           .flat()
           ?.find((ev) => ev.id === e?.feature?.id)
-        console.log("click", event, e)
-        setSelectedEvent(event)
+        if (event) {
+          selectEvents([event])
+        }
       },
     })
 
@@ -101,8 +114,9 @@ const MapWrapper = () => {
 
     mapRef.current?.addInteraction("map-click", {
       type: "click",
+      target: { layerId: "events" },
       handler: (e) => {
-        const event = [...Object.values(events)]
+        const event = [...Object.values(eventsByDate)]
           .flat()
           ?.find((ev) => ev.id === e?.feature?.id)
         console.log(selectedFeature, e, event)
@@ -135,8 +149,6 @@ const MapWrapper = () => {
     })
   }, [])
 
-  const { streamEvents, cancelStream, eventsByDate, selectEvents } =
-    useEventsContext()
   const { latitude, longitude, radius, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
@@ -159,8 +171,7 @@ const MapWrapper = () => {
   }, [latitude, longitude, radius, start, end, streamEvents, cancelStream])
 
   const markEvents = async () => {
-    setSelectedEvent(undefined)
-    console.log("ahsahas", eventsByDate)
+    selectEvents([])
 
     const dataSource: FeatureCollection = {
       type: "FeatureCollection",
@@ -233,11 +244,22 @@ const MapWrapper = () => {
           "text-variable-anchor": ["top", "bottom", "left", "right"],
           "text-radial-offset": 0.5,
           "text-justify": "auto",
-          "icon-image": "marker-red",
+          "icon-image": [
+            "case",
+            ["in", ["get", "id"], ["literal", selectedEvents.map((e) => e.id)]],
+            "marker-yellow",
+            [
+              "in",
+              ["get", "clusterVenue"],
+              ["literal", selectedEvents.map((e) => e.venue?.name)],
+            ],
+
+            "marker-yellow",
+            "marker-red",
+          ],
           "icon-size": 1.6,
         },
         paint: {
-          "icon-color": "#ea4236",
           "icon-halo-color": "#ffffff",
           "icon-halo-width": 1,
           "text-color": [
@@ -254,10 +276,7 @@ const MapWrapper = () => {
       })
     })
   }
-  console.log("Event clicked:")
-  if (mapRef.current?.removeInteraction("event-click-interaction")) {
-    console.log("Removed existing event-click-interaction")
-  }
+  mapRef.current?.removeInteraction("event-click-interaction")
   mapRef.current?.addInteraction("event-click-interaction", {
     type: "click",
     target: { layerId: "events" },
@@ -268,11 +287,14 @@ const MapWrapper = () => {
       const eventSource = mapRef.current?.getSource(
         "event-data-source"
       ) as GeoJSONSource
+      if (event) {
+        selectClusterId(null)
+        selectEvents([event])
+      }
       eventSource.getClusterChildren(
         feature?.properties.cluster_id as number,
         (error, features) => {
           if (!error) {
-            console.log("Cluster children:", features)
             const eventIds = features?.map((feature) => feature?.properties?.id)
             const selectedEvents = Object.values(eventsByDate).reduce(
               (acc, curr) => {
@@ -284,21 +306,12 @@ const MapWrapper = () => {
               },
               []
             )
+
+            selectClusterId(feature?.properties?.cluster_id as number)
             selectEvents(selectedEvents)
           }
         }
       )
-      console.log("clickity,", [...Object.values(eventsByDate)], event, feature)
-      if (event && feature) {
-        mapRef.current?.setLayoutProperty("events", "icon-image", [
-          "match",
-          ["get", "id"],
-          feature.id,
-          "marker-yellow", //image when id is the hovered feature id
-          "marker-red", // default
-        ])
-        setSelectedEvent(event)
-      }
     },
   })
 
