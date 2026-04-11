@@ -1,6 +1,6 @@
 import { EventCard } from "./EventCard"
 import { EventDetails } from "./EventDetails"
-import { XIcon } from "lucide-react"
+import { XIcon, XCircleIcon } from "lucide-react"
 import { DateSlider } from "./DateSlider"
 import {
   DrawerBody,
@@ -66,9 +66,12 @@ const DrawerWrapper = ({
     >
       {!selectedEvents.length && eventsByDate && (
         <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
-          <DrawerClose onClick={() => setDrawerOpen(false)} className="right-0">
-            <XIcon />
-          </DrawerClose>
+          <div className="mb-2 flex w-full justify-between">
+            <h2 className="text-bold text-xl">Events</h2>
+            <DrawerClose variant="quiet" onClick={() => setDrawerOpen(false)}>
+              <XIcon />
+            </DrawerClose>
+          </div>
           {/* <FilterSection
                 handleDateChange={handleDateChange}
                 events={eventsByDate}

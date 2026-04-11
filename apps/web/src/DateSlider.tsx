@@ -34,12 +34,12 @@ const DateSlider = ({
 
   return (
     <div className="flex w-full items-center">
-      <ul className="flex w-full snap-x justify-around gap-2 overflow-x-scroll">
+      <ul className="flex h-full w-full snap-x justify-around gap-2 overflow-x-scroll">
         {groupedDates.map((days) => (
           <div className="flex w-full flex-[0_0_100%] snap-center items-center gap-2">
             {days.map((day) => (
               <li
-                className="box-border h-10 cursor-pointer snap-center rounded-xl bg-slate-400 p-2 text-center text-xs leading-none"
+                className="box-border cursor-pointer snap-center rounded-xl bg-slate-400 p-2 text-center text-xs leading-none"
                 onClick={() => onSelect(day)}
                 style={{
                   background:
