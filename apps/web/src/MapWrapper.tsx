@@ -19,8 +19,6 @@ const MapWrapper = () => {
     streamEvents,
     cancelStream,
     eventsByDate,
-    selectedClusterId,
-    selectClusterId,
     selectEvents,
     selectedEvents,
   } = useEventsContext()
@@ -288,7 +286,6 @@ const MapWrapper = () => {
         "event-data-source"
       ) as GeoJSONSource
       if (event) {
-        selectClusterId(null)
         selectEvents([event])
       }
       eventSource.getClusterChildren(
@@ -307,7 +304,6 @@ const MapWrapper = () => {
               []
             )
 
-            selectClusterId(feature?.properties?.cluster_id as number)
             selectEvents(selectedEvents)
           }
         }
