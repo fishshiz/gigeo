@@ -22,7 +22,7 @@ export type EventResponse = {
   }>
   dates?: string | null
   datesPretty?: string | null
-  classifications?: unknown[] | null
+  classifications?: { segment: { id: string; name: string } }[] | null
   attractions?: Array<{
     id?: string
     name?: string

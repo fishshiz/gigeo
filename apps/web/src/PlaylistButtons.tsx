@@ -2,15 +2,16 @@ import { Button } from "@workspace/ui/components/ui/Button"
 import { MenuTrigger, Menu, MenuItem } from "@workspace/ui/components/ui/Menu"
 import SpotifyLogo from "@/assets/Primary_Logo_Green_CMYK.svg"
 import { ReactSVG } from "react-svg"
-import { useEvents } from "./components/events-provider"
+import { useEventsContext } from "./providers/eventsProvider"
 
 const PlaylistButtons = () => {
-  const { events } = useEvents()
+  const { eventsByDate } = useEventsContext()
   const loginSpotify = async () => {
     try {
       // 1. Perform the fetch request
       const response = await fetch("/api/spotify/login", {
         redirect: "follow",
+        mode: "no-cors",
       })
       console.log("Final URL:", response) // Log the final URL for debugging
 
@@ -38,6 +39,16 @@ const PlaylistButtons = () => {
   }
   const createSpotifyPlaylist = async () => {
     try {
+      const artists = Object.values(eventsByDate)
+        .flat()
+        .filter((e) => {
+          const { classifications } = e
+          if (classifications) {
+            return classifications[0].segment?.name === "Music"
+          }
+          return false
+        })
+        .flatMap((e) => e.attractions?.map((a) => a.name) || [])
       // 1. Perform the fetch request
       const response = await fetch("/api/spotify/playlist", {
         method: "POST",
@@ -46,9 +57,7 @@ const PlaylistButtons = () => {
         body: JSON.stringify({
           name: "test playlist",
           description: "playlist created from gigeo app",
-          artists: Object.values(events)
-            .flat()
-            .flatMap((e) => e.attractions?.map((a) => a.name) || []),
+          artists: artists,
         }),
       })
       console.log("Final URL:", response) // Log the final URL for debugging
@@ -76,7 +85,7 @@ const PlaylistButtons = () => {
     }
   }
   return (
-    <div className="absolute right-0 bottom-12 z-15">
+    <div className="absolute top-0 left-0 z-15 m-2">
       <MenuTrigger>
         <Button>
           <ReactSVG className="h-4 w-4" src={SpotifyLogo} />
