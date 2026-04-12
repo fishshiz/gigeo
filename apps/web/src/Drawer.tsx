@@ -1,6 +1,6 @@
 import { EventCard } from "./EventCard"
 import { EventDetails } from "./EventDetails"
-import { XIcon, XCircleIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 import { DateSlider } from "./DateSlider"
 import {
   DrawerBody,
