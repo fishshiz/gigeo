@@ -9,7 +9,7 @@ import {
 import { type RangeValue } from "react-aria"
 import type { EventResponse } from "@/hooks/eventsStream"
 
-const INITIAL_CENTER: [number, number] = [-90.078202, 29.975962]
+const INITIAL_CENTER: [number, number] = [-24, 42]
 
 type EventsProviderState = {
   events: Record<string, Event[]>

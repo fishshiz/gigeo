@@ -1,104 +1,96 @@
-import { Button } from "@workspace/ui/components/ui/Button"
-import { MenuTrigger, Menu, MenuItem } from "@workspace/ui/components/ui/Menu"
-import SpotifyLogo from "@/assets/Primary_Logo_Green_CMYK.svg"
-import { ReactSVG } from "react-svg"
-import { useEventsContext } from "./providers/eventsProvider"
+import { useState } from "react"
+import { useSpotifyAuth } from "./hooks/spotify"
 
-const PlaylistButtons = () => {
-  const { eventsByDate } = useEventsContext()
-  const loginSpotify = async () => {
-    try {
-      // 1. Perform the fetch request
-      const response = await fetch("/api/spotify/login", {
-        redirect: "follow",
-        mode: "no-cors",
-      })
-      console.log("Final URL:", response) // Log the final URL for debugging
+export function PlaylistButtons() {
+  const { status, loading, error, connectSpotify, createPlaylist, logout } =
+    useSpotifyAuth()
 
-      if (!response.ok) {
-        throw new Error(`Response status: ${response.status}`)
-      }
+  const [name, setName] = useState("My generated playlist")
+  const [description, setDescription] = useState("Created by the app")
+  const [isPublic, setIsPublic] = useState(false)
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-      // 2. Get the final URL after any redirects
-      const finalUrl = response.url
+  if (loading) return <div>Loading auth status…</div>
+  if (error) return <div>Auth error: {error}</div>
 
-      // 3. Open the final URL in a new tab
-      // Note: This must be triggered by a direct user action (like a button click handler)
-      // to avoid being blocked by the browser's pop-up blocker.
-      const newTab = window.open(finalUrl, "_blank")
-      if (newTab) {
-        newTab.focus() // Focus the newly opened tab
-      } else {
-        alert(
-          "Pop-up blocked. Please allow pop-ups for this site to open the link in a new tab."
-        )
-      }
-    } catch (error) {
-      console.error("Error during fetch:", error)
-    }
+  if (!status?.logged_in || !status.spotify_connected) {
+    return (
+      <div>
+        <h2>Spotify</h2>
+        <p>Your app session is missing or Spotify is not connected yet.</p>
+        <button onClick={connectSpotify}>Connect Spotify</button>
+      </div>
+    )
   }
-  const createSpotifyPlaylist = async () => {
-    try {
-      const artists = Object.values(eventsByDate)
-        .flat()
-        .filter((e) => {
-          const { classifications } = e
-          if (classifications) {
-            return classifications[0].segment?.name === "Music"
-          }
-          return false
-        })
-        .flatMap((e) => e.attractions?.map((a) => a.name) || [])
-      // 1. Perform the fetch request
-      const response = await fetch("/api/spotify/playlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        redirect: "follow",
-        body: JSON.stringify({
-          name: "test playlist",
-          description: "playlist created from gigeo app",
-          artists: artists,
-        }),
-      })
-      console.log("Final URL:", response) // Log the final URL for debugging
 
-      if (!response.ok) {
-        throw new Error(`Response status: ${response.status}`)
-      }
+  const canCreate = isPublic
+    ? status.can_create_public_playlist
+    : status.can_create_private_playlist
 
-      // 2. Get the final URL after any redirects
-      const finalUrl = response.url
-
-      // 3. Open the final URL in a new tab
-      // Note: This must be triggered by a direct user action (like a button click handler)
-      // to avoid being blocked by the browser's pop-up blocker.
-      const newTab = window.open(finalUrl, "_blank")
-      if (newTab) {
-        newTab.focus() // Focus the newly opened tab
-      } else {
-        alert(
-          "Pop-up blocked. Please allow pop-ups for this site to open the link in a new tab."
-        )
-      }
-    } catch (error) {
-      console.error("Error during fetch:", error)
-    }
-  }
   return (
-    <div className="absolute top-0 left-0 z-15 m-2">
-      <MenuTrigger>
-        <Button>
-          <ReactSVG className="h-4 w-4" src={SpotifyLogo} />
-        </Button>
-        <Menu>
-          <MenuItem onAction={() => loginSpotify()}>Login</MenuItem>
-          <MenuItem onAction={() => createSpotifyPlaylist()}>
-            Create Playlist
-          </MenuItem>
-        </Menu>
-      </MenuTrigger>
+    <div>
+      <h2>Spotify connected</h2>
+      <p>Spotify user: {status.spotify_user_id}</p>
+
+      <label>
+        Playlist name
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+
+      <label>
+        Description
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={isPublic}
+          onChange={(e) => setIsPublic(e.target.checked)}
+        />
+        Public playlist
+      </label>
+
+      {!canCreate && (
+        <p>
+          Missing scope for {isPublic ? "public" : "private"} playlist creation.
+          Reconnect Spotify with the required permissions.
+        </p>
+      )}
+
+      <button
+        disabled={submitting || !canCreate}
+        onClick={async () => {
+          setSubmitting(true)
+          try {
+            const created = await createPlaylist({
+              name,
+              description,
+              public: isPublic,
+            })
+            setCreatedUrl(created.spotify_url ?? null)
+          } finally {
+            setSubmitting(false)
+          }
+        }}
+      >
+        {submitting ? "Creating…" : "Create playlist"}
+      </button>
+
+      <button onClick={() => void logout()}>Log out</button>
+
+      {createdUrl && (
+        <p>
+          Playlist created:{" "}
+          <a href={createdUrl} target="_blank" rel="noreferrer">
+            Open in Spotify
+          </a>
+        </p>
+      )}
     </div>
   )
 }
-
-export { PlaylistButtons }

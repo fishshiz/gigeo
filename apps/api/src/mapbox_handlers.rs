@@ -4,7 +4,6 @@ use axum::response::IntoResponse;
 use axum::{Json, http::StatusCode};
 use geojson::FeatureCollection;
 use serde::Deserialize;
-use std::sync::Arc;
 
 #[derive(Deserialize)]
 pub struct CitiesQuery {
@@ -12,7 +11,7 @@ pub struct CitiesQuery {
 }
 
 pub async fn get_cities(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(params): Query<CitiesQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let query = params.q.unwrap_or_default();

@@ -46,7 +46,7 @@ pub struct SimilarArtist {
 ///   - `GET /v1/catalog/{storefront}/search` (types=artists)
 ///   - `GET /v1/catalog/{storefront}/artists/{id}/view/similar-artists`
 pub async fn get_artist_info(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     QueryArray(q): QueryArray<ArtistQuery>,
 ) -> Result<Json<Vec<AppleArtistInfoResponse>>, AppError> {
     if q.name.is_empty() {
@@ -148,7 +148,7 @@ pub struct ApplePlaylistTrack {
 ///   - `POST /v1/me/library/playlists`
 ///   - `POST /v1/me/library/playlists/{id}/tracks`
 pub async fn create_playlist(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(req): Json<CreateApplePlaylistRequest>,
 ) -> Result<(StatusCode, Json<CreateApplePlaylistResponse>), AppError> {
     let am = state
@@ -228,7 +228,7 @@ pub struct SetUserTokenRequest {
 /// Store a Music User Token obtained from MusicKit JS on the frontend.
 /// This token is required for user-scoped endpoints (library playlists).
 pub async fn set_user_token(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(req): Json<SetUserTokenRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let store = state

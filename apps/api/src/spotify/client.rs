@@ -10,6 +10,14 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use unicode_normalization::UnicodeNormalization;
+
+fn normalize(s: &str) -> String {
+    s.to_lowercase()
+        .nfd()
+        .filter(|c| c.is_alphanumeric() && !c.is_whitespace())
+        .collect()
+}
 
 const BASE: &str = "https://api.spotify.com/v1";
 
@@ -62,6 +70,10 @@ pub struct Track {
 }
 
 // -- Search response wrappers -----------------------------------------------
+#[derive(Debug, Deserialize)]
+pub struct User {
+    pub id: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct Paging<T> {
@@ -75,6 +87,11 @@ pub struct Paging<T> {
 #[derive(Debug, Deserialize)]
 pub struct SearchArtistsResponse {
     pub artists: Paging<Artist>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ArtistTracksResponse {
+    pub tracks: Vec<Track>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,15 +176,31 @@ impl SpotifyClient {
         token: &str,
         artist_name: &str,
         limit: u8,
-    ) -> Result<Vec<Track>, AppError> {
-        let query = format!("artist:{artist_name}");
-        let url = format!(
-            "{BASE}/search?q={}&type=track&limit={limit}",
+    ) -> Result<Option<Vec<Track>>, AppError> {
+        let query = format!("{artist_name}");
+        let artist_url = format!(
+            "{BASE}/search?q={}&type=artist&limit={limit}",
             urlencoding(&query),
         );
-        self.get_json::<SearchTracksResponse>(token, &url)
+        println!("{} - {}", artist_url, token);
+        let artist = self
+            .get_json::<SearchArtistsResponse>(token, &artist_url)
+            .await?
+            .artists
+            .items
+            .into_iter()
+            .find(|a| {
+                println!("{} --- {}", a.name, artist_name);
+                normalize(&a.name) == normalize(artist_name)
+            });
+        let Some(artist) = artist else {
+            return Ok(None);
+        };
+        println!("{}", artist.name);
+        let tracks_url = format!("{BASE}/artists/{}/top-tracks", artist.id);
+        self.get_json::<ArtistTracksResponse>(token, &tracks_url)
             .await
-            .map(|r| r.tracks.items)
+            .map(|r| Some(r.tracks))
     }
 
     // -- Artists ------------------------------------------------------------
@@ -327,7 +360,7 @@ impl SpotifyClient {
 
             // For non-429 errors, parse the Spotify error body.
             if !resp.status().is_success() {
-                let status = resp.status().as_u16();
+                let status = resp.status();
                 let text = resp.text().await.unwrap_or_default();
 
                 // Try to extract the structured error message.

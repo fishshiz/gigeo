@@ -114,19 +114,17 @@ async fn run_update_cycle(state: &Arc<AppState>) -> Result<(), AppError> {
     let mut uris: Vec<String> = Vec::new();
 
     for artist_name in &artists {
-        match state
+        let tracks = state
             .spotify
-            .search_tracks_by_artist(&cc_token, artist_name, per_artist)
-            .await
-        {
-            Ok(tracks) => {
-                for t in tracks {
-                    uris.push(t.uri);
-                }
+            .search_tracks_by_artist(&cc_token.access_token, artist_name, per_artist)
+            .await?;
+
+        if let Some(tracks) = tracks {
+            for t in tracks {
+                uris.push(t.uri);
             }
-            Err(e) => {
-                tracing::warn!("Updater: failed to search tracks for '{artist_name}': {e}");
-            }
+        } else {
+            tracing::warn!("Updater: failed to search tracks for {artist_name}");
         }
     }
 

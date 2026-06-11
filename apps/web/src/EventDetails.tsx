@@ -43,6 +43,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
             (attraction) => `name=${encodeURIComponent(attraction.name || "")}`
           )
           .join("&")
+        console.log(artistInfoQuery)
         const res = await fetch(`/api/apple/artist?${artistInfoQuery}`)
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()

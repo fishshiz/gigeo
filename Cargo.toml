@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "apps/api",
-    # "apps/web"  # if you’ll have a Rust crate there later
 ]
 
 resolver = "3"

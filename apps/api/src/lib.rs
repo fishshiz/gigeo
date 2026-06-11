@@ -3,10 +3,12 @@ mod apple_music;
 mod apple_music_updater_handlers;
 mod auth;
 mod config;
+mod cookie;
+mod db;
 mod error;
 mod mapbox_handlers;
+mod models;
 mod spotify;
-mod spotify_handlers;
 mod state;
 mod ticketmaster_handlers;
 mod ticketmaster_stream;
@@ -15,9 +17,10 @@ mod updater;
 use std::sync::Arc;
 
 use anyhow::Result;
-use axum::response::IntoResponse;
-use axum::{Json, Router};
+use axum::{Json, Router, extract::State};
 use reqwest::Client;
+use serde_json::{Value, json};
+use sqlx::migrate;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -25,14 +28,17 @@ use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager, MusicUserT
 use apple_music::client::AppleMusicClient;
 use apple_music::updater::AppleArtistQueue;
 use auth::{ClientCredentialsManager, SpotifyCredentials, UserTokenManager};
+use axum_extra::extract::cookie::Key;
+
 use config::AppConfig;
-use spotify::SpotifyClient;
-use state::AppState;
+use db::AppDatabase;
+use spotify::client::SpotifyClient;
+use state::{AppState, AppStateInner};
 use updater::ArtistQueue;
 
-pub fn build_app() -> Result<Router> {
+pub async fn build_app() -> Result<Router> {
     // Load .env if present.
-    let _ = dotenvy::dotenv();
+    let _ = dotenvy::dotenv().ok();
 
     // Initialize tracing (no-op on Vercel if you want; keeping it is fine).
     tracing_subscriber::fmt()
@@ -49,6 +55,18 @@ pub fn build_app() -> Result<Router> {
     let user_manager = UserTokenManager::new(creds.clone(), http.clone());
     let spotify = SpotifyClient::new(http.clone());
     let artist_queue = ArtistQueue::new();
+
+    // DB connection
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set in .env file or environment");
+    let db = AppDatabase::new(&database_url)
+        .await
+        .expect("Failed to connect to database");
+    println!("connected to database at {database_url}");
+    migrate!("./migrations")
+        .run(&db.pool)
+        .await
+        .expect("Failed to run database migrations");
 
     // Load configuration.
     let config = AppConfig::from_env()?;
@@ -74,22 +92,34 @@ pub fn build_app() -> Result<Router> {
         (None, None, None, None)
     };
 
-    let shared_state = Arc::new(AppState {
+    let shared_state = AppState(Arc::new(AppStateInner {
+        db,
         client,
         mapbox_key: mapbox_key_clone,
         ticketmaster_key: ticketmaster_key_clone,
+        spotify,
         cc_manager,
         user_manager,
-        spotify,
         artist_queue,
+        spotify_client_id: std::env::var("SPOTIFY_CLIENT_ID").expect("SPOTIFY_CLIENT_ID required"),
+        spotify_client_secret: std::env::var("SPOTIFY_CLIENT_SECRET")
+            .expect("SPOTIFY_CLIENT_SECRET required"),
+
         apple_music_client: apple_client,
         apple_dev_token: apple_dev,
         apple_user_token: apple_user,
         apple_artist_queue: apple_queue,
-    });
+        cookie_domain: config.cookie_domain.clone(),
+        cookie_secure: config.cookie_secure,
+        cookie_key: Key::from(config.cookie_key.as_bytes()),
+    }));
 
     let app = axum::Router::new()
         .route("/health", axum::routing::get(health_check))
+        .route(
+            "/auth/status",
+            axum::routing::get(spotify::spotify_handlers::auth_status),
+        )
         .route("/cities", axum::routing::get(mapbox_handlers::get_cities))
         .route(
             "/concerts",
@@ -105,19 +135,19 @@ pub fn build_app() -> Result<Router> {
         )
         .route(
             "/artists",
-            axum::routing::get(spotify_handlers::get_artist_info),
+            axum::routing::get(spotify::spotify_handlers::get_artist_info),
         )
         .route(
             "/spotify/playlist",
-            axum::routing::post(spotify_handlers::create_playlist),
+            axum::routing::post(spotify::spotify_handlers::create_playlist),
         )
         .route(
             "/spotify/login",
-            axum::routing::get(spotify_handlers::login),
+            axum::routing::get(spotify::spotify_handlers::login),
         )
         .route(
             "/spotify/callback",
-            axum::routing::get(spotify_handlers::oauth_callback),
+            axum::routing::get(spotify::spotify_handlers::oauth_callback),
         )
         .route(
             "/apple/artist",
@@ -145,6 +175,19 @@ pub fn build_app() -> Result<Router> {
     Ok(app)
 }
 
-async fn health_check() -> impl IntoResponse {
-    Json(serde_json::json!({ "status": "ok" }))
+pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
+    match sqlx::query("SELECT 1").execute(&state.db.pool).await {
+        Ok(_) => Json(json!({
+            "status": "ok",
+            "database": "connected"
+        })),
+        Err(e) => {
+            eprintln!("Database error: {}", e);
+            Json(json!({
+                "status": "error",
+                "database": "disconnected",
+                "error": e.to_string()
+            }))
+        }
+    }
 }

@@ -6,7 +6,7 @@
 //!   Authorization Code – https://developer.spotify.com/documentation/web-api/tutorials/code-flow
 //!   Token Refresh      – https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -50,13 +50,13 @@ impl SpotifyCredentials {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    token_type: String,
-    expires_in: u64,
+pub struct TokenResponse {
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: u64,
     /// Only present in Authorization Code flow responses.
-    refresh_token: Option<String>,
-    scope: Option<String>,
+    pub refresh_token: Option<String>,
+    pub scope: Option<String>,
 }
 
 /// A cached token with its expiry instant.
@@ -82,7 +82,7 @@ impl CachedToken {
 pub struct ClientCredentialsManager {
     creds: SpotifyCredentials,
     http: Client,
-    cached: RwLock<Option<CachedToken>>,
+    cached: RwLock<Option<TokenResponse>>,
 }
 
 impl ClientCredentialsManager {
@@ -95,25 +95,8 @@ impl ClientCredentialsManager {
     }
 
     /// Returns a valid access token, refreshing if necessary.
-    pub async fn get_token(&self) -> Result<String, AppError> {
+    pub async fn get_token(&self) -> Result<TokenResponse, AppError> {
         // Fast path: read lock.
-        {
-            let guard = self.cached.read().await;
-            if let Some(t) = guard.as_ref() {
-                if !t.is_expired() {
-                    return Ok(t.access_token.clone());
-                }
-            }
-        }
-
-        // Slow path: acquire write lock and refresh.
-        let mut guard = self.cached.write().await;
-        // Double-check after acquiring write lock.
-        if let Some(t) = guard.as_ref() {
-            if !t.is_expired() {
-                return Ok(t.access_token.clone());
-            }
-        }
 
         let resp = self
             .http
@@ -125,7 +108,7 @@ impl ClientCredentialsManager {
             .await?;
 
         if !resp.status().is_success() {
-            let status = resp.status().as_u16();
+            let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
             return Err(AppError::SpotifyApi {
                 status,
@@ -134,17 +117,12 @@ impl ClientCredentialsManager {
         }
 
         let tok: TokenResponse = resp.json().await?;
-        let cached = CachedToken {
-            access_token: tok.access_token.clone(),
-            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(tok.expires_in),
-        };
-        *guard = Some(cached);
 
         tracing::info!(
             "Client Credentials token refreshed (expires in {}s)",
             tok.expires_in
         );
-        Ok(tok.access_token)
+        Ok(tok)
     }
 }
 
@@ -194,7 +172,7 @@ impl UserTokenManager {
     }
 
     /// Exchange the authorization `code` for access + refresh tokens.
-    pub async fn exchange_code(&self, code: &str) -> Result<(), AppError> {
+    pub async fn exchange_code(&self, code: &str) -> Result<TokenResponse, AppError> {
         let body = format!(
             "grant_type=authorization_code&code={}&redirect_uri={}",
             urlencoding(code),
@@ -211,7 +189,7 @@ impl UserTokenManager {
             .await?;
 
         if !resp.status().is_success() {
-            let status = resp.status().as_u16();
+            let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             return Err(AppError::SpotifyApi {
                 status,
@@ -221,16 +199,17 @@ impl UserTokenManager {
 
         let tok: TokenResponse = resp.json().await?;
         let mut guard = self.token.write().await;
+        let access_token = &tok.access_token;
+        let refresh_token = tok.refresh_token.as_ref().map(|s| s.clone());
         *guard = Some(UserToken {
-            access_token: tok.access_token,
-            refresh_token: tok
-                .refresh_token
+            access_token: access_token.clone(),
+            refresh_token: refresh_token
                 .ok_or_else(|| AppError::Internal("No refresh token in response".into()))?,
             expires_at: std::time::Instant::now() + std::time::Duration::from_secs(tok.expires_in),
         });
 
         tracing::info!("User token obtained (expires in {}s)", tok.expires_in);
-        Ok(())
+        Ok(tok)
     }
 
     /// Returns a valid user access token, refreshing automatically if expired.
@@ -275,7 +254,7 @@ impl UserTokenManager {
             .await?;
 
         if !resp.status().is_success() {
-            let status = resp.status().as_u16();
+            let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             return Err(AppError::SpotifyApi {
                 status,
@@ -301,6 +280,11 @@ impl UserTokenManager {
     pub async fn is_authenticated(&self) -> bool {
         self.token.read().await.is_some()
     }
+}
+fn token_is_expired(expires_in: u64) -> bool {
+    std::time::Instant::now()
+        >= (std::time::Instant::now() + std::time::Duration::from_secs(expires_in))
+            - std::time::Duration::from_secs(60)
 }
 
 impl UserToken {

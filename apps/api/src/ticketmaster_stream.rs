@@ -1,5 +1,5 @@
+use crate::error::AppError;
 use axum::{
-    BoxError,
     body::Body,
     extract::{Query, State},
     http::{StatusCode, header},
@@ -10,7 +10,7 @@ use chrono::{DateTime, Days, Local, NaiveDate, TimeZone, Utc};
 use futures::{StreamExt, stream::BoxStream};
 use geohash::{Coord, encode};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use crate::state::AppState;
 
@@ -305,7 +305,7 @@ async fn fetch_tm_page(
     start: &str,
     end: &str,
     page: u32,
-) -> Result<TicketmasterResponse, BoxError> {
+) -> Result<TicketmasterResponse, AppError> {
     let url = format!(
         concat!(
             "https://app.ticketmaster.com/discovery/v2/events.json",
@@ -321,25 +321,26 @@ async fn fetch_tm_page(
         geo_hash, api_key, radius, start, end, page
     );
 
-    let resp = client.get(&url).send().await.map_err(BoxError::from)?;
+    let resp = client.get(&url).send().await.map_err(AppError::from)?;
     let status = resp.status();
 
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
-        return Err(
-            std::io::Error::other(format!("ticketmaster error {}: {}", status, body)).into(),
-        );
+        return Err(AppError::TicketmasterApi {
+            status: status,
+            message: body,
+        });
     }
 
     resp.json::<TicketmasterResponse>()
         .await
-        .map_err(BoxError::from)
+        .map_err(AppError::from)
 }
 
 pub async fn get_concerts_tm_stream(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
-) -> Result<Response, (StatusCode, String)> {
+) -> Result<Response, AppError> {
     let geo_hash = encode(
         Coord {
             x: params.longitude,
@@ -352,16 +353,18 @@ pub async fn get_concerts_tm_stream(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("failed to encode geohash: {e}"),
         )
-    })?;
+    })
+    .unwrap();
 
-    let windows =
-        date_windows(&params.start, &params.end).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let windows = date_windows(&params.start, &params.end)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+        .unwrap();
 
     let client = state.client.clone();
     let api_key = state.ticketmaster_key.clone();
     let radius = params.radius;
 
-    let stream: BoxStream<'static, Result<Bytes, BoxError>> = async_stream::try_stream! {
+    let stream: BoxStream<'static, Result<Bytes, AppError>> = async_stream::try_stream! {
         let mut seen = HashSet::<String>::new();
 
         for (start, end) in windows {
@@ -403,7 +406,7 @@ pub async fn get_concerts_tm_stream(
 
                     if seen.insert(key) {
                         let mut line = serde_json::to_vec(&event)
-                            .map_err(|e| -> BoxError { e.into() })?;
+                            .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
                         line.push(b'\n');
                         yield Bytes::from(line);
                     }

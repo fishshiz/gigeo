@@ -14,6 +14,7 @@ import { useEffect, useRef, type Ref } from "react"
 import { useTopMostVisibleInScrollContainer } from "./hooks/listItemObserver"
 import { formatDate } from "./lib/formats"
 import { VenueDetails } from "./VenueDetails"
+import { EventFilter } from "./EventFilter"
 
 const DrawerWrapper = ({
   drawerOpen,
@@ -26,6 +27,7 @@ const DrawerWrapper = ({
   const eventListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!eventListRef.current) return
     setDrawerOpen(true)
   }, [eventsByDate])
   const isDesktop = useMediaQuery("(min-width: 768px)", {
@@ -72,10 +74,7 @@ const DrawerWrapper = ({
               <XIcon />
             </DrawerClose>
           </div>
-          {/* <FilterSection
-                handleDateChange={handleDateChange}
-                events={eventsByDate}
-              /> */}
+          <EventFilter />
           <DateSlider
             dates={entries.map(([key]) => key)}
             activeDateId={topMostId}

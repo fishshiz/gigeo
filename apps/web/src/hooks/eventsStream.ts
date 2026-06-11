@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { type Classification } from "../lib/types"
 
 export type EventsByDate = Record<string, EventResponse[]>
 
@@ -22,7 +23,7 @@ export type EventResponse = {
   }>
   dates?: string | null
   datesPretty?: string | null
-  classifications?: { segment: { id: string; name: string } }[] | null
+  classifications?: Classification[] | null
   attractions?: Array<{
     id?: string
     name?: string

@@ -322,7 +322,7 @@ impl AppleMusicClient {
         if resp.status() == StatusCode::NO_CONTENT || resp.status().is_success() {
             Ok(())
         } else {
-            let status = resp.status().as_u16();
+            let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             Err(AppError::SpotifyApi {
                 status,
@@ -403,7 +403,7 @@ impl AppleMusicClient {
             }
 
             if !resp.status().is_success() {
-                let status = resp.status().as_u16();
+                let status = resp.status();
                 let text = resp.text().await.unwrap_or_default();
 
                 let message = serde_json::from_str::<AppleErrorResponse>(&text)

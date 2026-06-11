@@ -7,7 +7,8 @@ import { ChevronUpIcon } from "lucide-react"
 import { useIsMobile } from "./providers/Breakpoint"
 import { DrawerTrigger } from "@workspace/ui/components/ui/Drawer"
 const AppWrapper = () => {
-  const [drawerOpen, setDrawerOpen] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  console.log("drawer", drawerOpen)
 
   return (
     <>
@@ -15,7 +16,6 @@ const AppWrapper = () => {
         <DrawerWrapper
           drawerOpen={drawerOpen}
           setDrawerOpen={(isOpen) => {
-            console.log("open", isOpen)
             setDrawerOpen(isOpen)
           }}
         />

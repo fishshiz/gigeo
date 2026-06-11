@@ -1,14 +1,20 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("Spotify API error ({status}): {message}")]
-    SpotifyApi { status: u16, message: String },
+    SpotifyApi { status: StatusCode, message: String },
+
+    #[error("Ticketmaster API error ({status}): {message}")]
+    TicketmasterApi { status: StatusCode, message: String },
+
+    #[error("Unauthorized API error ({status}): {message}")]
+    Unauthorized { status: StatusCode, message: String },
 
     #[error("HTTP request failed: {0}")]
     Request(#[from] reqwest::Error),
@@ -27,15 +33,24 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
             AppError::SpotifyApi { status, message } => {
-                let code =
-                    StatusCode::from_u16(*status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                let code = *status;
                 (code, message.clone())
+            }
+            AppError::TicketmasterApi { status, message } => {
+                let code = *status;
+                (code, message.clone())
+            }
+            AppError::Unauthorized { status, message } => {
+                (StatusCode::UNAUTHORIZED, message.clone())
             }
             AppError::Request(e) => (
                 StatusCode::BAD_GATEWAY,
@@ -52,6 +67,10 @@ impl IntoResponse for AppError {
             AppError::QueryRejection(e) => (
                 StatusCode::BAD_REQUEST,
                 format!("Invalid query string: {e}"),
+            ),
+            AppError::Database(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {e}"),
             ),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };

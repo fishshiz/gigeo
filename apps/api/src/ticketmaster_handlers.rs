@@ -177,7 +177,7 @@ struct LocationResponse {
 }
 
 pub async fn get_concerts_tm(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
     let latitude: f64 = params.latitude;
@@ -308,7 +308,7 @@ pub async fn get_concerts_tm(
 }
 
 pub async fn get_events_by_attraction(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(query): Query<AttractionEventsQuery>,
 ) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
     let url: String = format!(
@@ -339,7 +339,7 @@ pub async fn get_events_by_attraction(
             venue: e
                 .embedded
                 .and_then(|emb| emb.venues)
-                .and_then(|mut vs| vs.last().cloned())
+                .and_then(|vs| vs.last().cloned())
                 .map(|v| VenueResponse {
                     name: v.name,
                     location: v.location.map(|loc| LocationResponse {

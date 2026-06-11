@@ -4,6 +4,9 @@ use anyhow::{Context, Result};
 pub struct AppConfig {
     pub mapbox_private_key: String,
     pub ticketmaster_api_key: String,
+    pub cookie_domain: Option<String>,
+    pub cookie_secure: bool,
+    pub cookie_key: String,
 }
 
 impl AppConfig {
@@ -15,9 +18,18 @@ impl AppConfig {
         let ticketmaster_api_key =
             std::env::var("TICKETMASTER_API_KEY").context("TICKETMASTER_API_KEY must be set")?;
 
+        let cookie_domain = std::env::var("COOKIE_DOMAIN").ok();
+        let cookie_secure = std::env::var("COOKIE_SECURE")
+            .map(|v| v == "true")
+            .unwrap_or(false);
+        let cookie_key = std::env::var("COOKIE_KEY").context("COOKIE_KEY must be set")?;
+
         Ok(Self {
             mapbox_private_key,
             ticketmaster_api_key,
+            cookie_domain,
+            cookie_secure,
+            cookie_key,
         })
     }
 }

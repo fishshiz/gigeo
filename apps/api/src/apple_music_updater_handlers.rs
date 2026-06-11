@@ -1,8 +1,7 @@
 //! HTTP handlers for controlling the Apple Music periodic playlist updater.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -27,7 +26,7 @@ pub struct AppleUpdaterConfigResponse {
 
 /// Configure the Apple Music periodic updater.
 pub async fn configure_apple_updater(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(req): Json<AppleUpdaterConfigRequest>,
 ) -> Result<(StatusCode, Json<AppleUpdaterConfigResponse>), AppError> {
     let queue = state
@@ -59,7 +58,7 @@ pub struct AppleUpdateArtistsRequest {
 
 /// Replace the Apple Music updater's artist list.
 pub async fn update_apple_artists(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(req): Json<AppleUpdateArtistsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let queue = state

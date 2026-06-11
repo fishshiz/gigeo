@@ -8,10 +8,14 @@ import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
 
-const INITIAL_ZOOM = 12.12
+const INITIAL_ZOOM = 1
 
 const MapWrapper = () => {
   const eventsContext = useEvents()
+  const [rendered, setRendered] = useState(false)
+  useEffect(() => {
+    setRendered(true)
+  }, [])
   const { selectedCoordinates, setSelectedCoordinates, dateRange } =
     eventsContext
 
@@ -67,7 +71,7 @@ const MapWrapper = () => {
         })
       }
     }
-    console.log("CHANGER")
+    console.log("CHANGER", selectedEvents)
   }, [selectedEvents])
 
   const theme =
@@ -155,6 +159,7 @@ const MapWrapper = () => {
     end: dateRange.end.toString() + "T23:59:59Z",
   }
   useEffect(() => {
+    if (!rendered) return
     void streamEvents({
       latitude,
       longitude,
@@ -162,6 +167,7 @@ const MapWrapper = () => {
       start,
       end,
     })
+    console.log("streaming", latitude, longitude, radius, start, end)
 
     return () => {
       cancelStream()
@@ -316,8 +322,10 @@ const MapWrapper = () => {
   }, [eventsByDate])
 
   useEffect(() => {
+    if (!rendered) return
     mapRef.current?.easeTo({
       center: { lat: selectedCoordinates[1], lng: selectedCoordinates[0] },
+      zoom: 12,
       speed: 0.8,
     })
   }, [selectedCoordinates])
