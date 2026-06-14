@@ -59,6 +59,4 @@ tower-service = "0.3.3"
 tower = "0.5.3"
 futures = "0.3.32"
 unicode-normalization = "0.1.25"
-[[bin]]
-name = "api"
-path = "api/index.rs"
+
