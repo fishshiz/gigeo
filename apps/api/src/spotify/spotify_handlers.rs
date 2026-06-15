@@ -267,7 +267,7 @@ pub async fn auth_status(
     State(state): State<AppState>,
     jar: SignedCookieJar,
 ) -> Result<Json<AuthStatusResponse>, AppError> {
-    let cookie = match jar.get("session_id") {
+    let cookie = match jar.get("spotify_oauth_state") {
         Some(c) => c,
         None => {
             return Ok(Json(AuthStatusResponse {
