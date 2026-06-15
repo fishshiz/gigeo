@@ -1,5 +1,4 @@
-use crate::models::{AppUser, SpotifyAccount, UserSession};
-use sqlx::{Error, FromRow, PgPool, query, query_as};
+use sqlx::{Error, PgPool};
 
 #[derive(Clone)]
 pub struct AppDatabase {

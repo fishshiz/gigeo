@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "cargo build --release",
-    "dev": "cargo run --bin api",
+    "dev": "cargo run --bin gigeo_api",
     "start": "cargo run --release"
   }
 }

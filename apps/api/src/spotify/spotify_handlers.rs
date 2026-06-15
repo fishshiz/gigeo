@@ -220,19 +220,6 @@ pub async fn oauth_callback(
         });
     }
 
-    let code = query.code.ok_or_else(|| AppError::SpotifyApi {
-        status: StatusCode::BAD_REQUEST,
-        message: "missing code".into(),
-    })?;
-
-    let basic = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        format!(
-            "{}:{}",
-            state.spotify_client_id, state.spotify_client_secret
-        ),
-    );
-
     let token = state.cc_manager.get_token().await?;
 
     let user_id = create_user_if_needed(&state.db.pool).await?;
