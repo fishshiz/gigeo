@@ -293,24 +293,20 @@ pub async fn auth_status(
 
     let spotify = get_spotify_account(&state.db.pool, user_id).await?;
 
-    // let resp = match spotify {
-    //     Some(s) => AuthStatusResponse {
-    //         logged_in: true,
-    //         spotify_connected: true,
-    //         spotify_user_id: Some(s.user_id),
-    //     },
-    //     None => AuthStatusResponse {
-    //         logged_in: true,
-    //         spotify_connected: false,
-    //         spotify_user_id: None,
-    //     },
-    // };
+    let resp = match spotify {
+        Some(s) => AuthStatusResponse {
+            logged_in: true,
+            spotify_connected: true,
+            spotify_user_id: Some(s.user_id.to_string()),
+        },
+        None => AuthStatusResponse {
+            logged_in: true,
+            spotify_connected: false,
+            spotify_user_id: None,
+        },
+    };
 
-    Ok(Json(AuthStatusResponse {
-        logged_in: true,
-        spotify_connected: false,
-        spotify_user_id: None,
-    }))
+    Ok(Json(resp))
 }
 
 async fn create_session(db: &sqlx::PgPool, user_id: uuid::Uuid) -> Result<uuid::Uuid, sqlx::Error> {
