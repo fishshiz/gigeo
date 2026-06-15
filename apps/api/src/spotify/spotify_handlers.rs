@@ -9,6 +9,9 @@ use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
 
+use axum_extra::extract::cookie::{Cookie, SameSite};
+use time::Duration;
+
 use crate::cookie::utils::build_session_cookie;
 use crate::error::AppError;
 use crate::spotify::client::{Artist, Image};
@@ -193,10 +196,21 @@ pub async fn create_playlist(
 // ---------------------------------------------------------------------------
 
 /// `GET /login` — redirects the user to Spotify's authorization page.
-pub async fn login(State(state): State<AppState>) -> Redirect {
+pub async fn login(State(state): State<AppState>, jar: SignedCookieJar) -> impl IntoResponse {
     let state_param = generate_state();
     let url = state.user_manager.authorize_url(&state_param);
-    Redirect::to(&url)
+
+    let cookie = Cookie::build(("spotify_oauth_state", state_param))
+        .path("/")
+        .http_only(true)
+        .secure(state.cookie_secure)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::minutes(10))
+        .finish();
+
+    let jar = jar.add(cookie);
+
+    (jar, Redirect::to(&url))
 }
 
 #[derive(Deserialize)]
