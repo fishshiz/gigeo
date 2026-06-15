@@ -192,7 +192,7 @@ impl UserTokenManager {
 
     /// Build the Spotify authorization URL the user should visit.
     pub fn authorize_url(&self, state: &str) -> String {
-        let scopes = "playlist-modify-public playlist-modify-private";
+        let scopes = "playlist-modify-public playlist-modify-private user-read-private";
         format!(
             "https://accounts.spotify.com/authorize?response_type=code\
              &client_id={client_id}\

@@ -9,7 +9,7 @@ impl FromRef<AppState> for Key {
 }
 
 pub fn build_session_cookie(state: &AppState, session_id: uuid::Uuid) -> Cookie<'static> {
-    let mut cookie = Cookie::build(("session_id", session_id.to_string()))
+    let mut cookie = Cookie::build(("spotify_oauth_state", session_id.to_string()))
         .http_only(true)
         .secure(state.cookie_secure)
         .same_site(SameSite::Lax)

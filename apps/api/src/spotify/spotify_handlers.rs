@@ -200,16 +200,6 @@ pub async fn login(State(state): State<AppState>, jar: SignedCookieJar) -> impl 
     let state_param = generate_state();
     let url = state.user_manager.authorize_url(&state_param);
 
-    let cookie = Cookie::build(("spotify_oauth_state", state_param))
-        .path("/")
-        .http_only(true)
-        .secure(state.cookie_secure)
-        .same_site(SameSite::Lax)
-        .max_age(Duration::minutes(10))
-        .finish();
-
-    let jar = jar.add(cookie);
-
     (jar, Redirect::to(&url))
 }
 
@@ -233,8 +223,10 @@ pub async fn oauth_callback(
             message: format!("Spotify error: {}", err),
         });
     }
-
-    let token = state.cc_manager.get_token().await?;
+    let token = state
+        .user_manager
+        .exchange_code(query.code.unwrap_or_default().as_str())
+        .await?;
 
     let user_id = create_user_if_needed(&state.db.pool).await?;
     upsert_spotify_account(&state.db.pool, user_id, &token).await?;

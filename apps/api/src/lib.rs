@@ -115,6 +115,7 @@ pub async fn build_app() -> Result<Router> {
     }));
 
     let app = axum::Router::new()
+        .route("/", axum::routing::get(|| async { "ok" }))
         .route("/health", axum::routing::get(health_check))
         .route(
             "/auth/status",
