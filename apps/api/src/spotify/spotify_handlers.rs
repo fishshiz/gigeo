@@ -167,6 +167,7 @@ pub async fn create_playlist(
             .add_items_to_playlist(&user_token, &playlist.id, chunk)
             .await?;
     }
+    create_playlist_record(&state.db.pool, user_token.user_id, &playlist.id).await?;
 
     Ok((
         StatusCode::CREATED,
