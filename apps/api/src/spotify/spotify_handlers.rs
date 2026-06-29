@@ -360,6 +360,7 @@ struct SpotifyAccountRow {
     user_id: uuid::Uuid,
     access_token: String,
     refresh_token: String,
+    scope: String,
     spotify_user_id: String,
     token_type: String,
     expires_at: chrono::DateTime<chrono::Utc>,
@@ -417,6 +418,7 @@ async fn get_spotify_account(
             user_id,
             access_token,
             refresh_token,
+            scope,
             spotify_user_id,
             token_type,
             expires_at

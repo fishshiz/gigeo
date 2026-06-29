@@ -18,6 +18,8 @@ create index user_session_expires_at_idx on user_session(expires_at);
 
 create table spotify_account (
     user_id uuid primary key references app_user(id) on delete cascade,
+    spotify_user_id text unique not null,
+    scope text not null,
     access_token text not null,
     refresh_token text not null,
     token_type text not null default 'Bearer',
