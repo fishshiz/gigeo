@@ -13,14 +13,10 @@ import {
 } from "@workspace/ui/components/ui/Disclosure"
 
 export function PlaylistButtons() {
-  const { status, loading, error, connectSpotify, createPlaylist, logout } =
-    useSpotifyAuth()
+  const { status, loading, error, connectSpotify } = useSpotifyAuth()
 
   const [name, setName] = useState("My generated playlist")
-  const [description, setDescription] = useState("Created by the app")
-  const [isPublic, setIsPublic] = useState(false)
-  const [createdUrl, setCreatedUrl] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+
   let [isExpanded, setIsExpanded] = useState(false)
 
   if (loading) return <div>Loading auth status…</div>
@@ -35,10 +31,6 @@ export function PlaylistButtons() {
       </div>
     )
   }
-
-  const canCreate = isPublic
-    ? status.can_create_public_playlist
-    : status.can_create_private_playlist
 
   return (
     <div className="absolute right-2 bottom-2 z-10">
