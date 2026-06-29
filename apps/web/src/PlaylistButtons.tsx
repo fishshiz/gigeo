@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { useSpotifyAuth } from "./hooks/spotify"
 import { DialogTrigger, Heading, TooltipTrigger } from "react-aria-components"
-import { TagGroup, Tag, TagList } from "react-aria-components"
 import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Tooltip } from "@workspace/ui/components/ui/Tooltip"
