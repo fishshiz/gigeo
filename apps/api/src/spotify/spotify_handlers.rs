@@ -206,6 +206,12 @@ pub async fn oauth_callback(
     jar: SignedCookieJar,
     Query(query): Query<CallbackQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    tracing::info!(
+        "callback hit: code={:?}, state={:?}, error={:?}",
+        query.code,
+        query.state,
+        query.error
+    );
     if let Some(err) = query.error {
         return Err(AppError::SpotifyApi {
             status: StatusCode::BAD_REQUEST,
