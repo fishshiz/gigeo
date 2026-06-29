@@ -224,7 +224,11 @@ pub async fn oauth_callback(
         .await?;
 
     let user_id = create_user_if_needed(&state.db.pool).await?;
-    upsert_spotify_account(&state.db.pool, user_id, &token).await?;
+    let me = state
+        .user_manager
+        .get_current_user(&token.access_token)
+        .await?;
+    upsert_spotify_account(&state.db.pool, user_id, &token, &me.id).await?;
     let session_id = create_session(&state.db.pool, user_id).await?;
 
     let jar = jar.add(build_session_cookie(&state, session_id));
@@ -376,6 +380,7 @@ async fn upsert_spotify_account(
     db: &sqlx::PgPool,
     user_id: uuid::Uuid,
     token: &TokenResponse,
+    spotify_user_id: &str,
 ) -> Result<(), sqlx::Error> {
     let scopes: Vec<String> = token
         .scope
@@ -391,14 +396,16 @@ async fn upsert_spotify_account(
     sqlx::query!(
         r#"
         insert into spotify_account (
-            user_id, access_token, refresh_token, token_type, expires_at
+            user_id, access_token, refresh_token, token_type, expires_at, spotify_user_id, scope
         )
-        values ($1, $2, $3, $4, $5)
+        values ($1, $2, $3, $4, $5, $6, $7)
         on conflict (user_id) do update set
             access_token = excluded.access_token,
             refresh_token = excluded.refresh_token,
             token_type = excluded.token_type,
             expires_at = excluded.expires_at,
+            spotify_user_id = excluded.spotify_user_id,
+            scope = excluded.scope,
             updated_at = now()
         "#,
         user_id,
@@ -406,6 +413,8 @@ async fn upsert_spotify_account(
         token.refresh_token.clone().unwrap_or_default(),
         token.token_type,
         expires_at,
+        spotify_user_id,
+        scopes.join(" ")
     )
     .execute(db)
     .await?;

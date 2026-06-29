@@ -175,6 +175,13 @@ pub struct UserTokenManager {
     token: RwLock<Option<UserToken>>,
 }
 
+#[derive(Deserialize)]
+pub struct SpotifyMe {
+    pub id: String,
+    pub account_id: String,
+    pub display_name: Option<String>,
+}
+
 #[derive(Clone)]
 struct UserToken {
     access_token: String,
@@ -320,6 +327,26 @@ impl UserTokenManager {
 
     pub async fn is_authenticated(&self) -> bool {
         self.token.read().await.is_some()
+    }
+
+    pub async fn get_current_user(&self, access_token: &str) -> Result<SpotifyMe, AppError> {
+        let resp = self
+            .http
+            .get("https://api.spotify.com/v1/me")
+            .bearer_auth(access_token)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(AppError::SpotifyApi {
+                status,
+                message: text,
+            });
+        }
+
+        Ok(resp.json().await?)
     }
 }
 fn token_is_expired(expires_in: u64) -> bool {
