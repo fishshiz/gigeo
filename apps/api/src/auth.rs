@@ -215,6 +215,11 @@ impl UserTokenManager {
             urlencoding(&self.creds.redirect_uri),
         );
 
+        tracing::info!(
+            redirect_uri = %self.creds.redirect_uri,
+            code_prefix = %code.chars().take(8).collect::<String>(),
+            "exchanging spotify auth code"
+        );
         let resp = self
             .http
             .post("https://accounts.spotify.com/api/token")
