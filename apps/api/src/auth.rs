@@ -195,7 +195,7 @@ impl UserTokenManager {
     pub fn authorize_url(&self, state: &str) -> String {
         let scopes = "playlist-modify-public playlist-modify-private user-read-private";
         format!(
-            "https://accounts.spotify.com/authorize?response_type=code\
+            "https://accounts.spotify.com/authorize?response_type=code&show_dialog=true\
              &client_id={client_id}\
              &scope={scopes}\
              &redirect_uri={redirect_uri}\
