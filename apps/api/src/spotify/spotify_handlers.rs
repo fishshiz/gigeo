@@ -167,7 +167,7 @@ pub async fn create_playlist(
             .add_items_to_playlist(&user_token, &playlist.id, chunk)
             .await?;
     }
-    create_playlist_record(&state.db.pool, user_token.user_id, &playlist.id).await?;
+    create_playlist_record(&state.db.pool, playlist.owner.id, &playlist.id).await?;
 
     Ok((
         StatusCode::CREATED,
@@ -252,9 +252,9 @@ pub async fn auth_status(
         Some(c) => c,
         None => {
             return Ok(Json(AuthStatusResponse {
-                logged_in: true,
-                spotify_connected: true,
-                spotify_user_id: Some("341e09bd-5e92-487e-b0ab-df6e87c2dde0".into()),
+                logged_in: false,
+                spotify_connected: false,
+                spotify_user_id: None,
             }));
         }
     };
@@ -266,9 +266,9 @@ pub async fn auth_status(
 
     let Some(user_id) = resolve_session_user(&state.db.pool, session_id).await? else {
         return Ok(Json(AuthStatusResponse {
-            logged_in: true,
-            spotify_connected: true,
-            spotify_user_id: Some("341e09bd-5e92-487e-b0ab-df6e87c2dde0".into()),
+            logged_in: false,
+            spotify_connected: false,
+            spotify_user_id: None,
         }));
     };
 
@@ -319,7 +319,7 @@ async fn create_user_if_needed(db: &sqlx::PgPool) -> Result<uuid::Uuid, sqlx::Er
 
 async fn create_playlist_record(
     db: &sqlx::PgPool,
-    user_id: uuid::Uuid,
+    spotify_user_id: String,
     spotify_playlist_id: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
@@ -327,7 +327,7 @@ async fn create_playlist_record(
         insert into spotify_playlist (spotify_account_user_id, spotify_playlist_id)
         values ($1, $2)
         "#,
-        user_id,
+        spotify_user_id,
         spotify_playlist_id
     )
     .execute(db)
@@ -360,6 +360,7 @@ struct SpotifyAccountRow {
     user_id: uuid::Uuid,
     access_token: String,
     refresh_token: String,
+    spotify_user_id: String,
     token_type: String,
     expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -416,6 +417,7 @@ async fn get_spotify_account(
             user_id,
             access_token,
             refresh_token,
+            spotify_user_id,
             token_type,
             expires_at
         from spotify_account

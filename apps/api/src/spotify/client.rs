@@ -111,8 +111,28 @@ pub struct Playlist {
     pub id: String,
     pub name: String,
     pub uri: String,
+    pub owner: SpotifyUser,
     pub external_urls: ExternalUrls,
     pub snapshot_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SpotifyUser {
+    pub external_urls: ExternalUrls,
+    pub href: String,
+    pub id: String,
+    pub uri: String,
+    pub display_name: Option<String>,
+    #[serde(rename = "type")]
+    #[serde(default = "SpotifyUser::default")]
+    #[serde(skip_deserializing)]
+    type_: String,
+}
+
+impl SpotifyUser {
+    fn default() -> String {
+        "user".into()
+    }
 }
 
 #[derive(Debug, Deserialize)]
