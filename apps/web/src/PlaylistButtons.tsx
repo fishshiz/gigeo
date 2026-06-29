@@ -42,7 +42,7 @@ export function PlaylistButtons() {
 
   return (
     <div className="absolute right-2 bottom-2 z-10">
-      <DialogTrigger className="absolute">
+      <DialogTrigger>
         <TooltipTrigger>
           <Button aria-label="Filters" variant="secondary" className="relative">
             Manage Spotify
