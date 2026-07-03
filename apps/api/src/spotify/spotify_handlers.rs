@@ -228,7 +228,7 @@ pub async fn oauth_callback(
         .get_current_user(&token.access_token)
         .await?;
     upsert_spotify_account(&state.db.pool, &token, &me.id).await?;
-    let session_id = create_session(&state.db.pool).await?;
+    let session_id = create_session(&state.db.pool, &me.id).await?;
 
     let jar = jar.add(build_session_cookie(&state, session_id));
 
@@ -299,17 +299,18 @@ pub async fn auth_status(
     Ok(Json(resp))
 }
 
-async fn create_session(db: &sqlx::PgPool) -> Result<uuid::Uuid, sqlx::Error> {
+async fn create_session(db: &sqlx::PgPool, user_id: &str) -> Result<uuid::Uuid, sqlx::Error> {
     let session_id = uuid::Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::days(30);
 
     sqlx::query!(
         r#"
-        insert into user_session (id, expires_at)
-        values ($1, $2)
+        insert into user_session (id, expires_at, spotify_user_id)
+        values ($1, $2, $3)
         "#,
         session_id,
-        expires_at
+        expires_at,
+        user_id
     )
     .execute(db)
     .await?;
