@@ -232,7 +232,7 @@ pub async fn oauth_callback(
 
     let jar = jar.add(build_session_cookie(&state, session_id));
 
-    Ok((jar, Redirect::to("http://localhost:5173/")))
+    Ok((jar, Redirect::to("/")))
 }
 
 // ---------------------------------------------------------------------------
