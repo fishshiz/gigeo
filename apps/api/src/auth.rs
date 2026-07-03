@@ -128,19 +128,18 @@ impl ClientCredentialsManager {
 
 async fn upsert_spotify_account(
     db: &sqlx::PgPool,
-    user_id: uuid::Uuid,
-    spotify_user_id: &str,
     token: &TokenResponse,
+    user_id: String,
 ) -> Result<(), sqlx::Error> {
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token.expires_in as i64);
 
     sqlx::query!(
         r#"
     insert into spotify_account (
-        user_id, spotify_user_id, access_token, refresh_token, token_type, expires_at
+        id, access_token, refresh_token, token_type, expires_at
     )
-    values ($1, $2, $3, $4, $5, $6)
-    on conflict (user_id) do update set
+    values ($1, $2, $3, $4, $5)
+    on conflict (id) do update set
         access_token = excluded.access_token,
         refresh_token = case
             when excluded.refresh_token = '' then spotify_account.refresh_token
@@ -151,7 +150,6 @@ async fn upsert_spotify_account(
         updated_at = now()
     "#,
         user_id,
-        spotify_user_id,
         token.access_token,
         token.refresh_token.clone().unwrap_or_default(),
         token.token_type,

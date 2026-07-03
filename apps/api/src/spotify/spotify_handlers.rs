@@ -223,17 +223,16 @@ pub async fn oauth_callback(
         .exchange_code(query.code.unwrap_or_default().as_str())
         .await?;
 
-    let user_id = create_user_if_needed(&state.db.pool).await?;
     let me = state
         .user_manager
         .get_current_user(&token.access_token)
         .await?;
-    upsert_spotify_account(&state.db.pool, user_id, &token, &me.id).await?;
-    let session_id = create_session(&state.db.pool, user_id).await?;
+    upsert_spotify_account(&state.db.pool, &token, &me.id).await?;
+    let session_id = create_session(&state.db.pool).await?;
 
     let jar = jar.add(build_session_cookie(&state, session_id));
 
-    Ok((jar, Redirect::to("/")))
+    Ok((jar, Redirect::to("http://localhost:5173/")))
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +287,7 @@ pub async fn auth_status(
         Some(s) => AuthStatusResponse {
             logged_in: true,
             spotify_connected: true,
-            spotify_user_id: Some(s.user_id.to_string()),
+            spotify_user_id: Some(s.id.to_string()),
         },
         None => AuthStatusResponse {
             logged_in: true,
@@ -300,31 +299,22 @@ pub async fn auth_status(
     Ok(Json(resp))
 }
 
-async fn create_session(db: &sqlx::PgPool, user_id: uuid::Uuid) -> Result<uuid::Uuid, sqlx::Error> {
+async fn create_session(db: &sqlx::PgPool) -> Result<uuid::Uuid, sqlx::Error> {
     let session_id = uuid::Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::days(30);
 
     sqlx::query!(
         r#"
-        insert into user_session (id, user_id, expires_at)
-        values ($1, $2, $3)
+        insert into user_session (id, expires_at)
+        values ($1, $2)
         "#,
         session_id,
-        user_id,
         expires_at
     )
     .execute(db)
     .await?;
 
     Ok(session_id)
-}
-
-async fn create_user_if_needed(db: &sqlx::PgPool) -> Result<uuid::Uuid, sqlx::Error> {
-    let id = uuid::Uuid::new_v4();
-    sqlx::query!("insert into app_user (id) values ($1)", id)
-        .execute(db)
-        .await?;
-    Ok(id)
 }
 
 async fn create_playlist_record(
@@ -348,10 +338,10 @@ async fn create_playlist_record(
 async fn resolve_session_user(
     db: &sqlx::PgPool,
     session_id: uuid::Uuid,
-) -> Result<Option<uuid::Uuid>, sqlx::Error> {
+) -> Result<Option<String>, sqlx::Error> {
     let row = sqlx::query!(
         r#"
-        select user_id
+        select spotify_user_id
         from user_session
         where id = $1
           and revoked_at is null
@@ -362,23 +352,21 @@ async fn resolve_session_user(
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| r.user_id))
+    Ok(row.map(|r| r.spotify_user_id))
 }
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 struct SpotifyAccountRow {
-    user_id: uuid::Uuid,
     access_token: String,
     refresh_token: String,
     scope: String,
-    spotify_user_id: String,
+    id: String,
     token_type: String,
     expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 async fn upsert_spotify_account(
     db: &sqlx::PgPool,
-    user_id: uuid::Uuid,
     token: &TokenResponse,
     spotify_user_id: &str,
 ) -> Result<(), sqlx::Error> {
@@ -396,19 +384,18 @@ async fn upsert_spotify_account(
     sqlx::query!(
         r#"
         insert into spotify_account (
-            user_id, access_token, refresh_token, token_type, expires_at, spotify_user_id, scope
+             access_token, refresh_token, token_type, expires_at, id, scope
         )
-        values ($1, $2, $3, $4, $5, $6, $7)
-        on conflict (user_id) do update set
+        values ($1, $2, $3, $4, $5, $6)
+        on conflict (id) do update set
             access_token = excluded.access_token,
             refresh_token = excluded.refresh_token,
             token_type = excluded.token_type,
             expires_at = excluded.expires_at,
-            spotify_user_id = excluded.spotify_user_id,
+            id = excluded.id,
             scope = excluded.scope,
             updated_at = now()
         "#,
-        user_id,
         token.access_token,
         token.refresh_token.clone().unwrap_or_default(),
         token.token_type,
@@ -424,21 +411,20 @@ async fn upsert_spotify_account(
 
 async fn get_spotify_account(
     db: &sqlx::PgPool,
-    user_id: uuid::Uuid,
+    user_id: String,
 ) -> Result<Option<SpotifyAccountRow>, sqlx::Error> {
     sqlx::query_as!(
         SpotifyAccountRow,
         r#"
         select
-            user_id,
             access_token,
             refresh_token,
             scope,
-            spotify_user_id,
+            id,
             token_type,
             expires_at
         from spotify_account
-        where user_id = $1
+        where id = $1
         "#,
         user_id
     )
