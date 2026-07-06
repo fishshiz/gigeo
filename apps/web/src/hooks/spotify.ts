@@ -27,6 +27,7 @@ type UseSpotifyAuthResult = {
   connectSpotify: () => void
   logout: () => Promise<void>
   createPlaylist: (input: CreatePlaylistInput) => Promise<CreatePlaylistOutput>
+  getPlaylists: () => Promise<any>
 }
 
 export function useSpotifyAuth(): UseSpotifyAuthResult {
@@ -79,6 +80,16 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
     await refresh()
   }, [refresh])
 
+  const getPlaylists = useCallback(async () => {
+    setError(null)
+    
+    const res = await fetch(`api/spotify/playlists`, {
+      method: "GET",
+      credentials: "include",
+    })
+    console.log(res);
+  }, [refresh])
+
   const createPlaylist = useCallback(
     async (input: CreatePlaylistInput) => {
       setError(null)
@@ -116,7 +127,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       connectSpotify,
       logout,
       createPlaylist,
+      getPlaylists
     }),
-    [status, loading, error, refresh, connectSpotify, logout, createPlaylist]
+    [status, loading, error, refresh, connectSpotify, logout, createPlaylist, getPlaylists]
   )
 }

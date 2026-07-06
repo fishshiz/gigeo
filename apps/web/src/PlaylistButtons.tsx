@@ -1,18 +1,14 @@
 import { useState } from "react"
 import { useSpotifyAuth } from "./hooks/spotify"
-import { DialogTrigger, Heading, TooltipTrigger } from "react-aria-components"
-import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { Button } from "@workspace/ui/components/ui/Button"
-import { Tooltip } from "@workspace/ui/components/ui/Tooltip"
-import { Popover } from "@workspace/ui/components/ui/Popover"
-import { TextField } from "@workspace/ui/components/ui/TextField"
-import {
-  Disclosure,
-  DisclosurePanel,
-} from "@workspace/ui/components/ui/Disclosure"
+import SpotifyLogo from "./assets/Primary_Logo_Green_CMYK.svg"
+import { ReactSVG } from "react-svg"
+
+import { Menu, MenuTrigger, MenuItem } from "@workspace/ui/components/ui/Menu"
 
 export function PlaylistButtons() {
-  const { status, loading, error, connectSpotify } = useSpotifyAuth()
+  const { status, loading, error, connectSpotify, getPlaylists } =
+    useSpotifyAuth()
 
   const [name, setName] = useState("My generated playlist")
 
@@ -32,38 +28,17 @@ export function PlaylistButtons() {
   }
 
   return (
-    <div className="absolute right-2 bottom-2 z-10">
-      <DialogTrigger>
-        <TooltipTrigger>
-          <Button aria-label="Filters" variant="secondary" className="relative">
-            Manage Spotify
-          </Button>
-          <Tooltip>Manage Spotify Playlists</Tooltip>
-        </TooltipTrigger>
-        <Popover showArrow>
-          <Dialog className="max-h-[inherit] w-[350px] overflow-auto p-4 outline outline-0">
-            <Heading slot="title" className="m-0 mb-2 text-lg font-semibold">
-              Playlists
-            </Heading>
-            <Disclosure
-              isExpanded={isExpanded}
-              onExpandedChange={setIsExpanded}
-            >
-              <Heading>
-                Create Playlist
-                <Button slot="trigger" />
-              </Heading>
-              <DisclosurePanel>
-                <TextField
-                  label="Playlist Name"
-                  value={name}
-                  onChange={(val) => setName(val)}
-                />
-              </DisclosurePanel>
-            </Disclosure>
-          </Dialog>
-        </Popover>
-      </DialogTrigger>
+    <div className=" ">
+      <MenuTrigger>
+        <Button aria-label="Filters" variant="secondary" className="relative">
+          <ReactSVG className="h-[24px] w-[24px]" src={SpotifyLogo} />
+          Connected
+        </Button>
+        <Menu>
+          <MenuItem>Manage Playlists</MenuItem>
+          <MenuItem>Logout</MenuItem>
+        </Menu>
+      </MenuTrigger>
     </div>
   )
 }

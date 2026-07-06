@@ -65,14 +65,14 @@ const DrawerContent = ({
       {(props?.isOpen || state?.isOpen) && (
         <DrawerRoot
           className={twJoin(
-            "bg-bg text-fg h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform sm:h-[100vh]",
+            "bg-bg text-fg h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform",
             side === "top" &&
               (isFloat
                 ? "inset-x-2 top-2 rounded-lg"
                 : "inset-x-0 top-0 rounded-b-2xl"),
             side === "right" &&
               [
-                "w-full max-w-xs overflow-y-auto",
+                "max-w-xs overflow-y-auto",
                 "**:[[slot=header]]:text-start",
                 isFloat
                   ? "inset-y-2 right-2 rounded-lg"
@@ -158,11 +158,11 @@ const DrawerContent = ({
             className={twJoin(
               "relative flex h-full flex-col overflow-hidden outline-hidden will-change-auto",
               side === "top" || side === "bottom"
-                ? "mx-auto max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] max-w-lg"
+                ? "mx-auto max-w-lg"
                 : "h-full"
             )}
           >
-            <div className="relative bottom-0 left-0 z-15 h-[50vh] sm:h-[100vh]">
+            <div className="relative bottom-0 left-0 z-15">
               {notch && side === "bottom" && (
                 <div
                   className="notch absolute top-0 left-[50%] z-15 mx-auto my-2 my-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"

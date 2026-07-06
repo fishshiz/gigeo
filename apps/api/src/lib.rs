@@ -143,6 +143,10 @@ pub async fn build_app() -> Result<Router> {
             axum::routing::post(spotify::spotify_handlers::create_playlist),
         )
         .route(
+            "/spotify/playlist",
+            axum::routing::get(spotify::spotify_handlers::get_user_playlists),
+        )
+        .route(
             "/spotify/login",
             axum::routing::get(spotify::spotify_handlers::login),
         )

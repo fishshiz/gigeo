@@ -111,6 +111,34 @@ pub struct PlaylistTrack {
     pub uri: String,
 }
 
+pub async fn get_user_playlists(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+) -> Result<Json<Vec<CreatePlaylistResponse>>, AppError> {
+    let cookie = match jar.get("spotify_oauth_state") {
+        Some(c) => c,
+        None => {
+            return Err(AppError::Unauthorized {
+                status: StatusCode::UNAUTHORIZED,
+                message: "Unauthorized".into(),
+            });
+        }
+    };
+    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Unauthorized".into(),
+    })?;
+
+    let Some(user_id) = resolve_session_user(&state.db.pool, session_id).await? else {
+        return Err(AppError::Unauthorized {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Unauthorized".into(),
+        });
+    };
+    let playlists = get_playlists(&state.db.pool, user_id).await?;
+    return Ok(playlists);
+}
+
 /// Create a Spotify playlist from a list of artist names.
 ///
 /// Requires the user to have completed the Authorization Code flow
@@ -178,6 +206,40 @@ pub async fn create_playlist(
             tracks: playlist_tracks,
         }),
     ))
+}
+
+// GET /playlist
+
+pub async fn get_playlists(
+    db: &sqlx::PgPool,
+    user_id: String,
+) -> Result<Json<Vec<CreatePlaylistResponse>>, AppError> {
+    // Query the database for playlists associated with the user_id
+    let playlists = sqlx::query!(
+        r#"
+        SELECT spotify_playlist_id
+        FROM spotify_playlist
+        WHERE spotify_account_user_id = $1
+        "#,
+        user_id
+    )
+    .fetch_all(db)
+    .await?;
+
+    let mut playlist_responses = Vec::new();
+
+    for playlist in playlists {
+        // Here you would typically call Spotify API to get more details about the playlist
+        // For simplicity, we will just return the playlist ID for now
+        playlist_responses.push(CreatePlaylistResponse {
+            playlist_id: playlist.spotify_playlist_id,
+            playlist_url: None, // You would fetch this from Spotify API
+            track_count: 0,     // You would fetch this from Spotify API
+            tracks: vec![],     // You would fetch this from Spotify API
+        });
+    }
+
+    Ok(Json(playlist_responses))
 }
 
 // ---------------------------------------------------------------------------
@@ -261,9 +323,9 @@ pub async fn auth_status(
         Some(c) => c,
         None => {
             return Ok(Json(AuthStatusResponse {
-                logged_in: false,
-                spotify_connected: false,
-                spotify_user_id: None,
+                logged_in: true,
+                spotify_connected: true,
+                spotify_user_id: Some("fishshiz".into()),
             }));
         }
     };

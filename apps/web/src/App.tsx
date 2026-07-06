@@ -1,7 +1,7 @@
 import { AppWrapper } from "./AppWrapper"
 function App() {
   return (
-    <main className="flex h-full w-full flex-col sm:flex-row">
+    <main className="h-full w-full">
       <AppWrapper />
     </main>
   )

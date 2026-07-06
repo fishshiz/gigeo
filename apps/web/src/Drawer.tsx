@@ -64,22 +64,30 @@ const DrawerWrapper = ({
       isBlurred={false}
       notch={isDesktop ? false : true}
       side={isDesktop ? "left" : "bottom"}
-      className="z-10 flex h-[50dvh] w-full max-w-md flex-col bg-white"
+      className="z-10 flex h-full w-full max-w-md flex-col bg-white"
     >
-      {!selectedEvents.length && eventsByDate && (
+      {!selectedEvents.length && (
         <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
-          <div className="mb-2 flex w-full justify-between">
-            <h2 className="text-bold text-xl">Events</h2>
-            <DrawerClose variant="quiet" onClick={() => setDrawerOpen(false)}>
-              <XIcon />
-            </DrawerClose>
-          </div>
-          <EventFilter />
-          <DateSlider
-            dates={entries.map(([key]) => key)}
-            activeDateId={topMostId}
-            onSelect={handleDateChange}
-          />
+          <DrawerClose
+            className="absolute top-4 right-4 z-10"
+            variant="quiet"
+            onClick={() => setDrawerOpen(false)}
+          >
+            <XIcon />
+          </DrawerClose>
+          {entries.length && (
+            <>
+              <div className="mb-2 flex w-full">
+                <h2 className="text-bold text-xl">Events</h2>
+              </div>
+              <EventFilter />
+              <DateSlider
+                dates={entries.map(([key]) => key)}
+                activeDateId={topMostId}
+                onSelect={handleDateChange}
+              />
+            </>
+          )}
         </DrawerHeader>
       )}
       <DrawerBody className="flex-5 overflow-y-scroll p-0">
@@ -87,7 +95,7 @@ const DrawerWrapper = ({
           <EventDetails eventData={selectedEvents[0]} />
         ) : selectedEvents.length ? (
           <VenueDetails events={selectedEvents} />
-        ) : (
+        ) : entries.length ? (
           <div className="overflow-y-scroll scroll-smooth" ref={eventListRef}>
             {entries.map(([date, events]) => (
               <div key={date}>
@@ -107,6 +115,13 @@ const DrawerWrapper = ({
                 </ul>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <p className="text-gray-600">
+              No events found. Try searching for a different location, or
+              adjusting the calendar date range.
+            </p>
           </div>
         )}
       </DrawerBody>
