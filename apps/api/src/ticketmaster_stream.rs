@@ -16,24 +16,24 @@ use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct EventsQuery {
-    latitude: f64,
-    longitude: f64,
-    radius: u8,
-    start: String,
-    end: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub radius: u8,
+    pub start: String,
+    pub end: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct TicketmasterResponse {
+pub struct TicketmasterResponse {
     #[serde(rename = "_embedded")]
-    embedded: Option<Embedded>,
-    page: Option<TmPage>,
+    pub embedded: Option<Embedded>,
+    pub page: Option<TmPage>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Embedded {
+pub struct Embedded {
     #[serde(default)]
-    events: Vec<TmEvent>,
+    pub events: Vec<TmEvent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -45,72 +45,72 @@ struct TmPage {
 }
 
 #[derive(Debug, Deserialize)]
-struct TmEvent {
-    id: String,
-    url: Option<String>,
+pub struct TmEvent {
+    pub id: String,
+    pub url: Option<String>,
     #[serde(rename = "priceRanges")]
-    price_ranges: Option<Vec<TmPriceRange>>,
-    name: String,
+    pub price_ranges: Option<Vec<TmPriceRange>>,
+    pub name: String,
     #[serde(default)]
-    images: Vec<Images>,
-    dates: TmDate,
-    classifications: Option<Vec<TmClassification>>,
+    pub images: Vec<Images>,
+    pub dates: TmDate,
+    pub classifications: Option<Vec<TmClassification>>,
     #[serde(rename = "_embedded")]
-    embedded: Option<EventEmbedded>,
+    pub embedded: Option<EventEmbedded>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct TmPriceRange {
+pub struct TmPriceRange {
     currency: String,
     min: f32,
     max: f32,
 }
 
 #[derive(Debug, Deserialize)]
-struct TmDate {
-    start: TmDateStart,
+pub struct TmDate {
+    pub start: TmDateStart,
 }
 
 #[derive(Debug, Deserialize)]
-struct TmDateStart {
+pub struct TmDateStart {
     #[serde(default, rename = "dateTime")]
-    date_time: Option<String>,
+    pub date_time: Option<String>,
     #[serde(default, rename = "localDate")]
-    local_date: Option<String>,
+    pub local_date: Option<String>,
     #[serde(default, rename = "localTime")]
-    local_time: Option<String>,
+    pub local_time: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct EventEmbedded {
-    venues: Option<Vec<TmVenue>>,
-    attractions: Option<Vec<TmAttraction>>,
+pub struct EventEmbedded {
+    pub venues: Option<Vec<TmVenue>>,
+    pub attractions: Option<Vec<TmAttraction>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct TmAttraction {
-    name: Option<String>,
-    id: Option<String>,
-    classifications: Option<Vec<TmClassification>>,
+pub struct TmAttraction {
+    pub name: Option<String>,
+    pub id: Option<String>,
+    pub classifications: Option<Vec<TmClassification>>,
     #[serde(rename = "externalLinks")]
-    external_links: Option<TmExternalLinks>,
-    images: Option<Vec<Images>>,
+    pub external_links: Option<TmExternalLinks>,
+    pub images: Option<Vec<Images>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct TmExternalLinks {
+pub struct TmExternalLinks {
     wiki: Option<Vec<TmExternalLink>>,
     homepage: Option<Vec<TmExternalLink>>,
     instagram: Option<Vec<TmExternalLink>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct TmExternalLink {
+pub struct TmExternalLink {
     url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct TmClassification {
+pub struct TmClassification {
     primary: Option<bool>,
     segment: Option<TmSegment>,
     genre: Option<TmSegment>,
@@ -122,31 +122,31 @@ struct TmClassification {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct TmSegment {
+pub struct TmSegment {
     id: String,
     name: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct TmVenue {
-    name: Option<String>,
-    location: Option<TmLocation>,
-    city: Option<TmCity>,
+pub struct TmVenue {
+    pub name: Option<String>,
+    pub location: Option<TmLocation>,
+    pub city: Option<TmCity>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct TmCity {
-    name: Option<String>,
+pub struct TmCity {
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct TmLocation {
-    latitude: Option<String>,
-    longitude: Option<String>,
+pub struct TmLocation {
+    pub latitude: Option<String>,
+    pub longitude: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Images {
+pub struct Images {
     ratio: Option<String>,
     url: String,
     width: Option<i32>,
@@ -156,31 +156,31 @@ struct Images {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct EventResponse {
-    id: String,
-    name: String,
-    venue: Option<VenueResponse>,
-    images: Vec<Images>,
-    dates: Option<String>,
+    pub id: String,
+    pub name: String,
+    pub venue: Option<VenueResponse>,
+    pub images: Vec<Images>,
+    pub dates: Option<String>,
     #[serde(rename = "datesPretty")]
-    dates_pretty: Option<String>,
-    classifications: Option<Vec<TmClassification>>,
-    attractions: Option<Vec<TmAttraction>>,
-    url: Option<String>,
+    pub dates_pretty: Option<String>,
+    pub classifications: Option<Vec<TmClassification>>,
+    pub attractions: Option<Vec<TmAttraction>>,
+    pub url: Option<String>,
     #[serde(rename = "priceRanges")]
-    price_ranges: Option<Vec<TmPriceRange>>,
+    pub price_ranges: Option<Vec<TmPriceRange>>,
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct VenueResponse {
-    name: Option<String>,
-    location: Option<LocationResponse>,
-    city: Option<String>,
+pub struct VenueResponse {
+    pub name: Option<String>,
+    pub location: Option<LocationResponse>,
+    pub city: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct LocationResponse {
-    latitude: Option<String>,
-    longitude: Option<String>,
+pub struct LocationResponse {
+    pub latitude: Option<String>,
+    pub longitude: Option<String>,
 }
 
 fn normalize_event(e: TmEvent) -> EventResponse {

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react"
-import { useEvents } from "./components/events-provider"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { TextField } from "@workspace/ui/components/ui/TextField"
 import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
+import { useSearchProvider } from "./providers/searchProvider"
+import { useDrawerProvider } from "./providers/drawerProvider"
 
 const useDebounce = (value: string, delayTime: number) => {
   const [debounceValue, setDebounceValue] = useState(value)
@@ -19,13 +20,26 @@ const useDebounce = (value: string, delayTime: number) => {
 }
 
 const Search = () => {
-  const { setSelectedCoordinates, dateRange, setDateRange } = useEvents()
+  const {
+    setSelectedCoordinates,
+    dateRange,
+    setDateRange,
+    selectedLocation,
+    setSelectedLocation,
+    setInputRef,
+  } = useSearchProvider()
+  const { setIsDrawerOpen } = useDrawerProvider()
+
   const [searchTerm, setSearchTerm] = useState("")
-  const [searchedTerm, setSearchedTerm] = useState("")
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
   const listRef = useRef<HTMLUListElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
 
   const debounceValue = useDebounce(searchTerm, 500)
+
+  useEffect(() => {
+    setInputRef(inputRef.current)
+  }, [setInputRef])
 
   useEffect(() => {
     fetch(`/api/cities?q=${debounceValue}`)
@@ -34,20 +48,20 @@ const Search = () => {
   }, [debounceValue])
 
   const updateSearchTerm = (e: string) => {
-    if (searchedTerm.length) {
-      setSearchedTerm("")
+    if (selectedLocation?.length) {
+      setSelectedLocation(undefined)
     }
     setSearchTerm(e)
   }
   const listboxId = "typeahead-listbox"
 
   const selectPlace = (place: GeoJSONFeature) => {
-    console.log(place)
     if (place.geometry.type === "GeometryCollection") return
     const coordinates = place.geometry.coordinates as [number, number]
     setPlaces([place])
     setSelectedCoordinates([coordinates[0], coordinates[1]])
-    setSearchedTerm(place.properties?.full_address)
+    setSelectedLocation(place.properties?.full_address)
+    setIsDrawerOpen(true)
   }
 
   return (
@@ -55,11 +69,12 @@ const Search = () => {
       <div className="relative flex h-fit max-h-[80px] w-full items-center overflow-hidden rounded-xl border-1 border-gray-300 bg-white">
         <TextField
           id="search"
+          ref={inputRef}
           type="text"
           autoComplete="off"
           aria-label="Search for a city"
           name="search"
-          value={searchedTerm ? searchedTerm : searchTerm}
+          value={selectedLocation ? selectedLocation : searchTerm}
           placeholder="Search for a city"
           className="block grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
           onChange={(e) => updateSearchTerm(e)}

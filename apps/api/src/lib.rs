@@ -13,7 +13,7 @@ mod state;
 mod ticketmaster_handlers;
 mod ticketmaster_stream;
 mod updater;
-
+mod services;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -121,11 +121,7 @@ pub async fn build_app() -> Result<Router> {
             "/auth/status",
             axum::routing::get(spotify::spotify_handlers::auth_status),
         )
-        .route("/cities", axum::routing::get(mapbox_handlers::get_cities))
-        .route(
-            "/concerts",
-            axum::routing::get(ticketmaster_handlers::get_concerts_tm),
-        )
+        .route("/cities", axum::routing::get(mapbox_handlers::get_cities))  
         .route(
             "/concerts/stream",
             axum::routing::get(ticketmaster_stream::get_concerts_tm_stream),

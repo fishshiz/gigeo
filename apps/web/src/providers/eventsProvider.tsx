@@ -27,6 +27,8 @@ type EventsContextValue = EventsState & {
   cancelStream: () => void
   selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
+  selectedEvent: EventResponse | undefined
+  setSelectedEvent: (event: EventResponse | undefined) => void
 }
 
 function buildConcertStreamUrl(params: StreamConcertsParams) {
@@ -137,6 +139,9 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [])
+  const [selectedEvent, setSelectedEvent] = React.useState<
+    EventResponse | undefined
+  >(undefined)
 
   const value = useMemo(
     () => ({
@@ -145,6 +150,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       cancelStream,
       resetEvents,
       selectEvents,
+      selectedEvent,
+      setSelectedEvent,
     }),
     [state, streamEvents, cancelStream, resetEvents, selectEvents]
   )

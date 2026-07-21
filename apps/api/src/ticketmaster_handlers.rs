@@ -2,9 +2,7 @@ use axum::extract::{Query, State};
 use axum::{Json, http::StatusCode};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-use geohash::{Coord, encode};
 
 use crate::state::AppState;
 
@@ -13,14 +11,6 @@ pub struct AttractionEventsQuery {
     id: String,
 }
 
-#[derive(Deserialize)]
-pub struct EventsQuery {
-    latitude: f64,
-    longitude: f64,
-    radius: u8,
-    start: String,
-    end: String,
-}
 
 #[derive(Debug, Deserialize)]
 struct TicketmasterResponse {
@@ -146,13 +136,7 @@ pub struct EventResponse {
     priceRanges: Option<Vec<TmPriceRange>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Attraction {
-    name: Option<String>,
-    id: Option<String>,
-    classifications: Option<Vec<TmClassification>>,
-    externalLinks: Option<TmExternalLinks>,
-}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Images {
@@ -174,137 +158,6 @@ struct VenueResponse {
 struct LocationResponse {
     latitude: Option<String>,
     longitude: Option<String>,
-}
-
-pub async fn get_concerts_tm(
-    State(state): State<AppState>,
-    Query(params): Query<EventsQuery>,
-) -> Result<Json<Vec<EventResponse>>, (axum::http::StatusCode, String)> {
-    let latitude: f64 = params.latitude;
-    let longitude: f64 = params.longitude;
-    let radius = params.radius;
-
-    let hash = encode(
-        Coord {
-            x: longitude,
-            y: latitude,
-        },
-        6usize,
-    )
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to encode geohash: {}", e),
-        )
-    })?;
-
-    let start = params.start;
-    let end = params.end;
-    let url = format!(
-        "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200&sort=date,asc",
-        hash, state.ticketmaster_key, radius, start, end
-    );
-
-    let resp = state
-        .client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
-
-    let status = resp.status();
-    let text = resp
-        .text()
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("error reading body: {e}")))?;
-
-    let body: TicketmasterResponse = serde_json::from_str(&text)
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("serde error: {e:?}")))?;
-
-    // 2) project into your flattened DTO
-    let events = body
-        .embedded
-        .into_iter()
-        .flat_map(|e| e.events)
-        .map(|e| {
-            // choose dateTime if present, else synthesize from localDate/localTime, else None
-            let dates = e.dates.start.dateTime.or_else(|| {
-                match (
-                    e.dates.start.localDate.as_ref(),
-                    e.dates.start.localTime.as_ref(),
-                ) {
-                    (Some(d), Some(t)) => Some(format!("{d}T{t}")),
-                    (Some(d), None) => Some(d.clone()),
-                    _ => None,
-                }
-            });
-            let venue = e
-                .embedded
-                .as_ref()
-                .and_then(|emb| emb.venues.as_ref())
-                .and_then(|mut vs| vs.last().cloned()); // first venue
-
-            let venue = venue.map(|v| VenueResponse {
-                name: v.name,
-                location: v.location.map(|loc| LocationResponse {
-                    latitude: loc.latitude,
-                    longitude: loc.longitude,
-                }),
-                city: v.city.and_then(|c| c.name),
-            });
-
-            let attractions = e.embedded.and_then(|a| a.attractions);
-
-            let datesPretty = dates.as_ref().map(|d| {
-                DateTime::parse_from_rfc3339(d)
-                    .map(|dt| dt.with_timezone(&Local).format("%B %d").to_string())
-                    .unwrap_or_else(|_| d.clone())
-            });
-
-            EventResponse {
-                id: e.id,
-                name: e.name,
-                url: e.url,
-                venue,
-                images: e.images,
-                dates,
-                datesPretty,
-                classifications: e.classifications,
-                attractions,
-                priceRanges: e.priceRanges,
-            }
-        })
-        .collect::<Vec<_>>()
-        .iter()
-        .fold(
-            std::collections::HashMap::new(),
-            |mut acc: std::collections::HashMap<String, EventResponse>, event: &EventResponse| {
-                // Remove duplicate events by datetime + venueID + attractionID (some events are duplicated in TM with different IDs but same content)
-                let venue_id = event.venue.as_ref().and_then(|v| v.name.clone());
-                let attraction_id =
-                    event
-                        .attractions
-                        .as_ref()
-                        .and_then(|attractions: &Vec<TmAttraction>| {
-                            attractions.first().and_then(|a| a.id.clone())
-                        });
-                let key = format!(
-                    "{}-{}-{}",
-                    event.dates.clone().unwrap_or_default(),
-                    venue_id.clone().unwrap_or_default(),
-                    attraction_id.clone().unwrap_or_default()
-                );
-                if !acc.contains_key(&key) {
-                    acc.insert(key, event.clone());
-                }
-                acc
-            },
-        )
-        .values()
-        .cloned()
-        .collect();
-
-    Ok(Json(events))
 }
 
 pub async fn get_events_by_attraction(

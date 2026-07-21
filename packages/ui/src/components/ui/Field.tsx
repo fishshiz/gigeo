@@ -18,6 +18,7 @@ import {
   composeTailwindRenderProps,
   focusRing,
 } from "@workspace/ui/lib/react-aria-utils"
+import { forwardRef } from "react"
 
 export function Label(props: LabelProps) {
   return (
@@ -87,14 +88,17 @@ export function FieldGroup(props: GroupProps) {
   )
 }
 
-export function Input(props: InputProps) {
-  return (
-    <RACInput
-      {...props}
-      className={composeTailwindRenderProps(
-        props.className,
-        "min-h-9 min-w-0 flex-1 border-0 bg-white px-3 py-0 font-sans text-sm text-neutral-800 outline outline-0 [-webkit-tap-highlight-color:transparent] placeholder:text-neutral-600 disabled:text-neutral-200 disabled:placeholder:text-neutral-200 dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder:text-neutral-400 dark:disabled:text-neutral-600 dark:disabled:placeholder:text-neutral-600"
-      )}
-    />
-  )
-}
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  function Input(props, ref) {
+    return (
+      <RACInput
+        {...props}
+        ref={ref}
+        className={composeTailwindRenderProps(
+          props.className,
+          "min-h-9 min-w-0 flex-1 border-0 bg-white px-3 py-0 font-sans text-sm text-neutral-800 outline outline-0 [-webkit-tap-highlight-color:transparent] placeholder:text-neutral-600 disabled:text-neutral-200 disabled:placeholder:text-neutral-200 dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder:text-neutral-400 dark:disabled:text-neutral-600 dark:disabled:placeholder:text-neutral-600"
+        )}
+      />
+    )
+  }
+)

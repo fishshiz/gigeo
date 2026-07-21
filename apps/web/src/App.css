@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-react-aria-components";
 
 @theme {
   --color-jet-black-50: oklch(96.05% 0.005 258.32);

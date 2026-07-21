@@ -1,7 +1,6 @@
 import type { Event, Attraction, AmArtistFull } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
-import { useEvents } from "./components/events-provider"
 import { useEffect, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import {
@@ -17,6 +16,7 @@ import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
+import { useEvents } from "./components/events-provider"
 
 const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { attractions } = eventData
@@ -178,7 +178,6 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
       {artistInfo.length
         ? artistInfo.map((artist) => (
             <>
-              {JSON.stringify(attractions)}
               <ArtistCard
                 key={artist.id}
                 artist={artist}

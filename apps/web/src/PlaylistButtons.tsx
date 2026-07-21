@@ -35,7 +35,7 @@ export function PlaylistButtons() {
           Connected
         </Button>
         <Menu>
-          <MenuItem>Manage Playlists</MenuItem>
+          <MenuItem onClick={() => getPlaylists()}>Manage Playlists</MenuItem>
           <MenuItem>Logout</MenuItem>
         </Menu>
       </MenuTrigger>

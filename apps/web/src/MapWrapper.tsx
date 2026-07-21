@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from "react"
 import mapboxgl, { GeoJSONSource, InteractionEvent } from "mapbox-gl"
-import { useEvents } from "./components/events-provider"
+import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
-import { DrawerWrapper } from "./Drawer"
+import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
 import { DrawerTrigger } from "@workspace/ui/components/ui/Drawer"
 import { ChevronRightIcon } from "lucide-react"
@@ -10,18 +10,18 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
+import { useDrawerProvider } from "./providers/drawerProvider"
 
 const INITIAL_ZOOM = 1
 
 const MapWrapper = () => {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const eventsContext = useEvents()
+  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
+    useSearchProvider()
+  const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     setRendered(true)
   }, [])
-  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
-    eventsContext
 
   const {
     streamEvents,
@@ -124,7 +124,6 @@ const MapWrapper = () => {
         const event = [...Object.values(eventsByDate)]
           .flat()
           ?.find((ev) => ev.id === e?.feature?.id)
-        console.log(selectedFeature, e, event)
         if (selectedFeature) {
           mapRef.current?.setFeatureState(selectedFeature, { selected: false })
           setSelectedFeature(null)
@@ -339,23 +338,8 @@ const MapWrapper = () => {
 
   return (
     <>
-      <div className="relative flex h-full min-h-0 flex-1">
-        {!useIsMobile() && (
-          <DrawerWrapper
-            drawerOpen={drawerOpen}
-            setDrawerOpen={(isOpen) => {
-              setDrawerOpen(isOpen)
-            }}
-          />
-        )}
-        {!drawerOpen && (
-          <DrawerTrigger
-            onClick={() => setDrawerOpen(true)}
-            className="shadow:lg absolute bottom-0 z-20 flex h-32 w-full items-center justify-center border-t border-gray-300 bg-white p-0 p-4 text-sm font-medium text-gray-700 sm:top-1/2 sm:left-0 sm:h-min sm:w-min sm:-translate-y-1/2 sm:transform sm:rounded-tr-lg sm:rounded-br-lg"
-          >
-            <ChevronRightIcon className="stroke-gray-700" />
-          </DrawerTrigger>
-        )}
+      <div className="relative flex h-full flex-1">
+        {!useIsMobile() && <DrawerWrapper />}
         <div ref={mapContainer} id="map-container" className="h-full w-full" />
       </div>
     </>

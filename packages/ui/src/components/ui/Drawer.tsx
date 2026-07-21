@@ -162,7 +162,7 @@ const DrawerContent = ({
                 : "h-full"
             )}
           >
-            <div className="relative bottom-0 left-0 z-15">
+            <div className="relative bottom-0 left-0 z-15 flex flex-col">
               {notch && side === "bottom" && (
                 <div
                   className="notch absolute top-0 left-[50%] z-15 mx-auto my-2 my-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"

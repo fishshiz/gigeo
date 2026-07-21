@@ -1,34 +1,19 @@
-import { useState } from "react"
 import { MapWrapper } from "./MapWrapper"
-import { DrawerWrapper } from "./Drawer"
+import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { Search } from "./Search"
-import { PlaylistButtons } from "./PlaylistButtons"
-import { ChevronRightIcon } from "lucide-react"
 import { useIsMobile } from "./providers/Breakpoint"
-import { DrawerTrigger } from "@workspace/ui/components/ui/Drawer"
 import { AppHeader } from "./Header"
 const AppWrapper = () => {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50">
       <AppHeader>
         <Search />
-
-        <PlaylistButtons />
       </AppHeader>
       <div className="h-full">
         <MapWrapper />
       </div>
 
-      {useIsMobile() && (
-        <DrawerWrapper
-          drawerOpen={drawerOpen}
-          setDrawerOpen={(isOpen) => {
-            setDrawerOpen(isOpen)
-          }}
-        />
-      )}
+      {useIsMobile() && <DrawerWrapper />}
     </div>
   )
 }

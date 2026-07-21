@@ -23,8 +23,10 @@ const DateSlider = ({
       } else if (idx < 7) {
         console.log(acc, idx, curr)
         acc[(idx % 7) - idx].push(curr)
-      } else {
+      } else if (acc[idx % 7]) {
         acc[idx % 7].push(curr)
+      } else {
+        console.log("else", acc, idx, curr)
       }
       return acc
     },

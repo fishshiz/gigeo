@@ -8,7 +8,10 @@ use axum::{
 use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
-
+use crate::ticketmaster_stream::{EventsQuery};
+use crate::services::playlist_builder::{get_concerts_tm_impl};
+use std::collections::HashSet;
+use chrono::{Utc, Duration};
 use crate::cookie::utils::build_session_cookie;
 use crate::error::AppError;
 use crate::spotify::client::{Artist, Image};
@@ -90,10 +93,17 @@ pub struct CreatePlaylistRequest {
     pub name: String,
     /// Optional description.
     pub description: Option<String>,
-    /// List of artist names to seed the playlist with.
-    pub artists: Vec<String>,
     /// Number of tracks to include per artist (default 3, max 10).
     pub tracks_per_artist: Option<u8>,
+    // How often to update playlist, in days (min 1, max 60).
+    pub cadence: Option<u8>,
+    // Whether playlist is public or private.
+    pub privacy: bool,
+    // The centered location of the playlist.
+    pub location: String,
+    // The location coordinates
+    pub latitude: f64,
+    pub longitude: f64, 
 }
 
 #[derive(Serialize)]
@@ -115,24 +125,24 @@ pub async fn get_user_playlists(
     State(state): State<AppState>,
     jar: SignedCookieJar,
 ) -> Result<Json<Vec<CreatePlaylistResponse>>, AppError> {
-    let cookie = match jar.get("spotify_oauth_state") {
-        Some(c) => c,
-        None => {
-            return Err(AppError::Unauthorized {
-                status: StatusCode::UNAUTHORIZED,
-                message: "Unauthorized".into(),
-            });
-        }
-    };
-    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+    // let cookie = match jar.get("spotify_oauth_state") {
+    //     Some(c) => c,
+    //     None => {
+    //         return Err(AppError::Unauthorized {
+    //             status: StatusCode::UNAUTHORIZED,
+    //             message: "Unauthorized".into(),
+    //         });
+    //     }
+    // };
+    let session_id = uuid::Uuid::parse_str(String::from("f1325f2f-913c-42c1-a9c8-0104cd48c353").as_str()).map_err(|_| AppError::Unauthorized {
         status: StatusCode::UNAUTHORIZED,
-        message: "Unauthorized".into(),
+        message: "Unauthorized session id".into(),
     })?;
 
     let Some(user_id) = resolve_session_user(&state.db.pool, session_id).await? else {
         return Err(AppError::Unauthorized {
             status: StatusCode::UNAUTHORIZED,
-            message: "Unauthorized".into(),
+            message: "Unauthorized user id".into(),
         });
     };
     let playlists = get_playlists(&state.db.pool, user_id).await?;
@@ -157,15 +167,39 @@ pub async fn create_playlist(
 
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
-    // Gather tracks for each artist via search (non-deprecated).
+    let query = EventsQuery {
+        latitude: req.latitude,
+        longitude: req.longitude,
+        radius: 25,
+        start: Utc::now().format("%Y-%m-%d").to_string(),
+        end: (Utc::now().date_naive() + Duration::days(7)).format("%Y-%m-%d").to_string(),
+    };
+
+    let events = get_concerts_tm_impl(&state, &query).await?;
+
+    let artist_names: Vec<String> = events
+        .iter()
+        .flat_map(|event| event.attractions.as_ref().into_iter().flatten())
+        .filter_map(|a| a.name.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    if artist_names.is_empty() {
+        return Err(AppError::Internal(
+            "No artists found from nearby Ticketmaster events".to_string(),
+        ));
+    }
+
     let mut track_uris: Vec<String> = Vec::new();
     let mut playlist_tracks: Vec<PlaylistTrack> = Vec::new();
 
-    for artist_name in &req.artists {
+    for artist_name in &artist_names {
         let tracks = state
             .spotify
             .search_tracks_by_artist(&cc_token.access_token, artist_name, per_artist)
             .await?;
+
         if let Some(tracks) = tracks {
             for t in tracks {
                 playlist_tracks.push(PlaylistTrack {
@@ -182,19 +216,29 @@ pub async fn create_playlist(
         }
     }
 
-    // Create the playlist.
+    if track_uris.is_empty() {
+        return Err(AppError::ArtistNotFound(
+            "No Spotify tracks found for artists in nearby events".to_string(),
+        ));
+    }
+
     let playlist = state
         .spotify
-        .create_playlist(&user_token, &req.name, req.description.as_deref(), true)
+        .create_playlist(
+            &user_token,
+            &req.name,
+            req.description.as_deref(),
+            req.privacy,
+        )
         .await?;
 
-    // Add tracks in batches of 100 (Spotify limit per request).
     for chunk in track_uris.chunks(100) {
         state
             .spotify
             .add_items_to_playlist(&user_token, &playlist.id, chunk)
             .await?;
     }
+
     create_playlist_record(&state.db.pool, playlist.owner.id, &playlist.id).await?;
 
     Ok((
@@ -207,7 +251,6 @@ pub async fn create_playlist(
         }),
     ))
 }
-
 // GET /playlist
 
 pub async fn get_playlists(
@@ -323,9 +366,9 @@ pub async fn auth_status(
         Some(c) => c,
         None => {
             return Ok(Json(AuthStatusResponse {
-                logged_in: true,
-                spotify_connected: true,
-                spotify_user_id: Some("fishshiz".into()),
+                logged_in: false,
+                spotify_connected: false,
+                spotify_user_id: None,
             }));
         }
     };

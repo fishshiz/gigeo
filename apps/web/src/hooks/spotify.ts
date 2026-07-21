@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { usePlaylistContext } from "@/providers/playlistsProvider"
+import { useSearchProvider } from "@/providers/searchProvider"
 export type AuthStatus = {
   logged_in: boolean
   spotify_connected: boolean
@@ -9,8 +11,11 @@ export type AuthStatus = {
 
 export type CreatePlaylistInput = {
   name: string
-  description?: string
-  public?: boolean
+  location: string
+  description: string
+  privacy: boolean
+  cadence: number
+  radius: number
 }
 
 export type CreatePlaylistOutput = {
@@ -26,11 +31,41 @@ type UseSpotifyAuthResult = {
   refresh: () => Promise<void>
   connectSpotify: () => void
   logout: () => Promise<void>
-  createPlaylist: (input: CreatePlaylistInput) => Promise<CreatePlaylistOutput>
+  createPlaylist: (input: FormData) => Promise<CreatePlaylistOutput>
   getPlaylists: () => Promise<any>
 }
 
+function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
+  const name = formData.get("playlistName")
+  const location = formData.get("location")
+  const privacy = formData.get("privacy")
+  const cadence = formData.get("cadence")
+
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("Playlist name is required")
+  }
+
+  if (typeof location !== "string" || !location.trim()) {
+    throw new Error("Location is required")
+  }
+
+  if (typeof cadence !== "string" || !cadence) {
+    throw new Error("Cadence is required")
+  }
+
+  return {
+    name: name.trim(),
+    location: location.trim(),
+    description: "test description",
+    privacy: privacy === "private",
+    cadence: cadence === "daily" ? 1 : cadence === "weekly" ? 7 : 30,
+    radius: 25,
+  }
+}
+
 export function useSpotifyAuth(): UseSpotifyAuthResult {
+  const { setSpotifyPlaylists, setPlaylistManagement } = usePlaylistContext()
+  const { selectedCoordinates } = useSearchProvider()
   const [status, setStatus] = useState<AuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,8 +97,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
   }, [refresh])
 
   const connectSpotify = useCallback(() => {
-  window.location.assign("/api/spotify/login");
-}, []);
+    window.location.assign("/api/spotify/login")
+  }, [])
 
   const logout = useCallback(async () => {
     setError(null)
@@ -82,27 +117,31 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
 
   const getPlaylists = useCallback(async () => {
     setError(null)
-    
-    const res = await fetch(`api/spotify/playlists`, {
+
+    const res = await fetch(`api/spotify/playlist`, {
       method: "GET",
       credentials: "include",
-    })
-    console.log(res);
+    }).then((res) => res.json())
+    setSpotifyPlaylists(res)
+    setPlaylistManagement("spotify")
+    console.log(res)
   }, [refresh])
 
   const createPlaylist = useCallback(
-    async (input: CreatePlaylistInput) => {
+    async (input: FormData) => {
       setError(null)
+      const payload = parseCreatePlaylistForm(input)
 
-      const res = await fetch(`api/spotify/create-playlist`, {
+      const res = await fetch(`api/spotify/playlist`, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...input,
-          public: input.public ?? false,
+          ...payload,
+          latitude: selectedCoordinates[1],
+          longitude: selectedCoordinates[0],
         }),
       })
 
@@ -127,8 +166,17 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       connectSpotify,
       logout,
       createPlaylist,
-      getPlaylists
+      getPlaylists,
     }),
-    [status, loading, error, refresh, connectSpotify, logout, createPlaylist, getPlaylists]
+    [
+      status,
+      loading,
+      error,
+      refresh,
+      connectSpotify,
+      logout,
+      createPlaylist,
+      getPlaylists,
+    ]
   )
 }
