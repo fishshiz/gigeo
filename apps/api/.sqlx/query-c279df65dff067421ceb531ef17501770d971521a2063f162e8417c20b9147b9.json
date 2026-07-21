@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into spotify_playlist (spotify_account_user_id, spotify_playlist_id)\n        values ($1, $2)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c279df65dff067421ceb531ef17501770d971521a2063f162e8417c20b9147b9"
+}

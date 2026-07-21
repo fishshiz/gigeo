@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into user_session (id, expires_at, spotify_user_id)\n        values ($1, $2, $3)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d46817a357e6a1ed9fb2dc3942ee5a0803426d0037e969ef1702ea6b32aad9fa"
+}
