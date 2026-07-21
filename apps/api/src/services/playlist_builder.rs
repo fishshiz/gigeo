@@ -4,6 +4,7 @@ use crate::error::{AppError};
 use crate::ticketmaster_stream::{EventsQuery, EventResponse, TicketmasterResponse, LocationResponse, VenueResponse};
 use chrono::{DateTime, Local};
 use geohash::{encode, Coord};
+use tracing::info;
 
 pub async fn get_concerts_tm_impl(
     state: &AppState,
@@ -31,6 +32,7 @@ pub async fn get_concerts_tm_impl(
 
     let status = resp.status();
     let text = resp.text().await.map_err(AppError::Request)?;
+    info!("status, text, {}, {}", status, text);
 
     if !status.is_success() {
         return Err(AppError::TicketmasterApi {

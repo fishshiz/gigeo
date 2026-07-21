@@ -8,6 +8,7 @@ use axum::{
 use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 use crate::ticketmaster_stream::{EventsQuery};
 use crate::services::playlist_builder::{get_concerts_tm_impl};
 use std::collections::HashSet;
@@ -178,6 +179,8 @@ pub async fn create_playlist(
     };
 
     let events = get_concerts_tm_impl(&state, &query).await?;
+info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &query.latitude, &query.radius);
+    info!("events, {}",events.len().to_string());
 
     let artist_names: Vec<String> = events
         .iter()
