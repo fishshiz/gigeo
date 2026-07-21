@@ -11,7 +11,6 @@ import { useMediaQuery } from "usehooks-ts"
 import { useEffect, useRef } from "react"
 import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
-import { usePlaylistContext } from "@/providers/playlistsProvider"
 import { PlaylistsDrawer } from "./PlaylistsDrawer"
 import { useDrawerProvider } from "@/providers/drawerProvider"
 

@@ -22,7 +22,6 @@ import { MapPin, Lock, Unlock } from "lucide-react"
 import { TextField } from "@workspace/ui/components/ui/TextField"
 import { ToggleButton } from "@workspace/ui/components/ui/ToggleButton"
 import { useState } from "react"
-import { GridList, GridListItem } from "@workspace/ui/components/ui/GridList"
 import { PlaylistButtons } from "../PlaylistButtons"
 
 import {
@@ -150,11 +149,9 @@ export const CreatePlaylist = () => {
           defaultValue={placeholder}
         />
         <ToggleButton
-          label="Playlist Privacy"
           aria-label="Make playlist private"
           isSelected={isPrivate}
           onChange={setIsPrivate}
-          name="privacy"
         >
           {isPrivate ? <Lock size={18} /> : <Unlock size={18} />}
         </ToggleButton>
@@ -224,39 +221,4 @@ function getRandomPlaylistName(city: string) {
   return city.length > 0
     ? templates[Math.floor(Math.random() * templates.length)]
     : ""
-}
-
-type CardProps = {
-  item: {
-    id: string
-    title: string
-    description: string
-  }
-}
-
-const Card = ({ item }: CardProps) => {
-  return (
-    <GridListItem
-      id={item.id}
-      textValue={item.title}
-      className="group relative grid cursor-default grid-cols-[1fr_auto] gap-1 rounded-lg border border-black/10 bg-white/80 p-2 text-slate-700 transition select-none hover:border-black/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-slate-200 dark:hover:border-white/20 pressed:scale-[0.99] selected:border-primary selected:shadow-md selected:ring-1 selected:ring-primary/30"
-    >
-      {({ isSelected }) => (
-        <>
-          <span className="text-sm font-semibold text-primary">
-            {item.title}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {item.description}
-          </span>
-
-          {isSelected && (
-            <span className="absolute top-2.5 right-3 text-primary">
-              <CircleCheck size={16} />
-            </span>
-          )}
-        </>
-      )}
-    </GridListItem>
-  )
 }

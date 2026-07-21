@@ -4,20 +4,16 @@ import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
-import { DrawerTrigger } from "@workspace/ui/components/ui/Drawer"
-import { ChevronRightIcon } from "lucide-react"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
-import { useDrawerProvider } from "./providers/drawerProvider"
 
 const INITIAL_ZOOM = 1
 
 const MapWrapper = () => {
   const { selectedCoordinates, setSelectedCoordinates, dateRange } =
     useSearchProvider()
-  const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     setRendered(true)
@@ -120,10 +116,7 @@ const MapWrapper = () => {
     mapRef.current?.addInteraction("map-click", {
       type: "click",
       target: { layerId: "events" },
-      handler: (e) => {
-        const event = [...Object.values(eventsByDate)]
-          .flat()
-          ?.find((ev) => ev.id === e?.feature?.id)
+      handler: () => {
         if (selectedFeature) {
           mapRef.current?.setFeatureState(selectedFeature, { selected: false })
           setSelectedFeature(null)

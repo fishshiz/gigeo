@@ -1,30 +1,18 @@
 import { EventCard } from "../EventCard"
-import { EventDetails } from "../EventDetails"
-import { XIcon } from "lucide-react"
 import { DateSlider } from "../DateSlider"
-import {
-  DrawerBody,
-  DrawerContent,
-  DrawerHeader,
-  DrawerClose,
-} from "@workspace/ui/components/ui/Drawer"
+
 import { useEventsContext } from "../providers/eventsProvider"
-import { useMediaQuery } from "usehooks-ts"
-import { useEffect, useRef, type Ref } from "react"
+import { useRef, type Ref } from "react"
 import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
 import { formatDate } from "../lib/formats"
-import { VenueDetails } from "../VenueDetails"
 import { EventFilter } from "../EventFilter"
 
 export const EventsDrawer = () => {
-  const { eventsByDate, selectedEvents } = useEventsContext()
+  const { eventsByDate } = useEventsContext()
   const eventListRef = useRef<HTMLDivElement>(null)
-  const { topMostId, registerItem } = useTopMostVisibleInScrollContainer(
-    eventListRef,
-    {
-      offsetTop: 0,
-    }
-  )
+  const { registerItem } = useTopMostVisibleInScrollContainer(eventListRef, {
+    offsetTop: 0,
+  })
   const entries = Object.entries(eventsByDate).sort()
   return (
     <>
@@ -62,7 +50,7 @@ export const EventsDrawer = () => {
 }
 
 export const EventsDrawerHeader = () => {
-  const { eventsByDate, selectedEvents } = useEventsContext()
+  const { eventsByDate } = useEventsContext()
   const eventListRef = useRef<HTMLDivElement>(null)
 
   const handleDateChange = (date: string) => {

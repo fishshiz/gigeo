@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useSpotifyAuth } from "./hooks/spotify"
 import { Button } from "@workspace/ui/components/ui/Button"
 import SpotifyLogo from "./assets/Primary_Logo_Green_CMYK.svg"
@@ -9,10 +8,6 @@ import { Menu, MenuTrigger, MenuItem } from "@workspace/ui/components/ui/Menu"
 export function PlaylistButtons() {
   const { status, loading, error, connectSpotify, getPlaylists } =
     useSpotifyAuth()
-
-  const [name, setName] = useState("My generated playlist")
-
-  let [isExpanded, setIsExpanded] = useState(false)
 
   if (loading) return <div>Loading auth status…</div>
   if (error) return <div>Auth error: {error}</div>

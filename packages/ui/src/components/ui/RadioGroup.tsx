@@ -1,23 +1,22 @@
 "use client"
-import React, { ReactNode } from "react"
+import type { ReactNode } from "react"
 import {
-  composeRenderProps,
   Radio as RACRadio,
   RadioGroup as RACRadioGroup,
+  composeRenderProps,
+} from "react-aria-components"
+import type {
   RadioGroupProps as RACRadioGroupProps,
   RadioProps,
   ValidationResult,
 } from "react-aria-components"
-import { tv } from "tailwind-variants"
+
 import {
   Description,
   FieldError,
   Label,
 } from "@workspace/ui/components/ui/Field"
-import {
-  composeTailwindRenderProps,
-  focusRing,
-} from "@workspace/ui/lib/react-aria-utils"
+import { composeTailwindRenderProps } from "@workspace/ui/lib/react-aria-utils"
 
 export interface RadioGroupProps extends Omit<RACRadioGroupProps, "children"> {
   label?: string
@@ -42,28 +41,10 @@ export function RadioGroup(props: RadioGroupProps) {
   )
 }
 
-const styles = tv({
-  extend: focusRing,
-  base: "w-4.5 h-4.5 box-border rounded-full border bg-white dark:bg-neutral-900 transition-all",
-  variants: {
-    isSelected: {
-      false:
-        "border-neutral-400 dark:border-neutral-400 group-pressed:border-neutral-500 dark:group-pressed:border-neutral-300",
-      true: "border-[calc(var(--spacing)*1.5)] border-neutral-700 dark:border-neutral-300 forced-colors:border-[Highlight]! group-pressed:border-neutral-800 dark:group-pressed:border-neutral-200",
-    },
-    isInvalid: {
-      true: "border-red-700 dark:border-red-600 group-pressed:border-red-800 dark:group-pressed:border-red-700 forced-colors:border-[Mark]!",
-    },
-    isDisabled: {
-      true: "border-neutral-200 dark:border-neutral-700 forced-colors:border-[GrayText]!",
-    },
-  },
-})
-
 export function Radio(props: RadioProps) {
   return (
     <RACRadio {...props}>
-      {composeRenderProps(props.children, (children, renderProps) => (
+      {composeRenderProps(props.children, (children) => (
         <>{children}</>
       ))}
     </RACRadio>
