@@ -27,7 +27,7 @@ pub async fn get_concerts_tm_impl(
         params.start,
         params.end
     );
-
+info!("url:, {}", url);
     let resp = state.client.get(&url).send().await.map_err(AppError::Request)?;
 
     let status = resp.status();
