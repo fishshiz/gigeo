@@ -69,6 +69,10 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
   const [status, setStatus] = useState<AuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { latitude, longitude } = {
+    latitude: selectedCoordinates[1],
+    longitude: selectedCoordinates[0],
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -131,10 +135,7 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
     async (input: FormData) => {
       setError(null)
       const payload = parseCreatePlaylistForm(input)
-      const { latitude, longitude } = {
-        latitude: selectedCoordinates[1],
-        longitude: selectedCoordinates[0],
-      }
+
       console.log(latitude, longitude, selectedCoordinates)
 
       const res = await fetch(`api/spotify/playlist`, {
@@ -159,7 +160,7 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       await refresh()
       return data
     },
-    [refresh]
+    [refresh, latitude]
   )
 
   return useMemo(
