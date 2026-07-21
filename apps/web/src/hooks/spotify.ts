@@ -140,8 +140,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
         },
         body: JSON.stringify({
           ...payload,
-          latitude: selectedCoordinates[1],
-          longitude: selectedCoordinates[0],
+          latitude: selectedCoordinates[0],
+          longitude: selectedCoordinates[1],
         }),
       })
 
