@@ -167,12 +167,14 @@ pub async fn create_playlist(
 
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
+    let now = Utc::now();
+
     let query = EventsQuery {
         latitude: req.latitude,
         longitude: req.longitude,
         radius: 25,
-        start: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-        end: (Utc::now().date_naive() + Duration::days(7)).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        start: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        end: (now + Duration::days(7)).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
     };
 
     let events = get_concerts_tm_impl(&state, &query).await?;

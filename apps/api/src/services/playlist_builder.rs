@@ -1,10 +1,4 @@
-use std::collections::HashSet;
 
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    Json,
-};
 use crate::state::{AppState};
 use crate::error::{AppError};
 use crate::ticketmaster_stream::{EventsQuery, EventResponse, TicketmasterResponse, LocationResponse, VenueResponse};
