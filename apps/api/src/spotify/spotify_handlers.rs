@@ -171,8 +171,8 @@ pub async fn create_playlist(
         latitude: req.latitude,
         longitude: req.longitude,
         radius: 25,
-        start: Utc::now().format("%Y-%m-%d").to_string(),
-        end: (Utc::now().date_naive() + Duration::days(7)).format("%Y-%m-%d").to_string(),
+        start: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        end: (Utc::now().date_naive() + Duration::days(7)).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
     };
 
     let events = get_concerts_tm_impl(&state, &query).await?;
