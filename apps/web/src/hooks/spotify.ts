@@ -131,8 +131,10 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
     async (input: FormData) => {
       setError(null)
       const payload = parseCreatePlaylistForm(input)
-      const latitude = selectedCoordinates[1].toFixed()
-      const longitude = selectedCoordinates[0].toFixed()
+      const { latitude, longitude } = {
+        latitude: selectedCoordinates[1],
+        longitude: selectedCoordinates[0],
+      }
       console.log(latitude, longitude, selectedCoordinates)
 
       const res = await fetch(`api/spotify/playlist`, {
