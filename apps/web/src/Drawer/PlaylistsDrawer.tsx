@@ -99,9 +99,9 @@ export const PlaylistsDrawer = () => {
 }
 
 const updateFrequencyOptions = [
-  { value: "daily", title: "Daily", description: "Every day" },
   { value: "weekly", title: "Weekly", description: "Every 7 days" },
   { value: "monthly", title: "Monthly", description: "Every 30 days" },
+  { value: "bimonthly", title: "Bimonthly", description: "Every 60 days" },
 ]
 export const CreatePlaylist = () => {
   const { focusSearchInput, selectedLocation } = useSearchProvider()

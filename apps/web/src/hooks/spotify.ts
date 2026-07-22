@@ -58,7 +58,7 @@ function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
     location: location.trim(),
     description: "test description",
     privacy: privacy === "private",
-    cadence: cadence === "daily" ? 1 : cadence === "weekly" ? 7 : 30,
+    cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     radius: 25,
   }
 }

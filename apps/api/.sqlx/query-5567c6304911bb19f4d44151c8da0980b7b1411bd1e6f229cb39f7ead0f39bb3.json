@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select account_id from spotify_account where spotify_user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5567c6304911bb19f4d44151c8da0980b7b1411bd1e6f229cb39f7ead0f39bb3"
+}

@@ -126,40 +126,7 @@ impl ClientCredentialsManager {
     }
 }
 
-async fn upsert_spotify_account(
-    db: &sqlx::PgPool,
-    token: &TokenResponse,
-    user_id: String,
-) -> Result<(), sqlx::Error> {
-    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token.expires_in as i64);
 
-    sqlx::query!(
-        r#"
-    insert into spotify_account (
-        id, access_token, refresh_token, token_type, expires_at
-    )
-    values ($1, $2, $3, $4, $5)
-    on conflict (id) do update set
-        access_token = excluded.access_token,
-        refresh_token = case
-            when excluded.refresh_token = '' then spotify_account.refresh_token
-            else excluded.refresh_token
-        end,
-        token_type = excluded.token_type,
-        expires_at = excluded.expires_at,
-        updated_at = now()
-    "#,
-        user_id,
-        token.access_token,
-        token.refresh_token.clone().unwrap_or_default(),
-        token.token_type,
-        expires_at,
-    )
-    .execute(db)
-    .await?;
-
-    Ok(())
-}
 // ---------------------------------------------------------------------------
 // Authorization Code token manager (user-scoped)
 // ---------------------------------------------------------------------------

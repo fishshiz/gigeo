@@ -18,6 +18,20 @@ use crate::error::AppError;
 use crate::spotify::client::{Artist, Image};
 use crate::state::AppState;
 
+#[derive(sqlx::Type, Clone, Copy)]
+#[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
+enum PlaylistVisibility {
+    Public,
+    Private,
+}
+
+#[derive(sqlx::Type, Clone, Copy)]
+#[sqlx(type_name = "playlist_update_mode", rename_all = "lowercase")]
+enum PlaylistUpdateMode {
+    Additive,
+    Destructive,
+}
+
 // ---------------------------------------------------------------------------
 // GET /artist?name=<artist_name>&name=<artist_name>&...
 // ---------------------------------------------------------------------------
@@ -126,27 +140,22 @@ pub async fn get_user_playlists(
     State(state): State<AppState>,
     jar: SignedCookieJar,
 ) -> Result<Json<Vec<CreatePlaylistResponse>>, AppError> {
-    // let cookie = match jar.get("spotify_oauth_state") {
-    //     Some(c) => c,
-    //     None => {
-    //         return Err(AppError::Unauthorized {
-    //             status: StatusCode::UNAUTHORIZED,
-    //             message: "Unauthorized".into(),
-    //         });
-    //     }
-    // };
-    let session_id = uuid::Uuid::parse_str(String::from("f1325f2f-913c-42c1-a9c8-0104cd48c353").as_str()).map_err(|_| AppError::Unauthorized {
+    let cookie = jar.get("spotify_oauth_state").ok_or(AppError::Unauthorized {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Unauthorized".into(),
+    })?;
+    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
         status: StatusCode::UNAUTHORIZED,
         message: "Unauthorized session id".into(),
     })?;
 
-    let Some(user_id) = resolve_session_user(&state.db.pool, session_id).await? else {
+    let Some(account_id) = resolve_session_account(&state.db.pool, session_id).await? else {
         return Err(AppError::Unauthorized {
             status: StatusCode::UNAUTHORIZED,
             message: "Unauthorized user id".into(),
         });
     };
-    let playlists = get_playlists(&state.db.pool, user_id).await?;
+    let playlists = get_playlists(&state.db.pool, account_id).await?;
     return Ok(playlists);
 }
 
@@ -161,8 +170,23 @@ pub async fn get_user_playlists(
 ///   - `POST /playlists/{id}/items` — requires same scopes
 pub async fn create_playlist(
     State(state): State<AppState>,
+    jar: SignedCookieJar,
     Json(req): Json<CreatePlaylistRequest>,
 ) -> Result<(StatusCode, Json<CreatePlaylistResponse>), AppError> {
+    let cookie = jar.get("spotify_oauth_state").ok_or_else(|| {
+        AppError::AuthRequired("No session cookie. Visit /login first.".into())
+    })?;
+    let session_id =
+        uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Invalid session cookie".into(),
+        })?;
+    let account_id = resolve_session_account(&state.db.pool, session_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
+        })?;
+
     let user_token = state.user_manager.get_token().await?;
     let cc_token = state.cc_manager.get_token().await?;
 
@@ -233,7 +257,7 @@ info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &
             &user_token,
             &req.name,
             req.description.as_deref(),
-            req.privacy,
+            !req.privacy,
         )
         .await?;
 
@@ -244,7 +268,45 @@ info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &
             .await?;
     }
 
-    create_playlist_record(&state.db.pool, playlist.owner.id, &playlist.id).await?;
+    let geohash_str = geohash::encode(
+        geohash::Coord {
+            x: req.longitude,
+            y: req.latitude,
+        },
+        6,
+    )
+    .map_err(|e| AppError::Internal(format!("geohash encode failed: {e}")))?;
+
+    let cadence_days: i16 = match req.cadence {
+        Some(7) => 7,
+        Some(30) => 30,
+        Some(60) => 60,
+        Some(other) if other <= 7 => 7,
+        Some(other) if other <= 30 => 30,
+        Some(_) => 60,
+        None => 30,
+    };
+
+    let visibility = if req.privacy {
+        PlaylistVisibility::Private
+    } else {
+        PlaylistVisibility::Public
+    };
+
+    create_playlist_record(
+        &state.db.pool,
+        CreatePlaylistParams {
+            account_id,
+            provider_playlist_id: &playlist.id,
+            name: &req.name,
+            geohash: &geohash_str,
+            city: &req.location,
+            update_cadence_days: cadence_days,
+            visibility,
+            update_mode: PlaylistUpdateMode::Additive,
+        },
+    )
+    .await?;
 
     Ok((
         StatusCode::CREATED,
@@ -260,16 +322,16 @@ info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &
 
 pub async fn get_playlists(
     db: &sqlx::PgPool,
-    user_id: String,
+    account_id: uuid::Uuid,
 ) -> Result<Json<Vec<CreatePlaylistResponse>>, AppError> {
     // Query the database for playlists associated with the user_id
     let playlists = sqlx::query!(
         r#"
-        SELECT spotify_playlist_id
-        FROM spotify_playlist
-        WHERE spotify_account_user_id = $1
+        SELECT provider_playlist_id, city
+        FROM playlist
+        WHERE account_id = $1
         "#,
-        user_id
+        account_id
     )
     .fetch_all(db)
     .await?;
@@ -280,7 +342,7 @@ pub async fn get_playlists(
         // Here you would typically call Spotify API to get more details about the playlist
         // For simplicity, we will just return the playlist ID for now
         playlist_responses.push(CreatePlaylistResponse {
-            playlist_id: playlist.spotify_playlist_id,
+            playlist_id: playlist.provider_playlist_id,
             playlist_url: None, // You would fetch this from Spotify API
             track_count: 0,     // You would fetch this from Spotify API
             tracks: vec![],     // You would fetch this from Spotify API
@@ -337,8 +399,8 @@ pub async fn oauth_callback(
         .user_manager
         .get_current_user(&token.access_token)
         .await?;
-    upsert_spotify_account(&state.db.pool, &token, &me.id).await?;
-    let session_id = create_session(&state.db.pool, &me.id).await?;
+    let account_id = upsert_spotify_account(&state.db.pool, &token, &me.id).await?;
+    let session_id = create_session(&state.db.pool, account_id).await?;
 
     let jar = jar.add(build_session_cookie(&state, session_id));
 
@@ -383,7 +445,7 @@ pub async fn auth_status(
         message: "Unauthorized".into(),
     })?;
 
-    let Some(user_id) = resolve_session_user(&state.db.pool, session_id).await? else {
+    let Some(account_id) = resolve_session_account(&state.db.pool, session_id).await? else {
         return Ok(Json(AuthStatusResponse {
             logged_in: false,
             spotify_connected: false,
@@ -391,13 +453,13 @@ pub async fn auth_status(
         }));
     };
 
-    let spotify = get_spotify_account(&state.db.pool, user_id).await?;
+    let spotify = get_spotify_account(&state.db.pool, account_id).await?;
 
     let resp = match spotify {
         Some(s) => AuthStatusResponse {
             logged_in: true,
             spotify_connected: true,
-            spotify_user_id: Some(s.id.to_string()),
+            spotify_user_id: Some(s.spotify_user_id.clone()),
         },
         None => AuthStatusResponse {
             logged_in: true,
@@ -409,18 +471,21 @@ pub async fn auth_status(
     Ok(Json(resp))
 }
 
-async fn create_session(db: &sqlx::PgPool, user_id: &str) -> Result<uuid::Uuid, sqlx::Error> {
+async fn create_session(
+    db: &sqlx::PgPool,
+    account_id: uuid::Uuid,
+) -> Result<uuid::Uuid, sqlx::Error> {
     let session_id = uuid::Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::days(30);
 
     sqlx::query!(
         r#"
-        insert into user_session (id, expires_at, spotify_user_id)
+        insert into user_session (id, expires_at, account_id)
         values ($1, $2, $3)
         "#,
         session_id,
         expires_at,
-        user_id
+        account_id
     )
     .execute(db)
     .await?;
@@ -428,31 +493,52 @@ async fn create_session(db: &sqlx::PgPool, user_id: &str) -> Result<uuid::Uuid, 
     Ok(session_id)
 }
 
-async fn create_playlist_record(
-    db: &sqlx::PgPool,
-    spotify_user_id: String,
-    spotify_playlist_id: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"
-        insert into spotify_playlist (spotify_account_user_id, spotify_playlist_id)
-        values ($1, $2)
-        "#,
-        spotify_user_id,
-        spotify_playlist_id
-    )
-    .execute(db)
-    .await?;
-    Ok(())
+struct CreatePlaylistParams<'a> {
+    account_id: uuid::Uuid,
+    provider_playlist_id: &'a str,
+    name: &'a str,
+    geohash: &'a str,           // must be exactly 6 chars — see check constraint
+    city: &'a str,
+    update_cadence_days: i16,   // must be 7, 30, or 60 — see check constraint
+    visibility: PlaylistVisibility,
+    update_mode: PlaylistUpdateMode,
 }
 
-async fn resolve_session_user(
+async fn create_playlist_record(
     db: &sqlx::PgPool,
-    session_id: uuid::Uuid,
-) -> Result<Option<String>, sqlx::Error> {
+    params: CreatePlaylistParams<'_>,
+) -> Result<uuid::Uuid, sqlx::Error> {
     let row = sqlx::query!(
         r#"
-        select spotify_user_id
+        insert into playlist (
+            account_id, provider_playlist_id, name, geohash, city,
+            update_cadence_days, visibility, update_mode
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8)
+        returning id
+        "#,
+        params.account_id,
+        params.provider_playlist_id,
+        params.name,
+        params.geohash,
+        params.city,
+        params.update_cadence_days,
+        params.visibility as _,
+        params.update_mode as _,
+    )
+    .fetch_one(db)
+    .await?;
+
+    Ok(row.id)
+}
+
+async fn resolve_session_account(
+    db: &sqlx::PgPool,
+    session_id: uuid::Uuid,
+) -> Result<Option<uuid::Uuid>, sqlx::Error> {
+    let row = sqlx::query!(
+        r#"
+        select account_id
         from user_session
         where id = $1
           and revoked_at is null
@@ -463,24 +549,14 @@ async fn resolve_session_user(
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| r.spotify_user_id))
-}
-
-#[derive(sqlx::FromRow, Debug, Clone)]
-struct SpotifyAccountRow {
-    access_token: String,
-    refresh_token: String,
-    scope: String,
-    id: String,
-    token_type: String,
-    expires_at: chrono::DateTime<chrono::Utc>,
+    Ok(row.map(|r| r.account_id))
 }
 
 async fn upsert_spotify_account(
     db: &sqlx::PgPool,
     token: &TokenResponse,
     spotify_user_id: &str,
-) -> Result<(), sqlx::Error> {
+) -> Result<uuid::Uuid, sqlx::Error> {
     let scopes: Vec<String> = token
         .scope
         .clone()
@@ -490,54 +566,90 @@ async fn upsert_spotify_account(
         .map(str::to_owned)
         .collect();
 
-    let expires_at = chrono::Utc::now() + std::time::Duration::from_secs(token.expires_in);
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token.expires_in as i64);
+
+    let mut tx = db.begin().await?;
+
+    let existing = sqlx::query!(
+        r#"select account_id from spotify_account where spotify_user_id = $1"#,
+        spotify_user_id
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let account_id = match existing {
+        Some(row) => row.account_id,
+        None => {
+            let acc = sqlx::query!(
+                r#"insert into account (provider) values ('spotify') returning id"#
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            acc.id
+        }
+    };
 
     sqlx::query!(
         r#"
         insert into spotify_account (
-             access_token, refresh_token, token_type, expires_at, id, scope
+            account_id, spotify_user_id, access_token, refresh_token,
+            token_type, expires_at, scope
         )
-        values ($1, $2, $3, $4, $5, $6)
-        on conflict (id) do update set
+        values ($1, $2, $3, $4, $5, $6, $7)
+        on conflict (account_id) do update set
             access_token = excluded.access_token,
             refresh_token = excluded.refresh_token,
             token_type = excluded.token_type,
             expires_at = excluded.expires_at,
-            id = excluded.id,
             scope = excluded.scope,
             updated_at = now()
         "#,
+        account_id,
+        spotify_user_id,
         token.access_token,
         token.refresh_token.clone().unwrap_or_default(),
         token.token_type,
         expires_at,
-        spotify_user_id,
-        scopes.join(" ")
+        scopes.join(" "),
     )
-    .execute(db)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(())
+    tx.commit().await?;
+
+    Ok(account_id)
+}
+
+#[derive(sqlx::FromRow, Debug, Clone)]
+struct SpotifyAccountRow {
+    account_id: uuid::Uuid,
+    spotify_user_id: String,
+    access_token: String,
+    refresh_token: String,
+    scope: String,
+    token_type: String,
+    expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 async fn get_spotify_account(
     db: &sqlx::PgPool,
-    user_id: String,
+    account_id: uuid::Uuid,
 ) -> Result<Option<SpotifyAccountRow>, sqlx::Error> {
     sqlx::query_as!(
         SpotifyAccountRow,
         r#"
         select
+            account_id,
+            spotify_user_id,
             access_token,
             refresh_token,
             scope,
-            id,
             token_type,
             expires_at
         from spotify_account
-        where id = $1
+        where account_id = $1
         "#,
-        user_id
+        account_id
     )
     .fetch_optional(db)
     .await
