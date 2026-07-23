@@ -9,11 +9,10 @@ const AppWrapper = () => {
       <AppHeader>
         <Search />
       </AppHeader>
-      <div className="h-full">
+      <div className="flex min-h-0 flex-1 flex-col">
         <MapWrapper />
+        {useIsMobile() && <DrawerWrapper />}
       </div>
-
-      {useIsMobile() && <DrawerWrapper />}
     </div>
   )
 }

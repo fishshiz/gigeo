@@ -228,7 +228,7 @@ const DrawerBody = ({
   <div
     slot="body"
     className={twMerge(
-      "isolate flex h-full max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] flex-col overflow-auto px-4 py-1 will-change-scroll",
+      "isolate flex h-full min-h-0 flex-col overflow-auto px-4 py-1 will-change-scroll",
       className
     )}
     {...props}
