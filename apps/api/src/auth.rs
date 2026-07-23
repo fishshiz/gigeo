@@ -290,6 +290,38 @@ impl UserTokenManager {
         Ok(tok.access_token)
     }
 
+    /// Exchange an arbitrary refresh token for a new access token.
+    ///
+    /// Unlike `get_token`, this doesn't read or write this manager's internal
+    /// single-slot cache — it's used to refresh a *specific* account's token
+    /// (loaded from the database) rather than "the" logged-in user's token.
+    pub async fn refresh_with(&self, refresh_token: &str) -> Result<TokenResponse, AppError> {
+        let body = format!(
+            "grant_type=refresh_token&refresh_token={}",
+            urlencoding(refresh_token),
+        );
+
+        let resp = self
+            .http
+            .post("https://accounts.spotify.com/api/token")
+            .header("Authorization", self.creds.basic_header())
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(AppError::SpotifyApi {
+                status,
+                message: text,
+            });
+        }
+
+        resp.json::<TokenResponse>().await.map_err(AppError::from)
+    }
+
     pub async fn is_authenticated(&self) -> bool {
         self.token.read().await.is_some()
     }

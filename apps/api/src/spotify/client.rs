@@ -140,6 +140,23 @@ pub struct SnapshotResponse {
     pub snapshot_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PlaylistTracksInfo {
+    pub total: u32,
+}
+
+/// A subset of the full playlist object, requested via the Web API's
+/// `fields` filter so we don't pull down every track on every list refresh.
+#[derive(Debug, Deserialize)]
+pub struct PlaylistDetails {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub images: Vec<Image>,
+    pub external_urls: ExternalUrls,
+    pub tracks: PlaylistTracksInfo,
+}
+
 // -- Spotify error body -----------------------------------------------------
 
 #[derive(Debug, Deserialize)]
@@ -312,6 +329,18 @@ impl SpotifyClient {
         resp.json::<SnapshotResponse>()
             .await
             .map_err(AppError::from)
+    }
+
+    /// `GET /playlists/{playlist_id}` — non-deprecated.
+    /// Uses `fields` to fetch only what the "My Playlists" list needs.
+    pub async fn get_playlist(
+        &self,
+        token: &str,
+        playlist_id: &str,
+    ) -> Result<PlaylistDetails, AppError> {
+        let url =
+            format!("{BASE}/playlists/{playlist_id}?fields=id,name,images,external_urls,tracks.total");
+        self.get_json(token, &url).await
     }
 
     // -- Internal helpers ---------------------------------------------------

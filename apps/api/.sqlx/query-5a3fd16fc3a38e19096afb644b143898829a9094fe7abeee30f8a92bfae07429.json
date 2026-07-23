@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update spotify_account\n        set access_token = $1, refresh_token = $2, expires_at = $3, updated_at = now()\n        where account_id = $4\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a3fd16fc3a38e19096afb644b143898829a9094fe7abeee30f8a92bfae07429"
+}
