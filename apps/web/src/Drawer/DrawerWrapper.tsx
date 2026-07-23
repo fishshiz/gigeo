@@ -46,7 +46,7 @@ const DrawerWrapper = () => {
     <>
       <Tabs
         orientation="vertical"
-        className={isDesktop ? "h-full w-[30rem] shrink-0" : "h-[40vh] shrink-0"}
+        className="h-[40vh] shrink-0 md:h-full md:w-[30rem]"
       >
         <TabList
           aria-label="Tabs"
