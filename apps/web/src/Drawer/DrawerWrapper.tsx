@@ -44,7 +44,10 @@ const DrawerWrapper = () => {
 
   return (
     <>
-      <Tabs orientation="vertical">
+      <Tabs
+        orientation="vertical"
+        className={isDesktop ? "h-full w-[30rem] shrink-0" : "h-[40vh] shrink-0"}
+      >
         <TabList
           aria-label="Tabs"
           className="border-r border-solid border-l-black"
@@ -77,7 +80,7 @@ const DrawerWrapper = () => {
               isBlurred={false}
               notch={isDesktop ? false : true}
               side={isDesktop ? "left" : "bottom"}
-              className="z-10 flex h-full w-full max-w-md flex-col overflow-hidden bg-white"
+              className="z-10 flex h-full w-full flex-col overflow-hidden bg-white"
             >
               {!selectedEvents.length && (
                 <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">

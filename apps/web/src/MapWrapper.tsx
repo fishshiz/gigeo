@@ -331,7 +331,7 @@ const MapWrapper = () => {
 
   return (
     <>
-      <div className="relative flex h-full flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {!useIsMobile() && <DrawerWrapper />}
         <div ref={mapContainer} id="map-container" className="h-full w-full" />
       </div>
