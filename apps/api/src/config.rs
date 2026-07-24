@@ -7,6 +7,7 @@ pub struct AppConfig {
     pub cookie_domain: Option<String>,
     pub cookie_secure: bool,
     pub cookie_key: String,
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl AppConfig {
@@ -24,12 +25,20 @@ impl AppConfig {
             .unwrap_or(false);
         let cookie_key = std::env::var("COOKIE_KEY").context("COOKIE_KEY must be set")?;
 
+        let cors_allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+            .unwrap_or_else(|_| "http://localhost:5173".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Self {
             mapbox_private_key,
             ticketmaster_api_key,
             cookie_domain,
             cookie_secure,
             cookie_key,
+            cors_allowed_origins,
         })
     }
 }

@@ -1,32 +1,32 @@
 // src/lib.rs
 mod apple_music;
-mod apple_music_updater_handlers;
 mod auth;
 mod config;
 mod cookie;
 mod db;
 mod error;
 mod mapbox_handlers;
-mod models;
 mod spotify;
 mod state;
 mod ticketmaster_handlers;
 mod ticketmaster_stream;
-mod updater;
 mod services;
 use std::sync::Arc;
 
 use anyhow::Result;
-use axum::{Json, Router, extract::State};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderValue, Method},
+};
 use reqwest::Client;
 use serde_json::{Value, json};
 use sqlx::migrate;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager, MusicUserTokenStore};
 use apple_music::client::AppleMusicClient;
-use apple_music::updater::AppleArtistQueue;
 use auth::{ClientCredentialsManager, SpotifyCredentials, UserTokenManager};
 use axum_extra::extract::cookie::Key;
 
@@ -34,13 +34,11 @@ use config::AppConfig;
 use db::AppDatabase;
 use spotify::client::SpotifyClient;
 use state::{AppState, AppStateInner};
-use updater::ArtistQueue;
 
 pub async fn build_app() -> Result<Router> {
     // Load .env if present.
     let _ = dotenvy::dotenv().ok();
 
-    // Initialize tracing (no-op on Vercel if you want; keeping it is fine).
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -54,7 +52,6 @@ pub async fn build_app() -> Result<Router> {
     let cc_manager = ClientCredentialsManager::new(creds.clone(), http.clone());
     let user_manager = UserTokenManager::new(creds.clone(), http.clone());
     let spotify = SpotifyClient::new(http.clone());
-    let artist_queue = ArtistQueue::new();
 
     // DB connection
     let database_url = std::env::var("DATABASE_URL")
@@ -71,25 +68,37 @@ pub async fn build_app() -> Result<Router> {
     // Load configuration.
     let config = AppConfig::from_env()?;
 
+    let allowed_origins: Vec<HeaderValue> = config
+        .cors_allowed_origins
+        .iter()
+        .map(|origin| {
+            origin
+                .parse()
+                .unwrap_or_else(|_| panic!("Invalid CORS origin: {origin}"))
+        })
+        .collect();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(allowed_origins))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(AllowHeaders::mirror_request())
+        .allow_credentials(true);
+
     let mapbox_key_clone = config.mapbox_private_key.clone();
     let ticketmaster_key_clone = config.ticketmaster_api_key.clone();
 
     let client = Client::new();
 
     // Apple Music optional setup
-    let (apple_client, apple_dev, apple_user, apple_queue) = if std::env::var("APPLE_MUSIC_TEAM_ID")
-        .is_ok()
-    {
+    let (apple_client, apple_dev, apple_user) = if std::env::var("APPLE_MUSIC_TEAM_ID").is_ok() {
         let creds = AppleMusicCredentials::from_env();
         let storefront = std::env::var("APPLE_MUSIC_STOREFRONT").unwrap_or_else(|_| "us".into());
         let client = AppleMusicClient::new(http.clone(), storefront);
         let dev = DeveloperTokenManager::new(creds);
         let user = MusicUserTokenStore::new();
-        let queue = AppleArtistQueue::new();
-        (Some(client), Some(dev), Some(user), Some(queue))
+        (Some(client), Some(dev), Some(user))
     } else {
         tracing::info!("Apple Music env vars not set — Apple Music routes will return errors");
-        (None, None, None, None)
+        (None, None, None)
     };
 
     let shared_state = AppState(Arc::new(AppStateInner {
@@ -100,7 +109,6 @@ pub async fn build_app() -> Result<Router> {
         spotify,
         cc_manager,
         user_manager,
-        artist_queue,
         spotify_client_id: std::env::var("SPOTIFY_CLIENT_ID").expect("SPOTIFY_CLIENT_ID required"),
         spotify_client_secret: std::env::var("SPOTIFY_CLIENT_SECRET")
             .expect("SPOTIFY_CLIENT_SECRET required"),
@@ -108,7 +116,6 @@ pub async fn build_app() -> Result<Router> {
         apple_music_client: apple_client,
         apple_dev_token: apple_dev,
         apple_user_token: apple_user,
-        apple_artist_queue: apple_queue,
         cookie_domain: config.cookie_domain.clone(),
         cookie_secure: config.cookie_secure,
         cookie_key: Key::from(config.cookie_key.as_bytes()),
@@ -162,15 +169,7 @@ pub async fn build_app() -> Result<Router> {
             "/apple/user-token",
             axum::routing::post(apple_music::handlers::set_user_token),
         )
-        .route(
-            "/apple/updater/config",
-            axum::routing::post(apple_music_updater_handlers::configure_apple_updater),
-        )
-        .route(
-            "/apple/updater/artists",
-            axum::routing::put(apple_music_updater_handlers::update_apple_artists),
-        )
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(shared_state);
 
     Ok(app)

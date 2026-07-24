@@ -219,7 +219,6 @@ impl SpotifyClient {
             "{BASE}/search?q={}&type=artist&limit={limit}",
             urlencoding(&query),
         );
-        println!("{} - {}", artist_url, token);
         let artist = self
             .get_json::<SearchArtistsResponse>(token, &artist_url)
             .await?
@@ -227,7 +226,6 @@ impl SpotifyClient {
             .items
             .into_iter()
             .find(|a| {
-                println!("{} --- {}", a.name, artist_name);
                 normalize(&a.name) == normalize(artist_name)
             });
         let Some(artist) = artist else {

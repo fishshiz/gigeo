@@ -48,9 +48,9 @@ const EventFilter = () => {
             className="relative !h-9 !w-9 shrink-0"
           >
             <FilterIcon aria-hidden className="block h-5 w-5 shrink-0" />
-            {Object.keys(selected).length > 0 && (
+            {selected.size > 0 && (
               <div className="absolute -top-2 -right-2 aspect-square h-4 rounded-full bg-blue-600 text-xs text-white">
-                {Object.keys(selected)}
+                {selected.size}
               </div>
             )}
           </Button>
@@ -61,7 +61,7 @@ const EventFilter = () => {
             <Heading slot="title" className="m-0 mb-2 text-lg font-semibold">
               Filters
             </Heading>
-            {Object.values(selected).length > 0 && (
+            {selected.size > 0 && (
               <Button
                 onPress={clearFilters}
                 variant="secondary"
@@ -73,7 +73,7 @@ const EventFilter = () => {
             <div className="flex flex-col gap-4">
               <TagGroup
                 selectionMode="multiple"
-                selectedKeys={Object.keys(selected)}
+                selectedKeys={selected}
                 onSelectionChange={(keys) => setSelected(new Set(keys))}
                 escapeKeyBehavior="none"
               >
