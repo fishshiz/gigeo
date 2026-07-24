@@ -1,4 +1,4 @@
-import { TagGroup, Tag, TagList } from "react-aria-components"
+import { TagGroup, Tag, TagList, type Key } from "react-aria-components"
 import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Tooltip } from "@workspace/ui/components/ui/Tooltip"
@@ -10,7 +10,7 @@ import { FilterIcon } from "lucide-react"
 import { DialogTrigger, Heading, TooltipTrigger } from "react-aria-components"
 
 const EventFilter = () => {
-  let [selected, setSelected] = useState(new Set())
+  let [selected, setSelected] = useState<Set<Key>>(new Set())
 
   let clearFilters = () => {
     setSelected(new Set())
@@ -74,7 +74,9 @@ const EventFilter = () => {
               <TagGroup
                 selectionMode="multiple"
                 selectedKeys={selected}
-                onSelectionChange={(keys) => setSelected(new Set(keys))}
+                onSelectionChange={(keys) =>
+                  setSelected(keys === "all" ? new Set() : new Set(keys))
+                }
                 escapeKeyBehavior="none"
               >
                 <TagList>
