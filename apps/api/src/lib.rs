@@ -7,7 +7,6 @@ mod cookie;
 mod db;
 mod error;
 mod mapbox_handlers;
-mod models;
 mod spotify;
 mod state;
 mod ticketmaster_handlers;

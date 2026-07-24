@@ -27,7 +27,10 @@ pub async fn get_concerts_tm_impl(
         params.start,
         params.end
     );
-info!("url:, {}", url);
+    info!(
+        "ticketmaster request: geoPoint={} radius={} start={} end={}",
+        hash, params.radius, params.start, params.end
+    );
     let resp = state.client.get(&url).send().await.map_err(AppError::Request)?;
 
     let status = resp.status();
