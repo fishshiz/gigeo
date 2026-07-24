@@ -217,22 +217,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-streams"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49debcb7f7400a7f2c96d590795c12372f4db7ad0f518d5a02286d8c8b8c691d"
-dependencies = [
- "axum",
- "bytes",
- "futures",
- "http",
- "http-body",
- "serde",
- "serde_json",
- "tokio-stream",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -838,14 +822,11 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
- "tower",
  "tower-http",
- "tower-service",
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",
  "uuid",
- "vercel_runtime",
 ]
 
 [[package]]
@@ -1096,7 +1077,6 @@ dependencies = [
  "socket2",
  "system-configuration",
  "tokio",
- "tower-layer",
  "tower-service",
  "tracing",
  "windows-registry",
@@ -2985,28 +2965,6 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
-
-[[package]]
-name = "vercel_runtime"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49303fb373ffd4c43c023f48ec1ee860bbdea98e2b22a3fe55efa5db9fe2a80b"
-dependencies = [
- "axum",
- "axum-streams",
- "base64",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-util",
- "lazy_static",
- "libc",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tower",
-]
 
 [[package]]
 name = "version_check"
