@@ -15,21 +15,34 @@ import {
 } from "../reducers/events"
 import { type EventResponse } from "@/hooks/eventsStream"
 
-type StreamConcertsParams = {
+// Search radii (miles) tried in order until one returns events. Lets
+// sparsely-served (e.g. rural) locations still find something instead of
+// permanently showing an empty result at the default radius.
+const RADIUS_TIERS = [10, 50, 150] as const
+const BASE_RADIUS = RADIUS_TIERS[0]
+
+type StreamConcertsInput = {
   latitude: number
   longitude: number
-  radius: number
   start: string
   end: string
 }
 
+type StreamConcertsParams = StreamConcertsInput & {
+  radius: number
+}
+
 type EventsContextValue = EventsState & {
-  streamEvents: (params: StreamConcertsParams) => Promise<void>
+  streamEvents: (params: StreamConcertsInput) => Promise<void>
   cancelStream: () => void
   selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
   selectedEvent: EventResponse | undefined
   setSelectedEvent: (event: EventResponse | undefined) => void
+  /** The radius (miles) the current/last search actually used. */
+  searchRadius: number | null
+  /** Whether searchRadius went beyond the base tier to find results. */
+  radiusExpanded: boolean
 }
 
 function buildConcertStreamUrl(params: StreamConcertsParams) {
@@ -48,6 +61,7 @@ const EventsContext = createContext<EventsContextValue | null>(null)
 export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(eventsReducer, initialEventsState)
   const abortRef = useRef<AbortController | null>(null)
+  const [searchRadius, setSearchRadius] = React.useState<number | null>(null)
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort()
@@ -57,28 +71,23 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   const resetEvents = useCallback(() => {
     dispatch({ type: "RESET_EVENTS" })
+    setSearchRadius(null)
   }, [])
 
   const selectEvents = useCallback((events: EventResponse[]) => {
     dispatch({ type: "SELECT_EVENTS", payload: events })
   }, [])
 
-  const streamEvents = useCallback(async (params: StreamConcertsParams) => {
-    abortRef.current?.abort()
-
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    dispatch({ type: "RESET_EVENTS" })
-    dispatch({ type: "STREAM_STATUS", payload: { isStreaming: true } })
-
-    try {
+  /** Runs one radius tier's request to completion. Returns the number of
+   * events the server sent for this request (pre-dedup). */
+  const runStream = useCallback(
+    async (params: StreamConcertsParams, signal: AbortSignal) => {
       const response = await fetch(buildConcertStreamUrl(params), {
         method: "GET",
         headers: {
           Accept: "application/x-ndjson",
         },
-        signal: controller.signal,
+        signal,
       })
 
       if (!response.ok) {
@@ -93,6 +102,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
+      let count = 0
 
       try {
         while (true) {
@@ -110,6 +120,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
             const event = JSON.parse(trimmed) as EventResponse
             dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
+            count++
           }
         }
 
@@ -119,30 +130,67 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
         if (trailing) {
           const event = JSON.parse(trailing) as EventResponse
           dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
+          count++
         }
       } finally {
         reader.releaseLock()
       }
 
-      dispatch({ type: "STREAM_STATUS", payload: { isStreaming: false } })
-    } catch (err) {
-      if (controller.signal.aborted) {
-        return
-      }
+      return count
+    },
+    []
+  )
 
-      dispatch({
-        type: "STREAM_ERROR",
-        payload: err instanceof Error ? err.message : "Unknown stream error",
-      })
-    } finally {
-      if (abortRef.current === controller) {
-        abortRef.current = null
+  const streamEvents = useCallback(
+    async (params: StreamConcertsInput) => {
+      abortRef.current?.abort()
+
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      dispatch({ type: "RESET_EVENTS" })
+      dispatch({ type: "STREAM_STATUS", payload: { isStreaming: true } })
+      setSearchRadius(null)
+
+      try {
+        let totalCount = 0
+
+        for (const radius of RADIUS_TIERS) {
+          if (controller.signal.aborted) return
+
+          const tierCount = await runStream(
+            { ...params, radius },
+            controller.signal
+          )
+          totalCount += tierCount
+          setSearchRadius(radius)
+
+          if (totalCount > 0) break
+        }
+
+        dispatch({ type: "STREAM_STATUS", payload: { isStreaming: false } })
+      } catch (err) {
+        if (controller.signal.aborted) {
+          return
+        }
+
+        dispatch({
+          type: "STREAM_ERROR",
+          payload: err instanceof Error ? err.message : "Unknown stream error",
+        })
+      } finally {
+        if (abortRef.current === controller) {
+          abortRef.current = null
+        }
       }
-    }
-  }, [])
+    },
+    [runStream]
+  )
   const [selectedEvent, setSelectedEvent] = React.useState<
     EventResponse | undefined
   >(undefined)
+
+  const radiusExpanded = searchRadius !== null && searchRadius > BASE_RADIUS
 
   const value = useMemo(
     () => ({
@@ -153,8 +201,19 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       selectEvents,
       selectedEvent,
       setSelectedEvent,
+      searchRadius,
+      radiusExpanded,
     }),
-    [state, streamEvents, cancelStream, resetEvents, selectEvents, selectedEvent]
+    [
+      state,
+      streamEvents,
+      cancelStream,
+      resetEvents,
+      selectEvents,
+      selectedEvent,
+      searchRadius,
+      radiusExpanded,
+    ]
   )
 
   return (

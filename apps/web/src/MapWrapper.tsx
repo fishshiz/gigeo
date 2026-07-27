@@ -10,6 +10,25 @@ import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
 
 const INITIAL_ZOOM = 1
+const MILES_PER_DEGREE_LATITUDE = 69
+
+/** Bounding box (west/south, east/north) for a circle of `radiusMiles`
+ * around `center`. Approximate — fine for camera framing, not for
+ * distance math. */
+function boundsForRadius(
+  center: [number, number],
+  radiusMiles: number
+): [[number, number], [number, number]] {
+  const [lng, lat] = center
+  const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE
+  const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 0.01)
+  const lngDelta = radiusMiles / (MILES_PER_DEGREE_LATITUDE * cosLat)
+
+  return [
+    [lng - lngDelta, lat - latDelta],
+    [lng + lngDelta, lat + latDelta],
+  ]
+}
 
 const MapWrapper = () => {
   const { selectedCoordinates, setSelectedCoordinates, dateRange } =
@@ -28,6 +47,9 @@ const MapWrapper = () => {
     eventsByDate,
     selectEvents,
     selectedEvents,
+    isStreaming,
+    searchRadius,
+    radiusExpanded,
   } = useEventsContext()
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const mapContainer = useRef<HTMLDivElement | null>(null)
@@ -148,10 +170,9 @@ const MapWrapper = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const { latitude, longitude, radius, start, end } = {
+  const { latitude, longitude, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
-    radius: 10,
     start: dateRange.start.toString() + "T00:00:00Z",
     end: dateRange.end.toString() + "T23:59:59Z",
   }
@@ -160,16 +181,14 @@ const MapWrapper = () => {
     void streamEvents({
       latitude,
       longitude,
-      radius,
       start,
       end,
     })
-    console.log("streaming", latitude, longitude, radius, start, end)
 
     return () => {
       cancelStream()
     }
-  }, [latitude, longitude, radius, start, end, streamEvents, cancelStream, rendered])
+  }, [latitude, longitude, start, end, streamEvents, cancelStream, rendered])
 
   useEffect(() => {
     const markEvents = () => {
@@ -345,6 +364,17 @@ const MapWrapper = () => {
       speed: 0.8,
     })
   }, [selectedCoordinates, rendered])
+
+  // Once a search had to widen past the base radius to find anything,
+  // zoom out to frame the actual area covered instead of staying zoomed
+  // in on a radius that came up empty.
+  useEffect(() => {
+    if (isStreaming || !radiusExpanded || !searchRadius) return
+    mapRef.current?.fitBounds(boundsForRadius(selectedCoordinates, searchRadius), {
+      padding: 60,
+      duration: 800,
+    })
+  }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates])
 
   return (
     <>
