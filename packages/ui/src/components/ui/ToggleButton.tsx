@@ -7,7 +7,7 @@ import {
 import { tv } from "tailwind-variants"
 import { focusRing } from "@workspace/ui/lib/react-aria-utils"
 
-let styles = tv({
+const styles = tv({
   extend: focusRing,
   base: "relative inline-flex items-center justify-center gap-2 border border-black/10 dark:border-white/10 h-9 box-border px-3.5 [&:has(>svg:only-child)]:px-0 [&:has(>svg:only-child)]:h-8 [&:has(>svg:only-child)]:aspect-square font-sans text-sm text-center transition rounded-lg cursor-default forced-color-adjust-none [-webkit-tap-highlight-color:transparent]",
   variants: {

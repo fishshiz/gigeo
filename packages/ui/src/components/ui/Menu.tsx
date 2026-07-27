@@ -31,7 +31,7 @@ export function Menu<T extends object>(props: MenuProps<T>) {
 }
 
 export function MenuItem(props: MenuItemProps) {
-  let textValue =
+  const textValue =
     props.textValue ||
     (typeof props.children === "string" ? props.children : undefined)
   return (
@@ -97,7 +97,7 @@ interface MenuTriggerProps extends AriaMenuTriggerProps {
 }
 
 export function MenuTrigger(props: MenuTriggerProps) {
-  let [trigger, menu] = React.Children.toArray(props.children) as [
+  const [trigger, menu] = React.Children.toArray(props.children) as [
     React.ReactElement,
     React.ReactElement,
   ]
@@ -112,7 +112,7 @@ export function MenuTrigger(props: MenuTriggerProps) {
 }
 
 export function SubmenuTrigger(props: SubmenuTriggerProps) {
-  let [trigger, menu] = React.Children.toArray(props.children) as [
+  const [trigger, menu] = React.Children.toArray(props.children) as [
     React.ReactElement,
     React.ReactElement,
   ]
