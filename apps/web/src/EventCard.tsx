@@ -26,7 +26,7 @@ const EventCard = ({
     >
       <div className="photo-detail h-auto w-full flex-1 overflow-hidden">
         <ResponsiveImage
-          sources={event.images as any}
+          sources={event.images}
           style={{
             objectFit: "cover",
             objectPosition: "center",

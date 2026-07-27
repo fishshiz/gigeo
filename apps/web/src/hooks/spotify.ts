@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { usePlaylistContext } from "@/providers/playlistsProvider"
+import {
+  usePlaylistContext,
+  type SpotifyPlaylist,
+} from "@/providers/playlistsProvider"
 import { useSearchProvider } from "@/providers/searchProvider"
 export type AuthStatus = {
   logged_in: boolean
@@ -32,7 +35,7 @@ type UseSpotifyAuthResult = {
   connectSpotify: () => void
   logout: () => Promise<void>
   createPlaylist: (input: FormData) => Promise<CreatePlaylistOutput>
-  getPlaylists: () => Promise<any>
+  getPlaylists: () => Promise<SpotifyPlaylist[]>
 }
 
 function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
@@ -97,6 +100,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
   }, [])
 
   useEffect(() => {
+    // Fetch auth status on mount; intentional, not a cascading-render risk here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh()
   }, [refresh])
 
@@ -122,14 +127,14 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
   const getPlaylists = useCallback(async () => {
     setError(null)
 
-    const res = await fetch(`api/spotify/playlist`, {
+    const res: SpotifyPlaylist[] = await fetch(`api/spotify/playlist`, {
       method: "GET",
       credentials: "include",
     }).then((res) => res.json())
     setSpotifyPlaylists(res)
     setPlaylistManagement("spotify")
-    console.log(res)
-  }, [refresh])
+    return res
+  }, [setSpotifyPlaylists, setPlaylistManagement])
 
   const createPlaylist = useCallback(
     async (input: FormData) => {
@@ -160,7 +165,7 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       await refresh()
       return data
     },
-    [refresh, latitude]
+    [refresh, latitude, longitude, selectedCoordinates]
   )
 
   return useMemo(

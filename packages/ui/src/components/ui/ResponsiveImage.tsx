@@ -1,9 +1,9 @@
 type Image = {
-  ratio: string
+  ratio?: string
   url: string
-  width: number
-  height: number
-  fallback: boolean
+  width?: number
+  height?: number
+  fallback?: boolean
 }
 type ResponsiveImageProps = {
   sources: Image[]
@@ -16,12 +16,18 @@ export function ResponsiveImage({ sources, alt, style }: ResponsiveImageProps) {
   if (!sources.length) return null
 
   // sort by width, just to be safe
-  const sorted = [...sources].sort((a, b) => a.width - b.width)
+  const sorted = [...sources].sort((a, b) => (a.width ?? 0) - (b.width ?? 0))
 
   const largest = sorted[sorted.length - 1]
-  const aspectRatio = largest.width / largest.height
+  // Ticketmaster doesn't always report dimensions; fall back to a square box
+  // instead of producing a NaN aspect ratio when they're missing.
+  const aspectRatio =
+    largest.width && largest.height ? largest.width / largest.height : 1
 
-  const srcSet = sorted.map((s) => `${s.url} ${s.width}w`).join(", ")
+  const srcSet = sorted
+    .filter((s) => s.width)
+    .map((s) => `${s.url} ${s.width}w`)
+    .join(", ")
 
   // Example sizes: full width on mobile, 50vw ≥768px
   const sizes = "(max-width: 768px) 100vw, 50vw"
@@ -39,7 +45,7 @@ export function ResponsiveImage({ sources, alt, style }: ResponsiveImageProps) {
     >
       <img
         src={largest.url} // fallback
-        srcSet={srcSet}
+        srcSet={srcSet || undefined}
         sizes={sizes}
         alt={alt}
         loading="lazy"

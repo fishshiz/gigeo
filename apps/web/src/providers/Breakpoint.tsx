@@ -1,4 +1,5 @@
 // BreakpointContext.tsx
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from "react"
 
 const BREAKPOINTS = { sm: 640, md: 768, lg: 1024, xl: 1280 } as const

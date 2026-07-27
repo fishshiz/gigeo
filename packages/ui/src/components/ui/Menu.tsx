@@ -73,7 +73,7 @@ export function MenuSeparator(props: SeparatorProps) {
 
 export interface MenuSectionProps<T> extends AriaMenuSectionProps<T> {
   title?: string
-  items?: any
+  items?: Iterable<T>
 }
 
 export function MenuSection<T extends object>(props: MenuSectionProps<T>) {

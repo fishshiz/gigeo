@@ -61,7 +61,7 @@ export const EventsDrawerHeader = () => {
         target.scrollIntoView({
           block: "start",
           behavior: "instant",
-          // @ts-ignore
+          // @ts-expect-error - `container` isn't in the standard ScrollIntoViewOptions type
           container: "nearest",
         })
       }
@@ -88,7 +88,13 @@ export const EventsDrawerHeader = () => {
   )
 }
 
-const DateAnchor = ({ date, ref }: { date: string; ref: Ref<any> }) => {
+const DateAnchor = ({
+  date,
+  ref,
+}: {
+  date: string
+  ref: Ref<HTMLDivElement>
+}) => {
   const formattedDate = formatDate(date)
   return (
     <>

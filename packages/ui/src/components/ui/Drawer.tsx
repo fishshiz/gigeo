@@ -41,7 +41,6 @@ interface DrawerContentProps
       "aria-label" | "aria-labelledby" | "role" | "children" | "className"
     > {
   isFloat?: boolean
-  isBlurred?: boolean
   className?: string
   side?: "top" | "bottom" | "left" | "right"
   notch?: boolean
@@ -51,7 +50,6 @@ interface DrawerContentProps
 const DrawerContent = ({
   side = "bottom",
   isFloat = false,
-  isBlurred = true,
   notch = true,
   closeDrawer = () => {},
   children,

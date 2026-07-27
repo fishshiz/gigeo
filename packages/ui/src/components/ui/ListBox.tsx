@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-refresh/only-export-components */
 import { Check } from "lucide-react"
 import {
   ListBox as AriaListBox,
@@ -17,10 +18,7 @@ import {
   focusRing,
 } from "@workspace/ui/lib/react-aria-utils"
 
-interface ListBoxProps<T> extends Omit<
-  AriaListBoxProps<T>,
-  "layout" | "orientation"
-> {}
+type ListBoxProps<T> = Omit<AriaListBoxProps<T>, "layout" | "orientation">
 
 export function ListBox<T extends object>({
   children,
@@ -119,7 +117,7 @@ export function DropdownItem(props: ListBoxItemProps) {
 
 export interface DropdownSectionProps<T> extends SectionProps<T> {
   title?: string
-  items?: any
+  items?: Iterable<T>
 }
 
 export function DropdownSection<T extends object>(
