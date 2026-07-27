@@ -98,12 +98,13 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
       }
     }
 
-    case "SELECT_EVENTS":
+    case "SELECT_EVENTS": {
       const events = action.payload
       return {
         ...state,
         selectedEvents: events,
       }
+    }
 
     default:
       return state

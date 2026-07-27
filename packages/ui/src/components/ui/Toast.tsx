@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-refresh/only-export-components */
 import React, { CSSProperties } from 'react';
 import {
   UNSTABLE_ToastRegion as ToastRegion,

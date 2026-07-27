@@ -8,11 +8,14 @@ import {
 } from "@workspace/ui/components/ui/Drawer"
 import { useEventsContext } from "../providers/eventsProvider"
 import { useMediaQuery } from "usehooks-ts"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, lazy, Suspense } from "react"
 import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
-import { PlaylistsDrawer } from "./PlaylistsDrawer"
 import { useDrawerProvider } from "@/providers/drawerProvider"
+
+const PlaylistsDrawer = lazy(() =>
+  import("./PlaylistsDrawer").then((m) => ({ default: m.PlaylistsDrawer }))
+)
 
 import {
   Tabs,
@@ -34,7 +37,7 @@ const DrawerWrapper = () => {
   useEffect(() => {
     if (!eventListRef.current) return
     setIsDrawerOpen(true)
-  }, [eventsByDate])
+  }, [eventsByDate, setIsDrawerOpen])
   const isDesktop = useMediaQuery("(min-width: 768px)", {
     defaultValue: false,
     initializeWithValue: false,
@@ -77,7 +80,6 @@ const DrawerWrapper = () => {
             <DrawerContent
               isOpen={isDrawerOpen}
               closeDrawer={() => setIsDrawerOpen(false)}
-              isBlurred={false}
               notch={isDesktop ? false : true}
               side={isDesktop ? "left" : "bottom"}
               className="z-10 flex h-full w-full flex-col overflow-hidden bg-white"
@@ -107,7 +109,9 @@ const DrawerWrapper = () => {
           </TabPanel>
 
           <TabPanel id="spotify" className="flex items-center justify-center">
-            <PlaylistsDrawer />
+            <Suspense fallback={null}>
+              <PlaylistsDrawer />
+            </Suspense>
           </TabPanel>
           <TabPanel
             id="search"

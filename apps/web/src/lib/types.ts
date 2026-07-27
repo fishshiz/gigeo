@@ -15,7 +15,7 @@ interface TmEvent {
   attractions: Attraction[]
 }
 
-interface Event extends TmEvent {}
+type Event = TmEvent
 
 type Attraction = {
   name: string

@@ -16,6 +16,9 @@ const MapWrapper = () => {
     useSearchProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
+    // Marks first-mount completion so later effects can skip their initial
+    // run; intentional, not a cascading-render risk here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRendered(true)
   }, [])
 
@@ -38,19 +41,22 @@ const MapWrapper = () => {
     trackUserLocation: false,
   })
 
-  const resizeObserver = new ResizeObserver(() => {
-    mapRef.current?.resize()
-  })
-  if (mapContainer.current) {
-    resizeObserver.observe(mapContainer.current)
-  }
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(() => {
+      mapRef.current?.resize()
+    })
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current)
+    }
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
-    if (
-      selectedEvents.length &&
-      selectedEvents[0]?.venue?.location !== undefined
-    ) {
-      const { latitude, longitude } = selectedEvents[0]?.venue.location
+    const venueLocation = selectedEvents[0]?.venue?.location
+    if (selectedEvents.length && venueLocation !== undefined) {
+      const { latitude, longitude } = venueLocation
       mapRef.current?.setLayoutProperty("events", "icon-image", [
         "case",
         ["==", ["get", "id"], selectedEvents[0].id],
@@ -88,6 +94,10 @@ const MapWrapper = () => {
       zoom: INITIAL_ZOOM,
     })
 
+    mapRef.current.on("load", () => {
+      mapRef.current?.resize()
+    })
+
     if (!mapRef.current.hasControl(geolocate)) {
       // Add the control to the map.
       mapRef.current.addControl(geolocate, "bottom-right")
@@ -97,18 +107,6 @@ const MapWrapper = () => {
         setSelectedCoordinates([e.coords.longitude, e.coords.latitude])
       })
     }
-    mapRef.current?.addInteraction("event-click-interaction", {
-      type: "click",
-      target: { layerId: "events" },
-      handler: (e) => {
-        const event = [...Object.values(eventsByDate)]
-          .flat()
-          ?.find((ev) => ev.id === e?.feature?.id)
-        if (event) {
-          selectEvents([event])
-        }
-      },
-    })
 
     // When a click event occurs on a feature in the places layer, open a popup at the
     // location of the feature, with description HTML from its properties.
@@ -144,6 +142,10 @@ const MapWrapper = () => {
         }
       },
     })
+    // Intentionally run once: this creates the Mapbox instance itself.
+    // Re-running on every dependency change would tear down and recreate
+    // the map, not just update it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const { latitude, longitude, radius, start, end } = {
@@ -167,154 +169,173 @@ const MapWrapper = () => {
     return () => {
       cancelStream()
     }
-  }, [latitude, longitude, radius, start, end, streamEvents, cancelStream])
-
-  const markEvents = async () => {
-    selectEvents([])
-
-    const dataSource: FeatureCollection = {
-      type: "FeatureCollection",
-      features: [],
-    }
-    Object.values(eventsByDate).forEach((events: EventResponse[]) => {
-      events.forEach((event) => {
-        const { venue } = event
-
-        if (!venue || !venue.location) {
-          return
-        }
-        const location = venue.location
-
-        const [longitude, latitude] = [
-          parseFloat(location?.longitude ?? ""),
-          parseFloat(location?.latitude ?? ""),
-        ]
-        //   coordinates.push([longitude, latitude]);
-        const feature: Feature = {
-          type: "Feature",
-          properties: {
-            description: event.name,
-            venue: venue.name,
-            color: "#373630",
-            id: event.id,
-            selected: "false",
-          },
-          geometry: {
-            type: "Point",
-            coordinates: [longitude, latitude],
-          },
-        }
-        dataSource.features.push(feature)
-      })
-
-      if (mapRef.current?.getLayer("events")) {
-        mapRef.current.removeLayer("events")
-      }
-      if (mapRef.current?.getSource("event-data-source")) {
-        mapRef.current.removeSource("event-data-source")
-      }
-      mapRef.current?.addSource("event-data-source", {
-        type: "geojson",
-        promoteId: "id",
-        cluster: true,
-        clusterRadius: 0,
-        clusterProperties: {
-          clusterEvent: ["string", ["get", "description"]],
-          clusterVenue: ["string", ["get", "venue"]],
-        },
-        data: dataSource,
-      })
-      mapRef.current?.addLayer({
-        id: "events",
-        type: "symbol",
-        source: "event-data-source",
-        layout: {
-          "text-field": [
-            "case",
-            ["boolean", ["has", "point_count"], false],
-            [
-              "concat",
-              ["get", "point_count"],
-              " events at ",
-              ["get", "clusterVenue"],
-            ],
-            ["get", "description"],
-          ],
-          "text-variable-anchor": ["top", "bottom", "left", "right"],
-          "text-radial-offset": 0.5,
-          "text-justify": "auto",
-          "icon-image": [
-            "case",
-            ["in", ["get", "id"], ["literal", selectedEvents.map((e) => e.id)]],
-            "marker-yellow",
-            [
-              "in",
-              ["get", "clusterVenue"],
-              ["literal", selectedEvents.map((e) => e.venue?.name)],
-            ],
-
-            "marker-yellow",
-            "marker-red",
-          ],
-          "icon-size": 1.6,
-        },
-        paint: {
-          "icon-halo-color": "#ffffff",
-          "icon-halo-width": 1,
-          "text-color": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            "#627BC1",
-            ["boolean", ["has", "point_count"], false],
-            "#373630",
-            ["get", "color"],
-          ],
-          "text-halo-color": "#ffffff",
-          "text-halo-width": 2,
-        },
-      })
-    })
-  }
-  mapRef.current?.removeInteraction("event-click-interaction")
-  mapRef.current?.addInteraction("event-click-interaction", {
-    type: "click",
-    target: { layerId: "events" },
-    handler: ({ feature }: InteractionEvent) => {
-      const event: EventResponse | undefined = [...Object.values(eventsByDate)]
-        .flat()
-        ?.find((ev) => ev.id === feature?.id)
-      const eventSource = mapRef.current?.getSource(
-        "event-data-source"
-      ) as GeoJSONSource
-      if (event) {
-        selectEvents([event])
-      }
-      eventSource.getClusterChildren(
-        feature?.properties.cluster_id as number,
-        (error, features) => {
-          if (!error) {
-            const eventIds = features?.map((feature) => feature?.properties?.id)
-            const selectedEvents = Object.values(eventsByDate).reduce(
-              (acc, curr) => {
-                const selectedEvents = [...curr].filter((i) =>
-                  eventIds?.includes(i.id)
-                )
-                acc.push(...selectedEvents)
-                return acc
-              },
-              []
-            )
-
-            selectEvents(selectedEvents)
-          }
-        }
-      )
-    },
-  })
+  }, [latitude, longitude, radius, start, end, streamEvents, cancelStream, rendered])
 
   useEffect(() => {
+    const markEvents = () => {
+      selectEvents([])
+
+      const dataSource: FeatureCollection = {
+        type: "FeatureCollection",
+        features: [],
+      }
+      Object.values(eventsByDate).forEach((events: EventResponse[]) => {
+        events.forEach((event) => {
+          const { venue } = event
+
+          if (!venue || !venue.location) {
+            return
+          }
+          const location = venue.location
+
+          const [longitude, latitude] = [
+            parseFloat(location?.longitude ?? ""),
+            parseFloat(location?.latitude ?? ""),
+          ]
+          //   coordinates.push([longitude, latitude]);
+          const feature: Feature = {
+            type: "Feature",
+            properties: {
+              description: event.name,
+              venue: venue.name,
+              color: "#373630",
+              id: event.id,
+              selected: "false",
+            },
+            geometry: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+          }
+          dataSource.features.push(feature)
+        })
+
+        if (mapRef.current?.getLayer("events")) {
+          mapRef.current.removeLayer("events")
+        }
+        if (mapRef.current?.getSource("event-data-source")) {
+          mapRef.current.removeSource("event-data-source")
+        }
+        mapRef.current?.addSource("event-data-source", {
+          type: "geojson",
+          promoteId: "id",
+          cluster: true,
+          clusterRadius: 0,
+          clusterProperties: {
+            clusterEvent: ["string", ["get", "description"]],
+            clusterVenue: ["string", ["get", "venue"]],
+          },
+          data: dataSource,
+        })
+        mapRef.current?.addLayer({
+          id: "events",
+          type: "symbol",
+          source: "event-data-source",
+          layout: {
+            "text-field": [
+              "case",
+              ["boolean", ["has", "point_count"], false],
+              [
+                "concat",
+                ["get", "point_count"],
+                " events at ",
+                ["get", "clusterVenue"],
+              ],
+              ["get", "description"],
+            ],
+            "text-variable-anchor": ["top", "bottom", "left", "right"],
+            "text-radial-offset": 0.5,
+            "text-justify": "auto",
+            "icon-image": [
+              "case",
+              [
+                "in",
+                ["get", "id"],
+                ["literal", selectedEvents.map((e) => e.id)],
+              ],
+              "marker-yellow",
+              [
+                "in",
+                ["get", "clusterVenue"],
+                ["literal", selectedEvents.map((e) => e.venue?.name)],
+              ],
+
+              "marker-yellow",
+              "marker-red",
+            ],
+            "icon-size": 1.6,
+          },
+          paint: {
+            "icon-halo-color": "#ffffff",
+            "icon-halo-width": 1,
+            "text-color": [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              "#627BC1",
+              ["boolean", ["has", "point_count"], false],
+              "#373630",
+              ["get", "color"],
+            ],
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 2,
+          },
+        })
+      })
+    }
+
     markEvents()
-  }, [eventsByDate])
+    // selectedEvents intentionally omitted: the effect above already patches
+    // icon-image via setLayoutProperty when the selection changes, so
+    // rebuilding the whole layer/source here on every click isn't needed.
+  }, [eventsByDate, selectEvents])
+
+  useEffect(() => {
+    if (!mapRef.current) return
+
+    mapRef.current.addInteraction("event-click-interaction", {
+      type: "click",
+      target: { layerId: "events" },
+      handler: ({ feature }: InteractionEvent) => {
+        const event: EventResponse | undefined = [
+          ...Object.values(eventsByDate),
+        ]
+          .flat()
+          ?.find((ev) => ev.id === feature?.id)
+        const eventSource = mapRef.current?.getSource(
+          "event-data-source"
+        ) as GeoJSONSource
+        if (event) {
+          selectEvents([event])
+        }
+        eventSource.getClusterChildren(
+          feature?.properties.cluster_id as number,
+          (error, features) => {
+            if (!error) {
+              const eventIds = features?.map(
+                (feature) => feature?.properties?.id
+              )
+              const selectedEvents = Object.values(eventsByDate).reduce(
+                (acc, curr) => {
+                  const selectedEvents = [...curr].filter((i) =>
+                    eventIds?.includes(i.id)
+                  )
+                  acc.push(...selectedEvents)
+                  return acc
+                },
+                []
+              )
+
+              selectEvents(selectedEvents)
+            }
+          }
+        )
+      },
+    })
+
+    return () => {
+      mapRef.current?.removeInteraction("event-click-interaction")
+    }
+  }, [eventsByDate, selectEvents])
 
   useEffect(() => {
     if (!rendered) return
@@ -323,11 +344,7 @@ const MapWrapper = () => {
       zoom: 12,
       speed: 0.8,
     })
-  }, [selectedCoordinates])
-
-  mapRef.current?.on("load", () => {
-    mapRef.current?.resize()
-  })
+  }, [selectedCoordinates, rendered])
 
   return (
     <>

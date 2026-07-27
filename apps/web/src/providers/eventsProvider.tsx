@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, {
   createContext,
   useCallback,
@@ -153,7 +154,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       selectedEvent,
       setSelectedEvent,
     }),
-    [state, streamEvents, cancelStream, resetEvents, selectEvents]
+    [state, streamEvents, cancelStream, resetEvents, selectEvents, selectedEvent]
   )
 
   return (

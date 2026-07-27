@@ -1,4 +1,5 @@
 "use client"
+import type { CSSProperties } from "react"
 import {
   Slider as AriaSlider,
   type SliderProps as AriaSliderProps,
@@ -84,7 +85,9 @@ export function Slider<T extends number | number[]>({
               <div
                 className={fillStyles(renderProps)}
                 style={
-                  { "--size": state.getThumbPercent(0) * 100 + "%" } as any
+                  {
+                    "--size": state.getThumbPercent(0) * 100 + "%",
+                  } as CSSProperties
                 }
               />
             ) : state.values.length === 2 ? (
@@ -98,7 +101,7 @@ export function Slider<T extends number | number[]>({
                       (state.getThumbPercent(1) - state.getThumbPercent(0)) *
                         100 +
                       "%",
-                  } as any
+                  } as CSSProperties
                 }
               />
             ) : null}

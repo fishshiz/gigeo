@@ -30,7 +30,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { classifications } = eventData
   const segment =
     classifications && classifications.length > 0
-      ? (classifications[0] as any).segment.name
+      ? classifications[0].segment.name
       : null
 
   useEffect(() => {
@@ -48,7 +48,9 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()
         if (!cancelled) setArtistInfo(json)
-      } catch (e) {}
+      } catch (e) {
+        console.error("Failed to fetch artist info", e)
+      }
     }
 
     async function fetchFutureEvents(id: string) {
@@ -57,7 +59,9 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()
         if (!cancelled) setFutureEvents((prev) => ({ ...prev, [id]: json }))
-      } catch (e) {}
+      } catch (e) {
+        console.error("Failed to fetch future events", e)
+      }
     }
 
     if (segment === "Music") {
@@ -147,7 +151,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
 
       <div className="relative">
         <div className="absolute top-0 left-0 z-[1] h-full w-full bg-gradient-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
-        <ResponsiveImage sources={eventData.images as any[]} alt="test" />
+        <ResponsiveImage sources={eventData.images} alt="test" />
         <h3 className="absolute bottom-2 left-2 z-[2] text-2xl font-semibold text-(--color-ivory-100) dark:text-(--color-text-primary-dark-600)">
           {eventData.name}
         </h3>
@@ -187,14 +191,16 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
               />
             </>
           ))
-        : attractions?.map((attraction) => (
-            <div key={attraction.id}>
-              <h4 className="text-lg font-semibold">{attraction.name}</h4>
-              <UpcomingEvents
-                events={futureEvents[attraction.id as any] ?? []}
-              />
-            </div>
-          ))}
+        : attractions?.map((attraction) => {
+            if (!attraction.id) return null
+            const id = attraction.id
+            return (
+              <div key={id}>
+                <h4 className="text-lg font-semibold">{attraction.name}</h4>
+                <UpcomingEvents events={futureEvents[id] ?? []} />
+              </div>
+            )
+          })}
     </div>
   )
 }
