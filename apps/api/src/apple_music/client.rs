@@ -13,6 +13,7 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::http_utils::{request_with_backoff, url_encode};
 
 const BASE: &str = "https://api.music.apple.com";
 
@@ -170,7 +171,7 @@ impl AppleMusicClient {
         let url = format!(
             "{BASE}/v1/catalog/{storefront}/search?types=artists&term={term}&limit={limit}",
             storefront = self.storefront,
-            term = urlencoding(term),
+            term = url_encode(term),
         );
         let resp: SearchResponse = self.get_json(developer_token, None, &url).await?;
         Ok(resp.results.artists.map(|a| a.data).unwrap_or_default())
@@ -188,7 +189,7 @@ impl AppleMusicClient {
         let url = format!(
             "{BASE}/v1/catalog/{storefront}/search?types=songs&term={term}&limit={limit}",
             storefront = self.storefront,
-            term = urlencoding(term),
+            term = url_encode(term),
         );
         let resp: SearchResponse = self.get_json(developer_token, None, &url).await?;
         Ok(resp.results.songs.map(|s| s.data).unwrap_or_default())
@@ -333,6 +334,21 @@ impl AppleMusicClient {
 
     // -- Internal helpers ---------------------------------------------------
 
+    /// Map a non-2xx Apple Music response body to an `AppError`, extracting
+    /// the structured error message when present.
+    fn map_error(status: StatusCode, text: String) -> AppError {
+        let message = serde_json::from_str::<AppleErrorResponse>(&text)
+            .ok()
+            .and_then(|e| {
+                e.errors
+                    .into_iter()
+                    .next()
+                    .map(|err| err.detail.unwrap_or(err.title))
+            })
+            .unwrap_or(text);
+        AppError::SpotifyApi { status, message }
+    }
+
     /// GET with exponential back-off on 429.
     async fn get_json<T: serde::de::DeserializeOwned>(
         &self,
@@ -340,15 +356,18 @@ impl AppleMusicClient {
         user_token: Option<&str>,
         url: &str,
     ) -> Result<T, AppError> {
-        let resp = self
-            .request_with_backoff(|| {
+        let resp = request_with_backoff(
+            "apple_music",
+            || {
                 let mut req = self.http.get(url).bearer_auth(developer_token);
                 if let Some(ut) = user_token {
                     req = req.header("Music-User-Token", ut);
                 }
                 req
-            })
-            .await?;
+            },
+            Self::map_error,
+        )
+        .await?;
 
         resp.json::<T>().await.map_err(AppError::from)
     }
@@ -361,84 +380,17 @@ impl AppleMusicClient {
         url: &str,
         body: &serde_json::Value,
     ) -> Result<reqwest::Response, AppError> {
-        self.request_with_backoff(|| {
-            let mut req = self.http.post(url).bearer_auth(developer_token).json(body);
-            if let Some(ut) = user_token {
-                req = req.header("Music-User-Token", ut);
-            }
-            req
-        })
+        request_with_backoff(
+            "apple_music",
+            || {
+                let mut req = self.http.post(url).bearer_auth(developer_token).json(body);
+                if let Some(ut) = user_token {
+                    req = req.header("Music-User-Token", ut);
+                }
+                req
+            },
+            Self::map_error,
+        )
         .await
     }
-
-    /// Execute with exponential back-off on 429, respecting `Retry-After`.
-    async fn request_with_backoff(
-        &self,
-        build: impl Fn() -> reqwest::RequestBuilder,
-    ) -> Result<reqwest::Response, AppError> {
-        let max_retries: u32 = 5;
-        let mut attempt = 0u32;
-
-        loop {
-            let resp = build().send().await?;
-
-            if resp.status() == StatusCode::TOO_MANY_REQUESTS {
-                attempt += 1;
-                if attempt > max_retries {
-                    let retry_after = parse_retry_after(&resp);
-                    return Err(AppError::RateLimited {
-                        retry_after_secs: retry_after,
-                    });
-                }
-
-                let server_wait = parse_retry_after(&resp);
-                let backoff = server_wait.max(1) * 2u64.pow(attempt - 1);
-                tracing::warn!(
-                    attempt,
-                    backoff,
-                    "Apple Music rate limited (429), backing off"
-                );
-                tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
-                continue;
-            }
-
-            if !resp.status().is_success() {
-                let status = resp.status();
-                let text = resp.text().await.unwrap_or_default();
-
-                let message = serde_json::from_str::<AppleErrorResponse>(&text)
-                    .ok()
-                    .and_then(|e| {
-                        e.errors
-                            .into_iter()
-                            .next()
-                            .map(|err| err.detail.unwrap_or(err.title))
-                    })
-                    .unwrap_or(text);
-
-                return Err(AppError::SpotifyApi { status, message });
-            }
-
-            return Ok(resp);
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn parse_retry_after(resp: &reqwest::Response) -> u64 {
-    resp.headers()
-        .get("retry-after")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(1)
-}
-
-fn urlencoding(s: &str) -> String {
-    s.replace(' ', "+")
-        .replace('&', "%26")
-        .replace('=', "%3D")
-        .replace('#', "%23")
 }

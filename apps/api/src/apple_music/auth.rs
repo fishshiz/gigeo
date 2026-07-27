@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::error::AppError;
+use crate::token_cache::TokenCache;
 
 // ---------------------------------------------------------------------------
 // Config
@@ -63,20 +64,7 @@ pub struct DeveloperTokenManager {
     /// We cache the token for most of its lifetime.
     /// Apple allows up to 6 months; we use 12 hours to keep rotation tight.
     token_lifetime_secs: u64,
-    cached: RwLock<Option<CachedToken>>,
-}
-
-#[derive(Clone)]
-struct CachedToken {
-    token: String,
-    expires_at: std::time::Instant,
-}
-
-impl CachedToken {
-    fn is_expired(&self) -> bool {
-        // Refresh 5 minutes before actual expiry.
-        std::time::Instant::now() >= self.expires_at - std::time::Duration::from_secs(300)
-    }
+    cached: TokenCache<String>,
 }
 
 impl DeveloperTokenManager {
@@ -84,28 +72,15 @@ impl DeveloperTokenManager {
         Arc::new(Self {
             creds,
             token_lifetime_secs: 12 * 60 * 60, // 12 hours
-            cached: RwLock::new(None),
+            // Refresh 5 minutes before actual expiry.
+            cached: TokenCache::new(std::time::Duration::from_secs(300)),
         })
     }
 
     /// Returns a valid developer token, regenerating if expired.
     pub async fn get_token(&self) -> Result<String, AppError> {
-        // Fast path: read lock.
-        {
-            let guard = self.cached.read().await;
-            if let Some(t) = guard.as_ref() {
-                if !t.is_expired() {
-                    return Ok(t.token.clone());
-                }
-            }
-        }
-
-        // Slow path: write lock + generate.
-        let mut guard = self.cached.write().await;
-        if let Some(t) = guard.as_ref() {
-            if !t.is_expired() {
-                return Ok(t.token.clone());
-            }
+        if let Some(token) = self.cached.get().await {
+            return Ok(token);
         }
 
         let now = std::time::SystemTime::now()
@@ -129,11 +104,12 @@ impl DeveloperTokenManager {
         let token = encode(&header, &claims, &key)
             .map_err(|e| AppError::Internal(format!("JWT encoding failed: {e}")))?;
 
-        *guard = Some(CachedToken {
-            token: token.clone(),
-            expires_at: std::time::Instant::now()
-                + std::time::Duration::from_secs(self.token_lifetime_secs),
-        });
+        self.cached
+            .set(
+                token.clone(),
+                std::time::Duration::from_secs(self.token_lifetime_secs),
+            )
+            .await;
 
         tracing::info!(
             "Apple Music developer token generated (expires in {}s)",

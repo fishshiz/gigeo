@@ -13,6 +13,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::error::AppError;
+use crate::http_utils::url_encode;
+use crate::token_cache::{TokenCache, is_fresh};
 
 // ---------------------------------------------------------------------------
 // Config
@@ -49,7 +51,7 @@ impl SpotifyCredentials {
 // Token types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct TokenResponse {
     pub access_token: String,
     pub token_type: String,
@@ -57,20 +59,6 @@ pub struct TokenResponse {
     /// Only present in Authorization Code flow responses.
     pub refresh_token: Option<String>,
     pub scope: Option<String>,
-}
-
-/// A cached token with its expiry instant.
-#[derive(Clone)]
-struct CachedToken {
-    access_token: String,
-    expires_at: std::time::Instant,
-}
-
-impl CachedToken {
-    fn is_expired(&self) -> bool {
-        // Refresh 60 s before actual expiry to avoid edge-case failures.
-        std::time::Instant::now() >= self.expires_at - std::time::Duration::from_secs(60)
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +70,7 @@ impl CachedToken {
 pub struct ClientCredentialsManager {
     creds: SpotifyCredentials,
     http: Client,
-    cached: RwLock<Option<TokenResponse>>,
+    cached: TokenCache<TokenResponse>,
 }
 
 impl ClientCredentialsManager {
@@ -90,13 +78,16 @@ impl ClientCredentialsManager {
         Arc::new(Self {
             creds,
             http,
-            cached: RwLock::new(None),
+            // Refresh 60s before actual expiry to avoid edge-case failures.
+            cached: TokenCache::new(std::time::Duration::from_secs(60)),
         })
     }
 
     /// Returns a valid access token, refreshing if necessary.
     pub async fn get_token(&self) -> Result<TokenResponse, AppError> {
-        // Fast path: read lock.
+        if let Some(tok) = self.cached.get().await {
+            return Ok(tok);
+        }
 
         let resp = self
             .http
@@ -117,6 +108,9 @@ impl ClientCredentialsManager {
         }
 
         let tok: TokenResponse = resp.json().await?;
+        self.cached
+            .set(tok.clone(), std::time::Duration::from_secs(tok.expires_in))
+            .await;
 
         tracing::info!(
             "Client Credentials token refreshed (expires in {}s)",
@@ -173,9 +167,9 @@ impl UserTokenManager {
              &redirect_uri={redirect_uri}\
              &state={state}",
             client_id = self.creds.client_id,
-            scopes = urlencoding(scopes),
-            redirect_uri = urlencoding(&self.creds.redirect_uri),
-            state = urlencoding(state),
+            scopes = url_encode(scopes),
+            redirect_uri = url_encode(&self.creds.redirect_uri),
+            state = url_encode(state),
         )
     }
 
@@ -183,8 +177,8 @@ impl UserTokenManager {
     pub async fn exchange_code(&self, code: &str) -> Result<TokenResponse, AppError> {
         let body = format!(
             "grant_type=authorization_code&code={}&redirect_uri={}",
-            urlencoding(code),
-            urlencoding(&self.creds.redirect_uri),
+            url_encode(code),
+            url_encode(&self.creds.redirect_uri),
         );
 
         tracing::info!(
@@ -254,7 +248,7 @@ impl UserTokenManager {
 
         let body = format!(
             "grant_type=refresh_token&refresh_token={}",
-            urlencoding(&current.refresh_token),
+            url_encode(&current.refresh_token),
         );
 
         let resp = self
@@ -298,7 +292,7 @@ impl UserTokenManager {
     pub async fn refresh_with(&self, refresh_token: &str) -> Result<TokenResponse, AppError> {
         let body = format!(
             "grant_type=refresh_token&refresh_token={}",
-            urlencoding(refresh_token),
+            url_encode(refresh_token),
         );
 
         let resp = self
@@ -346,30 +340,9 @@ impl UserTokenManager {
         Ok(resp.json().await?)
     }
 }
-fn token_is_expired(expires_in: u64) -> bool {
-    std::time::Instant::now()
-        >= (std::time::Instant::now() + std::time::Duration::from_secs(expires_in))
-            - std::time::Duration::from_secs(60)
-}
 
 impl UserToken {
     fn is_expired(&self) -> bool {
-        std::time::Instant::now() >= self.expires_at - std::time::Duration::from_secs(60)
+        !is_fresh(self.expires_at, std::time::Duration::from_secs(60))
     }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Percent-encode a string for use in URL query parameters.
-fn urlencoding(s: &str) -> String {
-    // Simple encoding sufficient for the parameters we use.
-    s.replace(' ', "%20")
-        .replace(':', "%3A")
-        .replace('/', "%2F")
-        .replace('&', "%26")
-        .replace('=', "%3D")
-        .replace('+', "%2B")
-        .replace('@', "%40")
 }
