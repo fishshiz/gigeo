@@ -111,8 +111,8 @@ export const CreatePlaylist = () => {
   const placeholder = getRandomPlaylistName(
     selectedLocation?.split(",")[0] || ""
   )
-  let [isPrivate, setIsPrivate] = useState(false)
-  let [selectedFrequency, setSelectedFrequency] = useState("daily")
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [selectedFrequency, setSelectedFrequency] = useState("daily")
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-4">

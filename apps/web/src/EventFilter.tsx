@@ -10,9 +10,9 @@ import { FilterIcon } from "lucide-react"
 import { DialogTrigger, Heading, TooltipTrigger } from "react-aria-components"
 
 const EventFilter = () => {
-  let [selected, setSelected] = useState<Set<Key>>(new Set())
+  const [selected, setSelected] = useState<Set<Key>>(new Set())
 
-  let clearFilters = () => {
+  const clearFilters = () => {
     setSelected(new Set())
   }
   const { eventsByDate } = useEventsContext()

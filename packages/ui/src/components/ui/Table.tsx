@@ -78,7 +78,7 @@ export function Column(props: ColumnProps) {
 }
 
 export function TableHeader<T extends object>(props: TableHeaderProps<T>) {
-  let { selectionBehavior, selectionMode, allowsDragging } = useTableOptions();
+  const { selectionBehavior, selectionMode, allowsDragging } = useTableOptions();
 
   return (
     <AriaTableHeader {...props} className={composeTailwindRenderProps(props.className, 'sticky top-0 z-10 bg-neutral-100/60 dark:bg-neutral-700/60 backdrop-blur-md supports-[-moz-appearance:none]:bg-neutral-100 dark:supports-[-moz-appearance:none]:bg-neutral-700 forced-colors:bg-[Canvas] rounded-t-lg border-b border-b-neutral-200 dark:border-b-neutral-700')}>
@@ -112,7 +112,7 @@ const rowStyles = tv({
 export function Row<T extends object>(
   { id, columns, children, ...otherProps }: RowProps<T>
 ) {
-  let { selectionBehavior, allowsDragging } = useTableOptions();
+  const { selectionBehavior, allowsDragging } = useTableOptions();
 
   return (
     <AriaRow id={id} {...otherProps} className={rowStyles}>

@@ -3,7 +3,6 @@ import {
   DateFormatter,
   getLocalTimeZone,
 } from "@internationalized/date"
-import { useDateFormatter } from "react-aria"
 
 const formatDateTime = (date: string) => {
   const parsedDate = parseAbsolute(date, "UTC")
@@ -20,18 +19,15 @@ const formatDateTime = (date: string) => {
 }
 
 const formatDate = (dateString: string) => {
-  // 1. Parse YYYY-MM-DD
+  // Parse YYYY-MM-DD as UTC to avoid timezone shifts
   const [year, month, day] = dateString.split("-").map(Number)
-  // Create a Date object set to UTC to avoid timezone shifts
   const date = new Date(Date.UTC(year, month - 1, day))
 
-  // 2. Use React Aria/Intl formatter
-  // Note: 'date' is a native Date object, which useDateFormatter accepts
-  let formatter = useDateFormatter({
+  const formatter = new DateFormatter("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
-    timeZone: "UTC", // Important for matching the input string
+    timeZone: "UTC",
   })
 
   return formatter.format(date)
