@@ -1,5 +1,9 @@
 import { useRef, useEffect, useState } from "react"
-import mapboxgl, { GeoJSONSource, InteractionEvent } from "mapbox-gl"
+import mapboxgl, {
+  GeoJSONSource,
+  InteractionEvent,
+  type GeoJSONFeature,
+} from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
@@ -31,8 +35,12 @@ function boundsForRadius(
 }
 
 const MapWrapper = () => {
-  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
-    useSearchProvider()
+  const {
+    selectedCoordinates,
+    setSelectedCoordinates,
+    setSelectedLocation,
+    dateRange,
+  } = useSearchProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     // Marks first-mount completion so later effects can skip their initial
@@ -126,7 +134,20 @@ const MapWrapper = () => {
       // Set an event listener that fires
       // when a geolocate event occurs.
       geolocate.on("geolocate", (e) => {
-        setSelectedCoordinates([e.coords.longitude, e.coords.latitude])
+        const { longitude, latitude } = e.coords
+        setSelectedCoordinates([longitude, latitude])
+
+        fetch(`/api/reverse-geocode?longitude=${longitude}&latitude=${latitude}`)
+          .then((res) => res.json())
+          .then((data: { features?: GeoJSONFeature[] }) => {
+            const placeName = data.features?.[0]?.properties?.full_address
+            if (placeName) {
+              setSelectedLocation(placeName)
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to reverse geocode geolocated position", err)
+          })
       })
     }
 
