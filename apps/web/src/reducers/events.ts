@@ -118,4 +118,11 @@ const initialEventsState: EventsState = {
   error: null,
 }
 
-export { type EventsState, eventsReducer, initialEventsState }
+export {
+  type EventsState,
+  eventsReducer,
+  initialEventsState,
+  eventDateKey,
+  sameEvent,
+  sortEvents,
+}

@@ -20,6 +20,7 @@ jobs:
         with:
           workspaces: apps/api
       - run: cargo check --bins
+      - run: cargo test --lib
 
   web:
     runs-on: ubuntu-latest
@@ -31,4 +32,5 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo test --filter web
       - run: pnpm turbo build --filter web

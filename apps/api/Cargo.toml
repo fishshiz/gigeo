@@ -55,4 +55,5 @@ async-stream = "0.3"
 
 futures = "0.3.32"
 unicode-normalization = "0.1.25"
+percent-encoding = "2"
 

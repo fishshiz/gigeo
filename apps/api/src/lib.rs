@@ -5,11 +5,13 @@ mod config;
 mod cookie;
 mod db;
 mod error;
+mod http_utils;
 mod mapbox_handlers;
 mod spotify;
 mod state;
 mod ticketmaster_handlers;
 mod ticketmaster_stream;
+mod token_cache;
 mod services;
 use std::sync::Arc;
 
@@ -128,7 +130,11 @@ pub async fn build_app() -> Result<Router> {
             "/auth/status",
             axum::routing::get(spotify::spotify_handlers::auth_status),
         )
-        .route("/cities", axum::routing::get(mapbox_handlers::get_cities))  
+        .route("/cities", axum::routing::get(mapbox_handlers::get_cities))
+        .route(
+            "/reverse-geocode",
+            axum::routing::get(mapbox_handlers::reverse_geocode),
+        )
         .route(
             "/concerts/stream",
             axum::routing::get(ticketmaster_stream::get_concerts_tm_stream),

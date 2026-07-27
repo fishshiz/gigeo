@@ -1,5 +1,9 @@
 import { useRef, useEffect, useState } from "react"
-import mapboxgl, { GeoJSONSource, InteractionEvent } from "mapbox-gl"
+import mapboxgl, {
+  GeoJSONSource,
+  InteractionEvent,
+  type GeoJSONFeature,
+} from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
@@ -10,10 +14,33 @@ import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
 
 const INITIAL_ZOOM = 1
+const MILES_PER_DEGREE_LATITUDE = 69
+
+/** Bounding box (west/south, east/north) for a circle of `radiusMiles`
+ * around `center`. Approximate — fine for camera framing, not for
+ * distance math. */
+function boundsForRadius(
+  center: [number, number],
+  radiusMiles: number
+): [[number, number], [number, number]] {
+  const [lng, lat] = center
+  const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE
+  const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 0.01)
+  const lngDelta = radiusMiles / (MILES_PER_DEGREE_LATITUDE * cosLat)
+
+  return [
+    [lng - lngDelta, lat - latDelta],
+    [lng + lngDelta, lat + latDelta],
+  ]
+}
 
 const MapWrapper = () => {
-  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
-    useSearchProvider()
+  const {
+    selectedCoordinates,
+    setSelectedCoordinates,
+    setSelectedLocation,
+    dateRange,
+  } = useSearchProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     // Marks first-mount completion so later effects can skip their initial
@@ -28,6 +55,9 @@ const MapWrapper = () => {
     eventsByDate,
     selectEvents,
     selectedEvents,
+    isStreaming,
+    searchRadius,
+    radiusExpanded,
   } = useEventsContext()
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const mapContainer = useRef<HTMLDivElement | null>(null)
@@ -104,7 +134,20 @@ const MapWrapper = () => {
       // Set an event listener that fires
       // when a geolocate event occurs.
       geolocate.on("geolocate", (e) => {
-        setSelectedCoordinates([e.coords.longitude, e.coords.latitude])
+        const { longitude, latitude } = e.coords
+        setSelectedCoordinates([longitude, latitude])
+
+        fetch(`/api/reverse-geocode?longitude=${longitude}&latitude=${latitude}`)
+          .then((res) => res.json())
+          .then((data: { features?: GeoJSONFeature[] }) => {
+            const placeName = data.features?.[0]?.properties?.full_address
+            if (placeName) {
+              setSelectedLocation(placeName)
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to reverse geocode geolocated position", err)
+          })
       })
     }
 
@@ -148,10 +191,9 @@ const MapWrapper = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const { latitude, longitude, radius, start, end } = {
+  const { latitude, longitude, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
-    radius: 10,
     start: dateRange.start.toString() + "T00:00:00Z",
     end: dateRange.end.toString() + "T23:59:59Z",
   }
@@ -160,16 +202,14 @@ const MapWrapper = () => {
     void streamEvents({
       latitude,
       longitude,
-      radius,
       start,
       end,
     })
-    console.log("streaming", latitude, longitude, radius, start, end)
 
     return () => {
       cancelStream()
     }
-  }, [latitude, longitude, radius, start, end, streamEvents, cancelStream, rendered])
+  }, [latitude, longitude, start, end, streamEvents, cancelStream, rendered])
 
   useEffect(() => {
     const markEvents = () => {
@@ -345,6 +385,17 @@ const MapWrapper = () => {
       speed: 0.8,
     })
   }, [selectedCoordinates, rendered])
+
+  // Once a search had to widen past the base radius to find anything,
+  // zoom out to frame the actual area covered instead of staying zoomed
+  // in on a radius that came up empty.
+  useEffect(() => {
+    if (isStreaming || !radiusExpanded || !searchRadius) return
+    mapRef.current?.fitBounds(boundsForRadius(selectedCoordinates, searchRadius), {
+      padding: 60,
+      duration: 800,
+    })
+  }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates])
 
   return (
     <>

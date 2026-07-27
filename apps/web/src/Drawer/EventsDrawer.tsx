@@ -8,12 +8,22 @@ import { formatDate } from "../lib/formats"
 import { EventFilter } from "../EventFilter"
 
 export const EventsDrawer = () => {
-  const { eventsByDate } = useEventsContext()
+  const { eventsByDate, isStreaming, searchRadius, radiusExpanded } =
+    useEventsContext()
   const eventListRef = useRef<HTMLDivElement>(null)
   const { registerItem } = useTopMostVisibleInScrollContainer(eventListRef, {
     offsetTop: 0,
   })
   const entries = Object.entries(eventsByDate).sort()
+
+  if (!entries.length && isStreaming) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <p className="text-gray-600">Searching for events…</p>
+      </div>
+    )
+  }
+
   return (
     <>
       {entries.length ? (
@@ -40,8 +50,9 @@ export const EventsDrawer = () => {
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <p className="text-gray-600">
-            No events found. Try searching for a different location, or
-            adjusting the calendar date range.
+            {radiusExpanded && searchRadius
+              ? `No events found within ${searchRadius}mi. Try searching for a different location, or adjusting the calendar date range.`
+              : "No events found. Try searching for a different location, or adjusting the calendar date range."}
           </p>
         </div>
       )}
@@ -50,7 +61,7 @@ export const EventsDrawer = () => {
 }
 
 export const EventsDrawerHeader = () => {
-  const { eventsByDate } = useEventsContext()
+  const { eventsByDate, searchRadius, radiusExpanded } = useEventsContext()
   const eventListRef = useRef<HTMLDivElement>(null)
 
   const handleDateChange = (date: string) => {
@@ -75,8 +86,13 @@ export const EventsDrawerHeader = () => {
 
   return (
     <>
-      <div className="mb-2 flex w-full">
+      <div className="mb-2 flex w-full items-center justify-between">
         <h2 className="text-bold text-xl">Events</h2>
+        {radiusExpanded && searchRadius && (
+          <span className="text-xs text-gray-500">
+            Showing events within {searchRadius}mi
+          </span>
+        )}
       </div>
       <EventFilter />
       <DateSlider

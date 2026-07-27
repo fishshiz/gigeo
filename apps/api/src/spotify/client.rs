@@ -6,10 +6,11 @@
 //! All endpoint paths, field names, and response shapes are taken directly
 //! from the spec. Deprecated endpoints are avoided where alternatives exist.
 
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::http_utils::{request_with_backoff, url_encode};
 use unicode_normalization::UnicodeNormalization;
 
 fn normalize(s: &str) -> String {
@@ -199,7 +200,7 @@ impl SpotifyClient {
     ) -> Result<Vec<Artist>, AppError> {
         let url = format!(
             "{BASE}/search?q={}&type=artist&limit={limit}",
-            urlencoding(name),
+            url_encode(name),
         );
         self.get_json::<SearchArtistsResponse>(token, &url)
             .await
@@ -217,7 +218,7 @@ impl SpotifyClient {
         let query = format!("{artist_name}");
         let artist_url = format!(
             "{BASE}/search?q={}&type=artist&limit={limit}",
-            urlencoding(&query),
+            url_encode(&query),
         );
         let artist = self
             .get_json::<SearchArtistsResponse>(token, &artist_url)
@@ -231,7 +232,6 @@ impl SpotifyClient {
         let Some(artist) = artist else {
             return Ok(None);
         };
-        println!("{}", artist.name);
         let tracks_url = format!("{BASE}/artists/{}/top-tracks", artist.id);
         self.get_json::<ArtistTracksResponse>(token, &tracks_url)
             .await
@@ -343,15 +343,27 @@ impl SpotifyClient {
 
     // -- Internal helpers ---------------------------------------------------
 
+    /// Map a non-2xx Spotify response body to an `AppError`, extracting the
+    /// structured error message when present.
+    fn map_error(status: reqwest::StatusCode, text: String) -> AppError {
+        let message = serde_json::from_str::<SpotifyErrorWrapper>(&text)
+            .map(|e| e.error.message)
+            .unwrap_or(text);
+        AppError::SpotifyApi { status, message }
+    }
+
     /// GET a URL, parse JSON, with retry on 429.
     async fn get_json<T: serde::de::DeserializeOwned>(
         &self,
         token: &str,
         url: &str,
     ) -> Result<T, AppError> {
-        let resp = self
-            .request_with_backoff(|| self.http.get(url).bearer_auth(token))
-            .await?;
+        let resp = request_with_backoff(
+            "spotify",
+            || self.http.get(url).bearer_auth(token),
+            Self::map_error,
+        )
+        .await?;
         resp.json::<T>().await.map_err(AppError::from)
     }
 
@@ -362,8 +374,12 @@ impl SpotifyClient {
         token: &str,
         body: &serde_json::Value,
     ) -> Result<reqwest::Response, AppError> {
-        self.request_with_backoff(|| self.http.post(url).bearer_auth(token).json(body))
-            .await
+        request_with_backoff(
+            "spotify",
+            || self.http.post(url).bearer_auth(token).json(body),
+            Self::map_error,
+        )
+        .await
     }
 
     /// PUT JSON with retry on 429.
@@ -373,74 +389,11 @@ impl SpotifyClient {
         token: &str,
         body: &serde_json::Value,
     ) -> Result<reqwest::Response, AppError> {
-        self.request_with_backoff(|| self.http.put(url).bearer_auth(token).json(body))
-            .await
+        request_with_backoff(
+            "spotify",
+            || self.http.put(url).bearer_auth(token).json(body),
+            Self::map_error,
+        )
+        .await
     }
-
-    /// Execute a request builder with exponential back-off on 429.
-    /// Respects the `Retry-After` header per Spotify rate-limit guidelines.
-    async fn request_with_backoff(
-        &self,
-        build: impl Fn() -> reqwest::RequestBuilder,
-    ) -> Result<reqwest::Response, AppError> {
-        let max_retries: u32 = 5;
-        let mut attempt = 0u32;
-
-        loop {
-            let resp = build().send().await?;
-
-            if resp.status() == StatusCode::TOO_MANY_REQUESTS {
-                attempt += 1;
-                if attempt > max_retries {
-                    let retry_after = parse_retry_after(&resp);
-                    return Err(AppError::RateLimited {
-                        retry_after_secs: retry_after,
-                    });
-                }
-
-                let server_wait = parse_retry_after(&resp);
-                let backoff = server_wait.max(1) * 2u64.pow(attempt - 1);
-                tracing::warn!(attempt, backoff, "Rate limited (429), backing off");
-                tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
-                continue;
-            }
-
-            // For non-429 errors, parse the Spotify error body.
-            if !resp.status().is_success() {
-                let status = resp.status();
-                let text = resp.text().await.unwrap_or_default();
-
-                // Try to extract the structured error message.
-                let message = serde_json::from_str::<SpotifyErrorWrapper>(&text)
-                    .map(|e| e.error.message)
-                    .unwrap_or(text);
-
-                return Err(AppError::SpotifyApi { status, message });
-            }
-
-            return Ok(resp);
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Free helpers
-// ---------------------------------------------------------------------------
-
-fn parse_retry_after(resp: &reqwest::Response) -> u64 {
-    resp.headers()
-        .get("retry-after")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(1)
-}
-
-fn urlencoding(s: &str) -> String {
-    s.replace(' ', "%20")
-        .replace(':', "%3A")
-        .replace('/', "%2F")
-        .replace('&', "%26")
-        .replace('=', "%3D")
-        .replace('+', "%2B")
-        .replace('@', "%40")
 }
