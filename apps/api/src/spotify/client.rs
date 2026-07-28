@@ -146,6 +146,16 @@ pub struct PlaylistTracksInfo {
     pub total: u32,
 }
 
+#[derive(Debug, Deserialize)]
+struct PlaylistTrackItem {
+    track: Option<PlaylistItemTrack>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PlaylistItemTrack {
+    uri: Option<String>,
+}
+
 /// A subset of the full playlist object, requested via the Web API's
 /// `fields` filter so we don't pull down every track on every list refresh.
 #[derive(Debug, Deserialize)]
@@ -341,6 +351,38 @@ impl SpotifyClient {
         self.get_json(token, &url).await
     }
 
+    /// `GET /playlists/{playlist_id}/tracks` — non-deprecated.
+    /// Paginates via Spotify's `next` URL until exhausted, returning just
+    /// the track URIs. Skips local-file/unavailable tracks (null `track`
+    /// or `uri`). Used by the periodic updater to diff current vs.
+    /// newly-found tracks.
+    pub async fn get_playlist_tracks(
+        &self,
+        token: &str,
+        playlist_id: &str,
+    ) -> Result<Vec<String>, AppError> {
+        let mut uris = Vec::new();
+        let mut url = format!(
+            "{BASE}/playlists/{playlist_id}/tracks?fields=items(track(uri)),next,limit,offset,total&limit=100"
+        );
+
+        loop {
+            let page: Paging<PlaylistTrackItem> = self.get_json(token, &url).await?;
+            uris.extend(
+                page.items
+                    .into_iter()
+                    .filter_map(|i| i.track.and_then(|t| t.uri)),
+            );
+
+            match page.next {
+                Some(next_url) => url = next_url,
+                None => break,
+            }
+        }
+
+        Ok(uris)
+    }
+
     // -- Internal helpers ---------------------------------------------------
 
     /// Map a non-2xx Spotify response body to an `AppError`, extracting the
@@ -395,5 +437,46 @@ impl SpotifyClient {
             Self::map_error,
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playlist_track_page_parses_and_filters_unavailable_tracks() {
+        let json = r#"
+        {
+            "items": [
+                { "track": { "uri": "spotify:track:1" } },
+                { "track": { "uri": "spotify:track:2" } },
+                { "track": null },
+                { "track": { "uri": null } }
+            ],
+            "next": "https://api.spotify.com/v1/playlists/abc/tracks?offset=100",
+            "limit": 100,
+            "offset": 0,
+            "total": 4
+        }
+        "#;
+
+        let page: Paging<PlaylistTrackItem> = serde_json::from_str(json).unwrap();
+        let uris: Vec<String> = page
+            .items
+            .into_iter()
+            .filter_map(|i| i.track.and_then(|t| t.uri))
+            .collect();
+
+        assert_eq!(uris, vec!["spotify:track:1", "spotify:track:2"]);
+        assert_eq!(page.next.as_deref(), Some("https://api.spotify.com/v1/playlists/abc/tracks?offset=100"));
+    }
+
+    #[test]
+    fn playlist_track_page_with_no_next_terminates_pagination() {
+        let json = r#"{"items": [], "limit": 100, "offset": 100, "total": 4}"#;
+        let page: Paging<PlaylistTrackItem> = serde_json::from_str(json).unwrap();
+        assert!(page.next.is_none());
+        assert!(page.items.is_empty());
     }
 }

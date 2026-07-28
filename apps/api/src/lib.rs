@@ -123,6 +123,8 @@ pub async fn build_app() -> Result<Router> {
         cookie_key: Key::from(config.cookie_key.as_bytes()),
     }));
 
+    services::playlist_updater::spawn(shared_state.clone());
+
     let app = axum::Router::new()
         .route("/", axum::routing::get(|| async { "ok" }))
         .route("/health", axum::routing::get(health_check))

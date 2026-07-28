@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update playlist\n        set next_update_at = $2,\n            is_active = case when $3 then false else is_active end\n        where id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0e78c2ac8640a318d2458fb0cd35437300ea477ff5799e9ddad2aa27da987eb8"
+}

@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into playlist_update_run (playlist_id, status, update_mode)\n        values ($1, 'running', $2)\n        returning id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "playlist_update_mode",
+            "kind": {
+              "Enum": [
+                "additive",
+                "destructive"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4a2d8cd3a38185b441cd8481d691b9a8a75fca08c0d9f37cb7cc3474d17c4d14"
+}

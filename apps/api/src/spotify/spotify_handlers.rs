@@ -8,29 +8,13 @@ use axum::{
 use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
-use tracing::info;
-use crate::ticketmaster_stream::{EventsQuery};
-use crate::services::playlist_builder::{get_concerts_tm_impl};
-use std::collections::HashSet;
-use chrono::{Utc, Duration};
+use crate::services::playlist_builder::{
+    find_artist_names_near, search_tracks_for_artists, PlaylistUpdateMode, PlaylistVisibility,
+};
 use crate::cookie::utils::build_session_cookie;
 use crate::error::AppError;
 use crate::spotify::client::{Artist, Image};
 use crate::state::AppState;
-
-#[derive(sqlx::Type, Clone, Copy)]
-#[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
-enum PlaylistVisibility {
-    Public,
-    Private,
-}
-
-#[derive(sqlx::Type, Clone, Copy)]
-#[sqlx(type_name = "playlist_update_mode", rename_all = "lowercase")]
-enum PlaylistUpdateMode {
-    Additive,
-    Destructive,
-}
 
 // ---------------------------------------------------------------------------
 // GET /artist?name=<artist_name>&name=<artist_name>&...
@@ -201,32 +185,12 @@ pub async fn create_playlist(
             AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
         })?;
 
-    let user_token = get_valid_spotify_token(&state, account_id).await?;
+    let user_token = crate::spotify::token::get_valid_spotify_token(&state, account_id).await?;
     let cc_token = state.cc_manager.get_token().await?;
 
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
-    let now = Utc::now();
-
-    let query = EventsQuery {
-        latitude: req.latitude,
-        longitude: req.longitude,
-        radius: 25,
-        start: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-        end: (now + Duration::days(7)).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-    };
-
-    let events = get_concerts_tm_impl(&state, &query).await?;
-info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &query.latitude, &query.radius);
-    info!("events, {}",events.len().to_string());
-
-    let artist_names: Vec<String> = events
-        .iter()
-        .flat_map(|event| event.attractions.as_ref().into_iter().flatten())
-        .filter_map(|a| a.name.clone())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
+    let artist_names = find_artist_names_near(&state, req.latitude, req.longitude, 25, 7).await?;
 
     if artist_names.is_empty() {
         return Err(AppError::Internal(
@@ -234,36 +198,25 @@ info!("query, {}, {}, {}, {}, {}", &query.end, &query.start, &query.longitude, &
         ));
     }
 
-    let mut track_uris: Vec<String> = Vec::new();
-    let mut playlist_tracks: Vec<PlaylistTrack> = Vec::new();
-
-    for artist_name in &artist_names {
-        let tracks = state
-            .spotify
-            .search_tracks_by_artist(&cc_token.access_token, artist_name, per_artist)
+    let track_results =
+        search_tracks_for_artists(&state, &cc_token.access_token, &artist_names, per_artist)
             .await?;
 
-        if let Some(tracks) = tracks {
-            for t in tracks {
-                playlist_tracks.push(PlaylistTrack {
-                    name: t.name,
-                    artist: t
-                        .artists
-                        .first()
-                        .map(|a| a.name.clone())
-                        .unwrap_or_default(),
-                    uri: t.uri.clone(),
-                });
-                track_uris.push(t.uri);
-            }
-        }
-    }
-
-    if track_uris.is_empty() {
+    if track_results.is_empty() {
         return Err(AppError::ArtistNotFound(
             "No Spotify tracks found for artists in nearby events".to_string(),
         ));
     }
+
+    let track_uris: Vec<String> = track_results.iter().map(|t| t.uri.clone()).collect();
+    let playlist_tracks: Vec<PlaylistTrack> = track_results
+        .into_iter()
+        .map(|t| PlaylistTrack {
+            name: t.name,
+            artist: t.artist,
+            uri: t.uri,
+        })
+        .collect();
 
     let playlist = state
         .spotify
@@ -353,7 +306,7 @@ pub async fn get_playlists(
         return Ok(Json(vec![]));
     }
 
-    let token = get_valid_spotify_token(state, account_id).await?;
+    let token = crate::spotify::token::get_valid_spotify_token(state, account_id).await?;
 
     let mut summaries = Vec::with_capacity(rows.len());
     for row in rows {
@@ -541,13 +494,16 @@ async fn create_playlist_record(
     db: &sqlx::PgPool,
     params: CreatePlaylistParams<'_>,
 ) -> Result<uuid::Uuid, sqlx::Error> {
+    let next_update_at =
+        chrono::Utc::now() + chrono::Duration::days(params.update_cadence_days as i64);
+
     let row = sqlx::query!(
         r#"
         insert into playlist (
             account_id, provider_playlist_id, name, geohash, city,
-            update_cadence_days, visibility, update_mode
+            update_cadence_days, visibility, update_mode, next_update_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         returning id
         "#,
         params.account_id,
@@ -558,68 +514,12 @@ async fn create_playlist_record(
         params.update_cadence_days,
         params.visibility as _,
         params.update_mode as _,
+        next_update_at,
     )
     .fetch_one(db)
     .await?;
 
     Ok(row.id)
-}
-
-struct SpotifyTokenRow {
-    access_token: String,
-    refresh_token: String,
-    expires_at: chrono::DateTime<chrono::Utc>,
-}
-
-/// Returns a valid Spotify access token for the given account, refreshing
-/// (and persisting the refresh) if the stored token has expired.
-///
-/// This looks the token up per-account rather than relying on
-/// `state.user_manager`'s single-slot in-memory cache, which only ever holds
-/// whichever user most recently completed the OAuth flow in this process.
-async fn get_valid_spotify_token(
-    state: &AppState,
-    account_id: uuid::Uuid,
-) -> Result<String, AppError> {
-    let row = sqlx::query_as!(
-        SpotifyTokenRow,
-        r#"
-        select access_token, refresh_token, expires_at
-        from spotify_account
-        where account_id = $1
-        "#,
-        account_id
-    )
-    .fetch_optional(&state.db.pool)
-    .await?
-    .ok_or_else(|| AppError::AuthRequired("Spotify not connected for this account.".into()))?;
-
-    if row.expires_at > Utc::now() + Duration::seconds(60) {
-        return Ok(row.access_token);
-    }
-
-    let refreshed = state.user_manager.refresh_with(&row.refresh_token).await?;
-    let new_refresh_token = refreshed
-        .refresh_token
-        .clone()
-        .unwrap_or(row.refresh_token);
-    let new_expires_at = Utc::now() + Duration::seconds(refreshed.expires_in as i64);
-
-    sqlx::query!(
-        r#"
-        update spotify_account
-        set access_token = $1, refresh_token = $2, expires_at = $3, updated_at = now()
-        where account_id = $4
-        "#,
-        refreshed.access_token,
-        new_refresh_token,
-        new_expires_at,
-        account_id
-    )
-    .execute(&state.db.pool)
-    .await?;
-
-    Ok(refreshed.access_token)
 }
 
 async fn resolve_session_account(
