@@ -29,6 +29,12 @@ const MAX_PLAYLISTS_PER_TICK: usize = 25;
 const SEARCH_RADIUS_MILES: u8 = 25;
 const EVENT_WINDOW_DAYS: i64 = 7;
 const TRACKS_PER_ARTIST: u8 = 3;
+/// Upper bound on how many tracks a single update run touches, regardless
+/// of how many nearby artists/tracks were found. Plain truncation for now;
+/// once genre prioritization exists (playlist_genre_priority is already in
+/// the schema, unused), this is the natural place to select tracks by
+/// priority instead of just taking the first N.
+const MAX_TRACKS_PER_RUN: usize = 30;
 
 /// Entry point called from `build_app()`. Spawns the background poll loop.
 pub fn spawn(state: AppState) -> tokio::task::JoinHandle<()> {
@@ -223,10 +229,15 @@ async fn do_update(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcom
         .get_playlist_tracks(&user_token, &p.provider_playlist_id)
         .await?;
 
-    let (to_add, added, removed) = diff_uris(&current_uris, &new_uris);
-
     match p.update_mode {
         PlaylistUpdateMode::Additive => {
+            // Cap after diffing, not before: capping the raw candidate pool
+            // first could mean most of it is already in the playlist from a
+            // prior cycle, leaving to_add short even when plenty of other
+            // fresh tracks exist beyond the cap.
+            let (mut to_add, _, _) = diff_uris(&current_uris, &new_uris);
+            to_add.truncate(MAX_TRACKS_PER_RUN);
+
             for chunk in to_add.chunks(100) {
                 state
                     .spotify
@@ -240,7 +251,14 @@ async fn do_update(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcom
             })
         }
         PlaylistUpdateMode::Destructive => {
-            if new_uris.is_empty() {
+            // Destructive is a full replace, so the cap bounds the
+            // resulting playlist size rather than an increment — capped
+            // before diffing so tracks_added/tracks_removed reflect what
+            // actually got written.
+            let mut capped_new_uris = new_uris;
+            capped_new_uris.truncate(MAX_TRACKS_PER_RUN);
+
+            if capped_new_uris.is_empty() {
                 // Never wipe a playlist because this cycle found zero
                 // tracks (e.g. a transient Ticketmaster hiccup) — leave it
                 // untouched rather than destroying its contents.
@@ -251,7 +269,9 @@ async fn do_update(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcom
                 });
             }
 
-            let mut chunks = new_uris.chunks(100);
+            let (_, added, removed) = diff_uris(&current_uris, &capped_new_uris);
+
+            let mut chunks = capped_new_uris.chunks(100);
             if let Some(first) = chunks.next() {
                 state
                     .spotify

@@ -217,8 +217,11 @@ impl SpotifyClient {
             .map(|r| r.artists.items)
     }
 
-    /// `GET /search?q=artist:{artist_name}&type=track&limit={limit}`
-    /// Non-deprecated. Returns tracks matching the given artist name.
+    /// Finds the best-matching artist for `artist_name` via
+    /// `GET /search?q={name}&type=artist`, then returns up to `limit` of
+    /// their top tracks via `GET /artists/{id}/top-tracks` — non-deprecated.
+    /// The top-tracks endpoint has no `limit` param of its own and returns
+    /// its full list regardless, so `limit` is enforced client-side here.
     pub async fn search_tracks_by_artist(
         &self,
         token: &str,
@@ -245,7 +248,7 @@ impl SpotifyClient {
         let tracks_url = format!("{BASE}/artists/{}/top-tracks", artist.id);
         self.get_json::<ArtistTracksResponse>(token, &tracks_url)
             .await
-            .map(|r| Some(r.tracks))
+            .map(|r| Some(r.tracks.into_iter().take(limit as usize).collect()))
     }
 
     // -- Artists ------------------------------------------------------------
