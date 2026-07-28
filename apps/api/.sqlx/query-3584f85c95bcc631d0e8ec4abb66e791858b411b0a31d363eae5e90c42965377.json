@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update playlist\n        set next_update_at = $1\n        where id = (\n            select id from playlist\n            where is_active\n              and (next_update_at is null or next_update_at <= now())\n            order by next_update_at nulls first\n            limit 1\n            for update skip locked\n        )\n        returning\n            id, account_id, provider_playlist_id, geohash,\n            update_mode as \"update_mode: PlaylistUpdateMode\",\n            update_cadence_days\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_playlist_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "geohash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "update_mode: PlaylistUpdateMode",
+        "type_info": {
+          "Custom": {
+            "name": "playlist_update_mode",
+            "kind": {
+              "Enum": [
+                "additive",
+                "destructive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "update_cadence_days",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3584f85c95bcc631d0e8ec4abb66e791858b411b0a31d363eae5e90c42965377"
+}

@@ -4,9 +4,24 @@ use crate::error::{AppError};
 use crate::ticketmaster_stream::{
     EventsQuery, EventResponse, TicketmasterResponse, dedupe_key, normalize_event,
 };
+use chrono::Utc;
 use geohash::{encode, Coord};
 use std::collections::HashSet;
 use tracing::info;
+
+#[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
+#[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
+pub enum PlaylistVisibility {
+    Public,
+    Private,
+}
+
+#[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
+#[sqlx(type_name = "playlist_update_mode", rename_all = "lowercase")]
+pub enum PlaylistUpdateMode {
+    Additive,
+    Destructive,
+}
 
 pub async fn get_concerts_tm_impl(
     state: &AppState,
@@ -61,4 +76,79 @@ pub async fn get_concerts_tm_impl(
     Ok(events)
 }
 
+/// Finds nearby Ticketmaster events and returns the unique set of artist
+/// names playing within `radius_miles` over the next `window_days`.
+///
+/// Shared by the create-playlist handler and the periodic playlist
+/// updater, so both build a playlist's artist list the same way.
+pub async fn find_artist_names_near(
+    state: &AppState,
+    latitude: f64,
+    longitude: f64,
+    radius_miles: u8,
+    window_days: i64,
+) -> Result<Vec<String>, AppError> {
+    let now = Utc::now();
+    let query = EventsQuery {
+        latitude,
+        longitude,
+        radius: radius_miles,
+        start: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        end: (now + chrono::Duration::days(window_days))
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string(),
+    };
+
+    let events = get_concerts_tm_impl(state, &query).await?;
+
+    Ok(events
+        .iter()
+        .flat_map(|e| e.attractions.as_ref().into_iter().flatten())
+        .filter_map(|a| a.name.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect())
+}
+
+pub struct TrackResult {
+    pub name: String,
+    pub artist: String,
+    pub uri: String,
+}
+
+/// Searches Spotify (client-credentials token) for up to `per_artist` top
+/// tracks per artist name.
+///
+/// Shared by the create-playlist handler and the periodic playlist
+/// updater.
+pub async fn search_tracks_for_artists(
+    state: &AppState,
+    cc_access_token: &str,
+    artist_names: &[String],
+    per_artist: u8,
+) -> Result<Vec<TrackResult>, AppError> {
+    let mut results = Vec::new();
+
+    for artist_name in artist_names {
+        if let Some(tracks) = state
+            .spotify
+            .search_tracks_by_artist(cc_access_token, artist_name, per_artist)
+            .await?
+        {
+            for t in tracks {
+                results.push(TrackResult {
+                    name: t.name,
+                    artist: t
+                        .artists
+                        .first()
+                        .map(|a| a.name.clone())
+                        .unwrap_or_default(),
+                    uri: t.uri,
+                });
+            }
+        }
+    }
+
+    Ok(results)
+}
 

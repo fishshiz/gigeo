@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update playlist_update_run\n        set status = 'failed', finished_at = now(), error_message = $2\n        where id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "efe2d6d44644a668bf7c49d8218da4ee6e182bd395d514ccd38bcdd3e8eebc70"
+}
