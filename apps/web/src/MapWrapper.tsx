@@ -137,7 +137,9 @@ const MapWrapper = () => {
         const { longitude, latitude } = e.coords
         setSelectedCoordinates([longitude, latitude])
 
-        fetch(`/api/reverse-geocode?longitude=${longitude}&latitude=${latitude}`)
+        fetch(
+          `/api/reverse-geocode?longitude=${longitude}&latitude=${latitude}`
+        )
           .then((res) => res.json())
           .then((data: { features?: GeoJSONFeature[] }) => {
             const placeName = data.features?.[0]?.properties?.full_address
@@ -149,6 +151,31 @@ const MapWrapper = () => {
             console.error("Failed to reverse geocode geolocated position", err)
           })
       })
+
+      // Only auto-center on the user's real location if permission was
+      // already granted in a previous visit — never surprise a first-time
+      // visitor with a location prompt before they've done anything. If
+      // permission is still undecided or denied, the geolocate control
+      // above remains available for the user to trigger explicitly.
+      // Some browsers (and this app's own automated preview environment)
+      // throw synchronously for unsupported permission queries rather
+      // than rejecting the returned promise, so this whole check is
+      // wrapped defensively.
+      try {
+        navigator.permissions
+          ?.query({ name: "geolocation" })
+          .then((status) => {
+            if (status.state === "granted") {
+              geolocate.trigger()
+            }
+          })
+          .catch(() => {
+            // Permission query unsupported/rejected — fall back to
+            // requiring an explicit button click.
+          })
+      } catch {
+        // Permissions API not available at all in this browser.
+      }
     }
 
     // When a click event occurs on a feature in the places layer, open a popup at the
@@ -249,13 +276,29 @@ const MapWrapper = () => {
           }
           dataSource.features.push(feature)
         })
+      })
 
-        if (mapRef.current?.getLayer("events")) {
-          mapRef.current.removeLayer("events")
+      // This effect re-runs on every streamed-in event (it depends on
+      // eventsByDate, which changes per NDJSON line), so for a city with
+      // many results it can fire dozens of times in quick succession —
+      // and can fire before the map's style has finished loading, which
+      // makes Mapbox throw ("Style is not done loading") on addSource.
+      // Kansas-sparse locations rarely hit this race; a dense city like
+      // New York reliably does. Defer to the map's own "load" event when
+      // the style isn't ready yet, and once a source exists, update its
+      // data in place instead of removing/re-adding it every run (which
+      // also separately trips an internal Mapbox GL terrain-update bug
+      // when done rapidly).
+      const applyToMap = () => {
+        const existingSource = mapRef.current?.getSource(
+          "event-data-source"
+        ) as GeoJSONSource | undefined
+
+        if (existingSource) {
+          existingSource.setData(dataSource)
+          return
         }
-        if (mapRef.current?.getSource("event-data-source")) {
-          mapRef.current.removeSource("event-data-source")
-        }
+
         mapRef.current?.addSource("event-data-source", {
           type: "geojson",
           promoteId: "id",
@@ -320,7 +363,13 @@ const MapWrapper = () => {
             "text-halo-width": 2,
           },
         })
-      })
+      }
+
+      if (mapRef.current?.isStyleLoaded()) {
+        applyToMap()
+      } else {
+        mapRef.current?.once("load", applyToMap)
+      }
     }
 
     markEvents()
@@ -391,10 +440,13 @@ const MapWrapper = () => {
   // in on a radius that came up empty.
   useEffect(() => {
     if (isStreaming || !radiusExpanded || !searchRadius) return
-    mapRef.current?.fitBounds(boundsForRadius(selectedCoordinates, searchRadius), {
-      padding: 60,
-      duration: 800,
-    })
+    mapRef.current?.fitBounds(
+      boundsForRadius(selectedCoordinates, searchRadius),
+      {
+        padding: 60,
+        duration: 800,
+      }
+    )
   }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates])
 
   return (
