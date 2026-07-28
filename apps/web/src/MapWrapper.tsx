@@ -52,6 +52,7 @@ const MapWrapper = () => {
   const {
     streamEvents,
     cancelStream,
+    resetEvents,
     eventsByDate,
     selectEvents,
     selectedEvents,
@@ -100,6 +101,9 @@ const MapWrapper = () => {
         "marker-yellow",
         "marker-red",
       ])
+      // Selecting an event from the drawer list doesn't necessarily mean
+      // the map is already showing its venue (unlike clicking a marker
+      // directly, where it's a harmless no-op), so fly there.
       if (latitude && longitude) {
         mapRef.current?.flyTo({
           center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
@@ -135,6 +139,11 @@ const MapWrapper = () => {
       // when a geolocate event occurs.
       geolocate.on("geolocate", (e) => {
         const { longitude, latitude } = e.coords
+        // Reset the search-radius state in the same commit as the
+        // coordinate change, otherwise the fitBounds effect below can
+        // briefly see the previous location's (possibly much wider)
+        // radius paired with the new coordinates and zoom out to match it.
+        resetEvents()
         setSelectedCoordinates([longitude, latitude])
 
         fetch(
