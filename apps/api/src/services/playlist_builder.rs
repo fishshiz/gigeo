@@ -7,7 +7,6 @@ use crate::ticketmaster_stream::{
 use chrono::Utc;
 use geohash::{encode, Coord};
 use std::collections::HashSet;
-use tracing::info;
 
 #[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
 #[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
@@ -44,15 +43,11 @@ pub async fn get_concerts_tm_impl(
         params.start,
         params.end
     );
-    info!(
-        "ticketmaster request: geoPoint={} radius={} start={} end={}",
-        hash, params.radius, params.start, params.end
-    );
+   
     let resp = state.client.get(&url).send().await.map_err(AppError::Request)?;
 
     let status = resp.status();
     let text = resp.text().await.map_err(AppError::Request)?;
-    info!("status, text, {}, {}", status, text);
 
     if !status.is_success() {
         return Err(AppError::TicketmasterApi {
