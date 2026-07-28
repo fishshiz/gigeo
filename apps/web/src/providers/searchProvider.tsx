@@ -7,7 +7,41 @@ import {
 } from "@internationalized/date"
 import { type RangeValue } from "react-aria"
 
-const INITIAL_CENTER: [number, number] = [-24, 42]
+// Geographic center of the contiguous US — used only when there's no
+// remembered location and geolocation permission hasn't already been
+// granted. Previously this defaulted to the middle of the Atlantic.
+const DEFAULT_CENTER: [number, number] = [-98.5795, 39.8283]
+
+const COORDINATES_STORAGE_KEY = "gigeo:lastCoordinates"
+const LOCATION_STORAGE_KEY = "gigeo:lastLocation"
+
+function readStoredCoordinates(): [number, number] | undefined {
+  try {
+    const raw = localStorage.getItem(COORDINATES_STORAGE_KEY)
+    if (!raw) return undefined
+    const parsed = JSON.parse(raw)
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === 2 &&
+      typeof parsed[0] === "number" &&
+      typeof parsed[1] === "number"
+    ) {
+      return [parsed[0], parsed[1]]
+    }
+  } catch {
+    // localStorage unavailable (e.g. private browsing) or malformed value —
+    // fall through to the default.
+  }
+  return undefined
+}
+
+function readStoredLocation(): string | undefined {
+  try {
+    return localStorage.getItem(LOCATION_STORAGE_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
 
 type SearchProviderState = {
   selectedLocation: string | undefined
@@ -31,14 +65,40 @@ export const SearchProviderContext = React.createContext<
 export function SearchProvider({ children }: SearchProviderProps) {
   const [selectedLocation, setSelectedLocation] = React.useState<
     string | undefined
-  >(undefined)
-  const [selectedCoordinates, setSelectedCoordinates] =
-    React.useState<[number, number]>(INITIAL_CENTER)
+  >(readStoredLocation)
+  const [selectedCoordinates, setSelectedCoordinates] = React.useState<
+    [number, number]
+  >(() => readStoredCoordinates() ?? DEFAULT_CENTER)
   const [dateRange, setDateRange] = React.useState<RangeValue<CalendarDate>>({
     start: today(getLocalTimeZone()),
     end: today(getLocalTimeZone()).add({ weeks: 1 }),
   })
   const inputRef = React.useRef<HTMLInputElement | null>(null)
+
+  // Remember the last selected location so a returning visitor starts
+  // where they left off instead of the static default every time.
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(
+        COORDINATES_STORAGE_KEY,
+        JSON.stringify(selectedCoordinates)
+      )
+    } catch {
+      // Ignore — localStorage may be unavailable (e.g. private browsing).
+    }
+  }, [selectedCoordinates])
+
+  React.useEffect(() => {
+    try {
+      if (selectedLocation) {
+        localStorage.setItem(LOCATION_STORAGE_KEY, selectedLocation)
+      } else {
+        localStorage.removeItem(LOCATION_STORAGE_KEY)
+      }
+    } catch {
+      // Ignore — localStorage may be unavailable (e.g. private browsing).
+    }
+  }, [selectedLocation])
 
   const focusSearchInput = () => {
     console.log("Focusing search input", inputRef.current)
