@@ -100,6 +100,8 @@ pub struct CreatePlaylistRequest {
     pub privacy: bool,
     // The centered location of the playlist.
     pub location: String,
+    // Whether playlist update behavior should be destructive (or additive).
+    pub destructive: bool,
     // The location coordinates
     pub latitude: f64,
     pub longitude: f64, 
@@ -254,6 +256,12 @@ pub async fn create_playlist(
         None => 30,
     };
 
+    let update_mode = if req.destructive {
+        PlaylistUpdateMode::Destructive
+    } else {
+        PlaylistUpdateMode::Additive
+    };
+
     let visibility = if req.privacy {
         PlaylistVisibility::Private
     } else {
@@ -270,7 +278,7 @@ pub async fn create_playlist(
             city: &req.location,
             update_cadence_days: cadence_days,
             visibility,
-            update_mode: PlaylistUpdateMode::Additive,
+            update_mode,
         },
     )
     .await?;

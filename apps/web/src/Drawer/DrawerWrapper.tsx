@@ -113,14 +113,6 @@ const DrawerWrapper = () => {
               <PlaylistsDrawer />
             </Suspense>
           </TabPanel>
-          <TabPanel
-            id="search"
-            className="flex items-center justify-center"
-          ></TabPanel>
-          <TabPanel
-            id="settings"
-            className="flex items-center justify-center"
-          ></TabPanel>
         </TabPanels>
       </Tabs>
     </>

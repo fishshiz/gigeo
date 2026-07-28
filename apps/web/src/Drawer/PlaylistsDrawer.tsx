@@ -41,6 +41,8 @@ export const PlaylistsDrawer = () => {
     <DrawerContent
       isOpen={isDrawerOpen}
       closeDrawer={() => setIsDrawerOpen(false)}
+
+      className="z-10 flex h-full w-full flex-col overflow-hidden bg-white"
     >
       <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
         <PlaylistButtons />
@@ -112,7 +114,8 @@ export const CreatePlaylist = () => {
     selectedLocation?.split(",")[0] || ""
   )
   const [isPrivate, setIsPrivate] = useState(false)
-  const [selectedFrequency, setSelectedFrequency] = useState("daily")
+  const [selectedFrequency, setSelectedFrequency] = useState("weekly")
+  const [updateBehavior, setUpdateBehavior] = useState("destructive")
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-4">
@@ -197,6 +200,70 @@ export const CreatePlaylist = () => {
               )}
             </Radio>
           ))}
+        </RadioGroup>
+        <RadioGroup
+          aria-label="Playlist update behavior"
+          value={updateBehavior}
+          onChange={setUpdateBehavior}
+          orientation="horizontal"
+          className="flex w-full gap-2.5"
+          name="behavior"
+          isRequired
+        >
+          <Radio key="destructive" value="destructive">
+            {({ isSelected }) => (
+              <>
+                <div className="min-w-0 pr-5">
+                  <div className="text-sm font-semibold text-primary">
+                    Replace all tracks
+                  </div>
+                  <span
+                    slot="description"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Playlist is rebuilt from scratch on every update. Keeps it
+                    small and fresh.
+                  </span>
+                </div>
+
+                {isSelected && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-3 right-3 text-primary"
+                  >
+                    <CircleCheck size={16} />
+                  </span>
+                )}
+              </>
+            )}
+          </Radio>
+          <Radio key="additive" value="additive">
+            {({ isSelected }) => (
+              <>
+                <div className="min-w-0 pr-5">
+                  <div className="text-sm font-semibold text-primary">
+                    Add new tracks
+                  </div>
+                  <span
+                    slot="description"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Playlist is added to on each update. For if you want to keep
+                    a history of shows that came to your city.
+                  </span>
+                </div>
+
+                {isSelected && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-3 right-3 text-primary"
+                  >
+                    <CircleCheck size={16} />
+                  </span>
+                )}
+              </>
+            )}
+          </Radio>
         </RadioGroup>
         <Button type="submit">Create Playlist</Button>
       </Form>
