@@ -16,7 +16,6 @@ import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
-import { useEvents } from "./components/events-provider"
 
 const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { attractions } = eventData
@@ -24,9 +23,8 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const [futureEvents, setFutureEvents] = useState<Record<string, Event[]>>({})
   const [showStickyHeader, setShowStickyHeader] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const { selectEvents } = useEventsContext()
+  const { selectEvents, setSelectedEvent } = useEventsContext()
 
-  const eventsContext = useEvents()
   const { classifications } = eventData
   const segment =
     classifications && classifications.length > 0
@@ -133,7 +131,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
       <Button
         className="absolute top-2 left-2 z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
         variant="secondary"
-        onClick={() => eventsContext.setSelectedEvent(undefined)}
+        onClick={() => setSelectedEvent(undefined)}
       >
         <ArrowLeftIcon aria-hidden className="h-4 w-4" />
       </Button>
