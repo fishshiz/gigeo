@@ -23,6 +23,7 @@ function boundsForRadius(
   center: [number, number],
   radiusMiles: number
 ): [[number, number], [number, number]] {
+  console.log("radius", radiusMiles)
   const [lng, lat] = center
   const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE
   const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 0.01)
@@ -52,6 +53,7 @@ const MapWrapper = () => {
   const {
     streamEvents,
     cancelStream,
+    resetEvents,
     eventsByDate,
     selectEvents,
     selectedEvents,
@@ -86,7 +88,7 @@ const MapWrapper = () => {
   useEffect(() => {
     const venueLocation = selectedEvents[0]?.venue?.location
     if (selectedEvents.length && venueLocation !== undefined) {
-      const { latitude, longitude } = venueLocation
+      // const { latitude, longitude } = venueLocation
       mapRef.current?.setLayoutProperty("events", "icon-image", [
         "case",
         ["==", ["get", "id"], selectedEvents[0].id],
@@ -100,12 +102,12 @@ const MapWrapper = () => {
         "marker-yellow",
         "marker-red",
       ])
-      if (latitude && longitude) {
-        mapRef.current?.flyTo({
-          center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
-          speed: 0.8,
-        })
-      }
+      // if (latitude && longitude) {
+      //   mapRef.current?.flyTo({
+      //     center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
+      //     speed: 0.8,
+      //   })
+      // }
     }
   }, [selectedEvents])
 
@@ -135,6 +137,11 @@ const MapWrapper = () => {
       // when a geolocate event occurs.
       geolocate.on("geolocate", (e) => {
         const { longitude, latitude } = e.coords
+        // Reset the search-radius state in the same commit as the
+        // coordinate change, otherwise the fitBounds effect below can
+        // briefly see the previous location's (possibly much wider)
+        // radius paired with the new coordinates and zoom out to match it.
+        resetEvents()
         setSelectedCoordinates([longitude, latitude])
 
         fetch(
@@ -439,6 +446,7 @@ const MapWrapper = () => {
   // zoom out to frame the actual area covered instead of staying zoomed
   // in on a radius that came up empty.
   useEffect(() => {
+    console.log(isStreaming, radiusExpanded, searchRadius)
     if (isStreaming || !radiusExpanded || !searchRadius) return
     mapRef.current?.fitBounds(
       boundsForRadius(selectedCoordinates, searchRadius),
@@ -447,6 +455,7 @@ const MapWrapper = () => {
         duration: 800,
       }
     )
+    console.log("zooming")
   }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates])
 
   return (
