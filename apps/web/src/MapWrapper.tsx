@@ -23,7 +23,6 @@ function boundsForRadius(
   center: [number, number],
   radiusMiles: number
 ): [[number, number], [number, number]] {
-  console.log("radius", radiusMiles)
   const [lng, lat] = center
   const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE
   const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 0.01)
@@ -88,7 +87,7 @@ const MapWrapper = () => {
   useEffect(() => {
     const venueLocation = selectedEvents[0]?.venue?.location
     if (selectedEvents.length && venueLocation !== undefined) {
-      // const { latitude, longitude } = venueLocation
+      const { latitude, longitude } = venueLocation
       mapRef.current?.setLayoutProperty("events", "icon-image", [
         "case",
         ["==", ["get", "id"], selectedEvents[0].id],
@@ -102,12 +101,15 @@ const MapWrapper = () => {
         "marker-yellow",
         "marker-red",
       ])
-      // if (latitude && longitude) {
-      //   mapRef.current?.flyTo({
-      //     center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
-      //     speed: 0.8,
-      //   })
-      // }
+      // Selecting an event from the drawer list doesn't necessarily mean
+      // the map is already showing its venue (unlike clicking a marker
+      // directly, where it's a harmless no-op), so fly there.
+      if (latitude && longitude) {
+        mapRef.current?.flyTo({
+          center: { lat: parseFloat(latitude), lng: parseFloat(longitude) },
+          speed: 0.8,
+        })
+      }
     }
   }, [selectedEvents])
 
@@ -446,7 +448,6 @@ const MapWrapper = () => {
   // zoom out to frame the actual area covered instead of staying zoomed
   // in on a radius that came up empty.
   useEffect(() => {
-    console.log(isStreaming, radiusExpanded, searchRadius)
     if (isStreaming || !radiusExpanded || !searchRadius) return
     mapRef.current?.fitBounds(
       boundsForRadius(selectedCoordinates, searchRadius),
@@ -455,7 +456,6 @@ const MapWrapper = () => {
         duration: 800,
       }
     )
-    console.log("zooming")
   }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates])
 
   return (

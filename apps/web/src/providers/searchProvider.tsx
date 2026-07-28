@@ -101,11 +101,9 @@ export function SearchProvider({ children }: SearchProviderProps) {
   }, [selectedLocation])
 
   const focusSearchInput = () => {
-    console.log("Focusing search input", inputRef.current)
     inputRef.current?.focus()
   }
   const setInputRef = (ref: HTMLInputElement | null) => {
-    console.log("Setting input ref", ref)
     inputRef.current = ref
   }
 
