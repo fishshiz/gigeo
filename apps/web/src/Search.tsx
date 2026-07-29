@@ -82,7 +82,7 @@ const Search = () => {
           name="search"
           value={selectedLocation ? selectedLocation : searchTerm}
           placeholder="Search for a city"
-          className="block grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
+          className="block w-full grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
           onChange={(e) => updateSearchTerm(e)}
         />
         <DateRangePicker

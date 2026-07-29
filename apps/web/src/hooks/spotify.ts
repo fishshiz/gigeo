@@ -19,6 +19,7 @@ export type CreatePlaylistInput = {
   privacy: boolean
   cadence: number
   radius: number
+  destructive: boolean
 }
 
 export type CreatePlaylistOutput = {
@@ -43,6 +44,7 @@ function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
   const location = formData.get("location")
   const privacy = formData.get("privacy")
   const cadence = formData.get("cadence")
+  const behavior = formData.get("behavior")
 
   if (typeof name !== "string" || !name.trim()) {
     throw new Error("Playlist name is required")
@@ -62,6 +64,7 @@ function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
     description: "test description",
     privacy: privacy === "private",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
+    destructive: behavior === "destructive",
     radius: 25,
   }
 }
