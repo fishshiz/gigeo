@@ -3,11 +3,6 @@ import { useSpotifyAuth } from "../hooks/spotify"
 import { CircleCheck } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/ui/Button"
-import {
-  Disclosure,
-  DisclosureHeader,
-  DisclosurePanel,
-} from "@workspace/ui/components/ui/Disclosure"
 import { RadioGroup, Radio } from "@workspace/ui/components/ui/RadioGroup"
 import {
   Tabs,
@@ -48,12 +43,12 @@ export const PlaylistsDrawerBody = () => {
         <TabPanels>
           <TabPanel id="playlists">
             <div className="flex flex-col gap-2">
-              {spotifyPlaylists.length > 0 && (
-                <Disclosure isDisabled={spotifyPlaylists.length === 0}>
-                  <DisclosureHeader>Spotify Playlists</DisclosureHeader>
-                  <DisclosurePanel>
+              {spotifyPlaylists.length > 0 ? (
+                <div>
+                  <h2>Spotify Playlists</h2>
+                  <ul>
                     {spotifyPlaylists.map((playlist) => (
-                      <div
+                      <li
                         key={playlist.id}
                         className="flex items-center gap-2 rounded-lg border border-gray-300 p-2 hover:bg-gray-100"
                       >
@@ -64,14 +59,15 @@ export const PlaylistsDrawerBody = () => {
                             className="h-12 w-12 rounded"
                           />
                         )}
-                      </div>
+                      </li>
                     ))}
-                  </DisclosurePanel>
-                </Disclosure>
+                  </ul>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-4 p-4">
+                  <p>Gigeo is not managing any playlists.</p>
+                </div>
               )}
-              <div className="flex flex-col items-center justify-center gap-4 p-4">
-                <p>Gigeo is not managing any playlists.</p>
-              </div>
             </div>
           </TabPanel>
           <TabPanel id="add-playlist">

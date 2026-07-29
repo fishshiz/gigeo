@@ -139,6 +139,15 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
     return res
   }, [setSpotifyPlaylists, setPlaylistManagement])
 
+  useEffect(() => {
+    // Fetch the user's playlists once Spotify is connected, so "My
+    // Playlists" has data without requiring a manual trigger.
+    if (status?.spotify_connected) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void getPlaylists()
+    }
+  }, [status?.spotify_connected, getPlaylists])
+
   const createPlaylist = useCallback(
     async (input: FormData) => {
       setError(null)
