@@ -103,7 +103,7 @@ export function TabPanels<T extends object>(props: TabPanelsProps<T>) {
 
 const tabPanelStyles = tv({
   extend: focusRing,
-  base: "flex-1 min-h-0 box-border p-4 text-sm text-neutral-900 dark:text-neutral-100 transition entering:opacity-0 exiting:opacity-0 exiting:absolute exiting:top-0 exiting:left-0 exiting:w-full",
+  base: "flex-1 min-h-0 box-border text-sm text-neutral-900 dark:text-neutral-100 transition entering:opacity-0 exiting:opacity-0 exiting:absolute exiting:top-0 exiting:left-0 exiting:w-full",
 })
 
 export function TabPanel(props: TabPanelProps) {

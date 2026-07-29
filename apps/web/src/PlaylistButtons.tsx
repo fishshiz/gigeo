@@ -15,8 +15,7 @@ export function PlaylistButtons() {
   if (!status?.logged_in || !status.spotify_connected) {
     return (
       <div>
-        <h2>Spotify</h2>
-        <p>Your app session is missing or Spotify is not connected yet.</p>
+        <h2>Connect your Spotify account to manage playlists</h2>
         <button onClick={connectSpotify}>Connect Spotify</button>
       </div>
     )
