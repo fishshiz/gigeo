@@ -41,7 +41,6 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
             (attraction) => `name=${encodeURIComponent(attraction.name || "")}`
           )
           .join("&")
-        console.log(artistInfoQuery)
         const res = await fetch(`/api/apple/artist?${artistInfoQuery}`)
         if (!res.ok) throw new Error("Request failed")
         const json = await res.json()
@@ -347,7 +346,6 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
 }
 
 const UpcomingEvents = ({ events }: { events: Event[] }) => {
-  console.log(events)
   return (
     <div className="mt-4">
       <h3 className="text-xs tracking-wide text-slate-400 uppercase">
