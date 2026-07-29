@@ -268,7 +268,6 @@ const MapWrapper = () => {
             parseFloat(location?.longitude ?? ""),
             parseFloat(location?.latitude ?? ""),
           ]
-          //   coordinates.push([longitude, latitude]);
           const feature: Feature = {
             type: "Feature",
             properties: {

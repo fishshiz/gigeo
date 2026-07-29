@@ -348,17 +348,15 @@ pub async fn get_concerts_tm_stream(
         },
         6,
     )
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("failed to encode geohash: {e}"),
-        )
-    })
-    .unwrap();
+    .map_err(|e| AppError::TicketmasterApi {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("failed to encode geohash: {e}"),
+    })?;
 
-    let windows = date_windows(&params.start, &params.end)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))
-        .unwrap();
+    let windows = date_windows(&params.start, &params.end).map_err(|e| AppError::TicketmasterApi {
+        status: StatusCode::BAD_REQUEST,
+        message: e,
+    })?;
 
     let client = state.client.clone();
     let api_key = state.ticketmaster_key.clone();

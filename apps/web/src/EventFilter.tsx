@@ -37,7 +37,6 @@ const EventFilter = () => {
       },
       {}
     )
-  console.log(classifications)
   return (
     <>
       <DialogTrigger>

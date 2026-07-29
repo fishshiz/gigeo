@@ -21,18 +21,14 @@ const DateSlider = ({
       if (idx % 7 === 0) {
         acc.push([curr])
       } else if (idx < 7) {
-        console.log(acc, idx, curr)
         acc[(idx % 7) - idx].push(curr)
       } else if (acc[idx % 7]) {
         acc[idx % 7].push(curr)
-      } else {
-        console.log("else", acc, idx, curr)
       }
       return acc
     },
     []
   )
-  console.log(groupedDates)
 
   return (
     <div className="flex w-full items-center">
