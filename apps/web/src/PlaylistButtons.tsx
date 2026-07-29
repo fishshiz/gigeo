@@ -3,11 +3,8 @@ import { Button } from "@workspace/ui/components/ui/Button"
 import SpotifyLogo from "./assets/Primary_Logo_Green_CMYK.svg"
 import { ReactSVG } from "react-svg"
 
-import { Menu, MenuTrigger, MenuItem } from "@workspace/ui/components/ui/Menu"
-
 export function PlaylistButtons() {
-  const { status, loading, error, connectSpotify, getPlaylists } =
-    useSpotifyAuth()
+  const { status, loading, error, connectSpotify, logout } = useSpotifyAuth()
 
   if (loading) return <div>Loading auth status…</div>
   if (error) return <div>Auth error: {error}</div>
@@ -23,16 +20,11 @@ export function PlaylistButtons() {
 
   return (
     <div className=" ">
-      <MenuTrigger>
-        <Button aria-label="Filters" variant="secondary" className="relative">
-          <ReactSVG className="h-[24px] w-[24px]" src={SpotifyLogo} />
-          Connected
-        </Button>
-        <Menu>
-          <MenuItem onClick={() => getPlaylists()}>Manage Playlists</MenuItem>
-          <MenuItem>Logout</MenuItem>
-        </Menu>
-      </MenuTrigger>
+      <Button aria-label="Filters" variant="secondary" className="relative">
+        <ReactSVG className="h-[24px] w-[24px]" src={SpotifyLogo} />
+        Connected
+      </Button>
+      <Button onClick={logout}>Logout</Button>
     </div>
   )
 }
