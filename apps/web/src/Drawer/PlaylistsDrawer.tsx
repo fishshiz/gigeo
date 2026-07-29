@@ -25,13 +25,7 @@ import { ToggleButton } from "@workspace/ui/components/ui/ToggleButton"
 import { useState } from "react"
 import { PlaylistButtons } from "../PlaylistButtons"
 
-import {
-  DrawerBody,
-  DrawerHeader,
-  DrawerClose,
-} from "@workspace/ui/components/ui/Drawer"
-import { XIcon } from "lucide-react"
-import { useDrawerProvider } from "@/providers/drawerProvider"
+import { DrawerBody, DrawerHeader } from "@workspace/ui/components/ui/Drawer"
 
 export const PlaylistDrawerHeader = () => {
   return (
