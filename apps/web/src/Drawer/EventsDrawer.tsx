@@ -2,18 +2,19 @@ import { EventCard } from "../EventCard"
 import { DateSlider } from "../DateSlider"
 
 import { useEventsContext } from "../providers/eventsProvider"
-import { useRef, type Ref } from "react"
-import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
-import { formatDate } from "../lib/formats"
+import type { Ref } from "react"
+import { formatDate } from "../lib/dates"
 import { EventFilter } from "../EventFilter"
 
-export const EventsDrawer = () => {
+type RegisterItem = (id: string) => Ref<HTMLDivElement>
+
+export const EventsDrawer = ({
+  registerItem,
+}: {
+  registerItem: RegisterItem
+}) => {
   const { eventsByDate, isStreaming, searchRadius, radiusExpanded } =
     useEventsContext()
-  const eventListRef = useRef<HTMLDivElement>(null)
-  const { registerItem } = useTopMostVisibleInScrollContainer(eventListRef, {
-    offsetTop: 0,
-  })
   const entries = Object.entries(eventsByDate).sort()
 
   if (!entries.length && isStreaming) {
@@ -29,7 +30,7 @@ export const EventsDrawer = () => {
   return (
     <>
       {entries.length ? (
-        <div ref={eventListRef} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {entries.map(([date, events]) => (
             <div key={date}>
               <DateAnchor date={date} ref={registerItem(date)} />
@@ -64,28 +65,14 @@ export const EventsDrawer = () => {
   )
 }
 
-export const EventsDrawerHeader = () => {
+export const EventsDrawerHeader = ({
+  topMostId,
+  onSelect,
+}: {
+  topMostId: string | null
+  onSelect: (date: string) => void
+}) => {
   const { eventsByDate, searchRadius, radiusExpanded } = useEventsContext()
-  const eventListRef = useRef<HTMLDivElement>(null)
-
-  const handleDateChange = (date: string) => {
-    if (eventListRef && eventListRef.current) {
-      const target = eventListRef.current.querySelector(`#a${date}`)
-
-      if (target) {
-        target.scrollIntoView({
-          block: "start",
-          behavior: "instant",
-          // @ts-expect-error - `container` isn't in the standard ScrollIntoViewOptions type
-          container: "nearest",
-        })
-      }
-    }
-  }
-
-  const { topMostId } = useTopMostVisibleInScrollContainer(eventListRef, {
-    offsetTop: 0,
-  })
   const entries = Object.entries(eventsByDate).sort()
 
   return (
@@ -102,7 +89,7 @@ export const EventsDrawerHeader = () => {
       <DateSlider
         dates={entries.map(([key]) => key)}
         activeDateId={topMostId}
-        onSelect={handleDateChange}
+        onSelect={onSelect}
       />
     </>
   )

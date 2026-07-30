@@ -33,4 +33,14 @@ const formatDate = (dateString: string) => {
   return formatter.format(date)
 }
 
-export { formatDateTime, formatDate }
+const groupDatesByWeek = (dates: string[]): string[][] => {
+  const groups: string[][] = []
+
+  for (let i = 0; i < dates.length; i += 7) {
+    groups.push(dates.slice(i, i + 7))
+  }
+
+  return groups
+}
+
+export { formatDateTime, formatDate, groupDatesByWeek }
