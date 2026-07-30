@@ -9,31 +9,13 @@ import { useEventsContext } from "./providers/eventsProvider"
 import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
+import { boundsForRadius } from "./lib/geo"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
 import type { EventResponse } from "./hooks/eventsStream"
 
 const INITIAL_ZOOM = 1
-const MILES_PER_DEGREE_LATITUDE = 69
-
-/** Bounding box (west/south, east/north) for a circle of `radiusMiles`
- * around `center`. Approximate — fine for camera framing, not for
- * distance math. */
-function boundsForRadius(
-  center: [number, number],
-  radiusMiles: number
-): [[number, number], [number, number]] {
-  const [lng, lat] = center
-  const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE
-  const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 0.01)
-  const lngDelta = radiusMiles / (MILES_PER_DEGREE_LATITUDE * cosLat)
-
-  return [
-    [lng - lngDelta, lat - latDelta],
-    [lng + lngDelta, lat + latDelta],
-  ]
-}
 
 const MapWrapper = () => {
   const { selectedCoordinates, setSelectedLocation, dateRange } =
