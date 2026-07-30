@@ -12,6 +12,7 @@ import { useMediaQuery } from "usehooks-ts"
 import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react"
 import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
+import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
 import type { Key } from "react-aria-components/Tabs"
 import { useDrawerProvider } from "@/providers/drawerProvider"
 
@@ -78,7 +79,17 @@ const DrawerWrapper = () => {
   const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
 
   const [activeTab, setActiveTab] = useState<Key>("explore")
+  // FIXME: eventListRef is never attached to a DOM node, so the effect below
+  // that guards on `eventListRef.current` never runs — "switch to Explore
+  // tab on new events" is currently dead code, not working behavior. Left
+  // as-is for now; revisit as its own change rather than reviving it as a
+  // side effect of the date-scroll fix.
   const eventListRef = useRef<HTMLDivElement>(null)
+  const eventsScrollRef = useRef<HTMLDivElement>(null)
+  const { topMostId, registerItem } = useTopMostVisibleInScrollContainer(
+    eventsScrollRef,
+    { offsetTop: 0 }
+  )
 
   const handleDestinationTab = useCallback(
     (tab: Key) => {
@@ -87,6 +98,11 @@ const DrawerWrapper = () => {
     },
     [setIsDrawerOpen]
   )
+
+  const scrollToDate = useCallback((date: string) => {
+    const target = eventsScrollRef.current?.querySelector(`#a${date}`)
+    target?.scrollIntoView({ block: "start", behavior: "smooth" })
+  }, [])
 
   useEffect(() => {
     // Syncs drawer visibility/active tab to event selection, which is owned
@@ -160,16 +176,19 @@ const DrawerWrapper = () => {
         <TabPanel id="explore" className="p-0">
           {!selectedEvents.length && entries.length > 0 && (
             <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
-              <EventsDrawerHeader />
+              <EventsDrawerHeader topMostId={topMostId} onSelect={scrollToDate} />
             </DrawerHeader>
           )}
-          <DrawerBody className="h-full flex-1 overflow-y-auto scroll-smooth">
+          <DrawerBody
+            ref={eventsScrollRef}
+            className="h-full flex-1 overflow-y-auto scroll-smooth"
+          >
             {selectedEvents.length === 1 ? (
               <EventDetails eventData={selectedEvents[0]} />
             ) : selectedEvents.length ? (
               <VenueDetails events={selectedEvents} />
             ) : (
-              <EventsDrawer />
+              <EventsDrawer registerItem={registerItem} />
             )}
           </DrawerBody>
         </TabPanel>

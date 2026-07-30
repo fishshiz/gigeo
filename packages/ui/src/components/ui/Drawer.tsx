@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useDragControls } from "motion/react"
 import { use, Children, cloneElement } from "react"
+import type { Ref } from "react"
 import type {
   DialogProps,
   DialogTriggerProps,
@@ -221,9 +222,11 @@ const DrawerDescription = ({ className, ...props }: TextProps) => (
 
 const DrawerBody = ({
   className,
+  ref,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }) => (
   <div
+    ref={ref}
     slot="body"
     className={twMerge(
       "isolate flex h-full min-h-0 flex-col overflow-auto px-4 py-1 will-change-scroll",
