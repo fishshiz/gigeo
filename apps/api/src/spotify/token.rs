@@ -40,10 +40,7 @@ pub(crate) async fn get_valid_spotify_token(
     }
 
     let refreshed = state.user_manager.refresh_with(&row.refresh_token).await?;
-    let new_refresh_token = refreshed
-        .refresh_token
-        .clone()
-        .unwrap_or(row.refresh_token);
+    let new_refresh_token = refreshed.refresh_token.clone().unwrap_or(row.refresh_token);
     let new_expires_at = Utc::now() + Duration::seconds(refreshed.expires_in as i64);
 
     sqlx::query!(

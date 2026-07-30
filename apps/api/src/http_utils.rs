@@ -51,7 +51,12 @@ pub(crate) async fn request_with_backoff(
 
             let server_wait = parse_retry_after(&resp);
             let backoff = server_wait.max(1) * 2u64.pow(attempt - 1);
-            tracing::warn!(provider, attempt, backoff, "Rate limited (429), backing off");
+            tracing::warn!(
+                provider,
+                attempt,
+                backoff,
+                "Rate limited (429), backing off"
+            );
             tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
             continue;
         }

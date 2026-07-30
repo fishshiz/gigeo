@@ -3,14 +3,12 @@ use axum::{Json, http::StatusCode};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
-
 use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct AttractionEventsQuery {
     id: String,
 }
-
 
 #[derive(Debug, Deserialize)]
 struct TicketmasterResponse {
@@ -135,8 +133,6 @@ pub struct EventResponse {
     url: Option<String>,
     priceRanges: Option<Vec<TmPriceRange>>,
 }
-
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Images {

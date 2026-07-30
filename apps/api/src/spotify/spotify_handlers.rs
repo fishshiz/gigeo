@@ -1,4 +1,12 @@
 use crate::auth::TokenResponse;
+use crate::cookie::utils::build_session_cookie;
+use crate::error::AppError;
+use crate::services::playlist_builder::{
+    PlaylistUpdateMode, PlaylistVisibility, find_artist_names_near, resolve_update_mode,
+    search_tracks_for_artists,
+};
+use crate::spotify::client::{Artist, Image};
+use crate::state::AppState;
 use axum::{
     Json,
     extract::{Query, State},
@@ -8,14 +16,6 @@ use axum::{
 use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
-use crate::services::playlist_builder::{
-    find_artist_names_near, resolve_update_mode, search_tracks_for_artists, PlaylistUpdateMode,
-    PlaylistVisibility,
-};
-use crate::cookie::utils::build_session_cookie;
-use crate::error::AppError;
-use crate::spotify::client::{Artist, Image};
-use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
 // GET /artist?name=<artist_name>&name=<artist_name>&...
@@ -106,7 +106,7 @@ pub struct CreatePlaylistRequest {
     pub location: String,
     // The location coordinates
     pub latitude: f64,
-    pub longitude: f64, 
+    pub longitude: f64,
 }
 
 #[derive(Serialize)]
@@ -142,10 +142,12 @@ pub async fn get_user_playlists(
     State(state): State<AppState>,
     jar: SignedCookieJar,
 ) -> Result<Json<Vec<PlaylistSummary>>, AppError> {
-    let cookie = jar.get("spotify_oauth_state").ok_or(AppError::Unauthorized {
-        status: StatusCode::UNAUTHORIZED,
-        message: "Unauthorized".into(),
-    })?;
+    let cookie = jar
+        .get("spotify_oauth_state")
+        .ok_or(AppError::Unauthorized {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Unauthorized".into(),
+        })?;
     let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
         status: StatusCode::UNAUTHORIZED,
         message: "Unauthorized session id".into(),
@@ -158,7 +160,7 @@ pub async fn get_user_playlists(
         });
     };
     let playlists = get_playlists(&state, account_id).await?;
-    return Ok(playlists);
+    Ok(playlists)
 }
 
 /// Create a Spotify playlist from a list of artist names.
@@ -175,14 +177,13 @@ pub async fn create_playlist(
     jar: SignedCookieJar,
     Json(req): Json<CreatePlaylistRequest>,
 ) -> Result<(StatusCode, Json<CreatePlaylistResponse>), AppError> {
-    let cookie = jar.get("spotify_oauth_state").ok_or_else(|| {
-        AppError::AuthRequired("No session cookie. Visit /login first.".into())
+    let cookie = jar
+        .get("spotify_oauth_state")
+        .ok_or_else(|| AppError::AuthRequired("No session cookie. Visit /login first.".into()))?;
+    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Invalid session cookie".into(),
     })?;
-    let session_id =
-        uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Invalid session cookie".into(),
-        })?;
     let account_id = resolve_session_account(&state.db.pool, session_id)
         .await?
         .ok_or_else(|| {
@@ -489,9 +490,9 @@ struct CreatePlaylistParams<'a> {
     account_id: uuid::Uuid,
     provider_playlist_id: &'a str,
     name: &'a str,
-    geohash: &'a str,           // must be exactly 6 chars — see check constraint
+    geohash: &'a str, // must be exactly 6 chars — see check constraint
     city: &'a str,
-    update_cadence_days: i16,   // must be 7, 30, or 60 — see check constraint
+    update_cadence_days: i16, // must be 7, 30, or 60 — see check constraint
     visibility: PlaylistVisibility,
     update_mode: PlaylistUpdateMode,
 }
@@ -576,11 +577,10 @@ async fn upsert_spotify_account(
     let account_id = match existing {
         Some(row) => row.account_id,
         None => {
-            let acc = sqlx::query!(
-                r#"insert into account (provider) values ('spotify') returning id"#
-            )
-            .fetch_one(&mut *tx)
-            .await?;
+            let acc =
+                sqlx::query!(r#"insert into account (provider) values ('spotify') returning id"#)
+                    .fetch_one(&mut *tx)
+                    .await?;
             acc.id
         }
     };

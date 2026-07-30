@@ -5,7 +5,7 @@
 //!   Developer Tokens – https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens
 //!   User Auth        – https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit
 
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
