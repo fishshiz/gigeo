@@ -18,8 +18,10 @@ export const EventsDrawer = () => {
 
   if (!entries.length && isStreaming) {
     return (
-      <div className="flex h-full w-full items-center justify-center">
-        <p className="text-gray-600">Searching for events…</p>
+      <div className="flex h-full w-full items-center justify-center p-6 text-center">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Searching for events…
+        </p>
       </div>
     )
   }
@@ -27,18 +29,20 @@ export const EventsDrawer = () => {
   return (
     <>
       {entries.length ? (
-        <div ref={eventListRef}>
+        <div ref={eventListRef} className="flex flex-col gap-4">
           {entries.map(([date, events]) => (
             <div key={date}>
               <DateAnchor date={date} ref={registerItem(date)} />
-              <ul className="flex w-full flex-col justify-between gap-4">
+              <ul className="flex w-full flex-col justify-between gap-2.5 pt-2.5">
                 {events.map((event) => (
                   <li className="relative" key={event.id}>
                     <EventCard
                       key={event.id}
                       event={event}
                       date={
-                        <span className="text-gray-600">{event.dates}</span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {event.dates}
+                        </span>
                       }
                     />
                   </li>
@@ -48,8 +52,8 @@ export const EventsDrawer = () => {
           ))}
         </div>
       ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <p className="text-gray-600">
+        <div className="flex h-full w-full items-center justify-center p-6 text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             {radiusExpanded && searchRadius
               ? `No events found within ${searchRadius}mi. Try searching for a different location, or adjusting the calendar date range.`
               : "No events found. Try searching for a different location, or adjusting the calendar date range."}
@@ -87,7 +91,7 @@ export const EventsDrawerHeader = () => {
   return (
     <>
       <div className="mb-2 flex w-full items-center justify-between">
-        <h2 className="text-bold text-xl">Events</h2>
+        <h2 className="text-xl font-bold">Events</h2>
         {radiusExpanded && searchRadius && (
           <span className="text-xs text-gray-500">
             Showing events within {searchRadius}mi
@@ -117,9 +121,11 @@ const DateAnchor = ({
       <div id={`a${date}`} />
       <div
         ref={ref}
-        className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700) dark:text-(--color-text-primary-dark-700)"
+        className="sticky top-0 z-5 flex scroll-smooth border-b border-b-slate-200 bg-(--color-ivory-700) px-3 py-1.5 dark:border-b-(--color-border-subtle-dark-200) dark:bg-(--color-bg-dark-700)"
       >
-        <h3>{formattedDate}</h3>
+        <h3 className="text-sm font-semibold text-white dark:text-(--color-text-primary-dark-700)">
+          {formattedDate}
+        </h3>
       </div>
     </>
   )

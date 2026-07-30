@@ -92,7 +92,11 @@ const EventFilter = () => {
           </Dialog>
         </Popover>
       </DialogTrigger>
-      <p>Current selection: {[...selected].join(", ")}</p>
+      {selected.size > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Filtering by: {[...selected].join(", ")}
+        </p>
+      )}
     </>
   )
 }
