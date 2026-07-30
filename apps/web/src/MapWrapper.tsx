@@ -367,10 +367,14 @@ const MapWrapper = () => {
     }
 
     markEvents()
-    // selectedEvents intentionally omitted: the effect above already patches
-    // icon-image via setLayoutProperty when the selection changes, so
-    // rebuilding the whole layer/source here on every click isn't needed.
-  }, [eventsByDate, selectEvents, selectedEvents])
+    // selectedEvents intentionally omitted: this effect calls selectEvents([])
+    // itself (inside markEvents), so including selectedEvents here would
+    // make the effect re-trigger the state change that re-runs it — an
+    // infinite loop. The effect above already patches icon-image via
+    // setLayoutProperty when the selection changes, so rebuilding the whole
+    // layer/source here on every click isn't needed either.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsByDate, selectEvents])
 
   useEffect(() => {
     if (!mapRef.current) return
