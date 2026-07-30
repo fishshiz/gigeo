@@ -39,7 +39,9 @@ type UseSpotifyAuthResult = {
   getPlaylists: () => Promise<SpotifyPlaylist[]>
 }
 
-function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
+export function parseCreatePlaylistForm(
+  formData: FormData
+): CreatePlaylistInput {
   const name = formData.get("playlistName")
   const location = formData.get("location")
   const privacy = formData.get("privacy")
@@ -61,7 +63,7 @@ function parseCreatePlaylistForm(formData: FormData): CreatePlaylistInput {
   return {
     name: name.trim(),
     location: location.trim(),
-    description: "test description",
+    description: "",
     privacy: privacy === "private",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     destructive: behavior === "destructive",
