@@ -6,6 +6,7 @@ import mapboxgl, {
 } from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
+import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
 import "mapbox-gl/dist/mapbox-gl.css"
@@ -35,12 +36,9 @@ function boundsForRadius(
 }
 
 const MapWrapper = () => {
-  const {
-    selectedCoordinates,
-    setSelectedCoordinates,
-    setSelectedLocation,
-    dateRange,
-  } = useSearchProvider()
+  const { selectedCoordinates, setSelectedLocation, dateRange } =
+    useSearchProvider()
+  const navigateToLocation = useNavigateToLocation()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     // Marks first-mount completion so later effects can skip their initial
@@ -52,7 +50,6 @@ const MapWrapper = () => {
   const {
     streamEvents,
     cancelStream,
-    resetEvents,
     eventsByDate,
     selectEvents,
     selectedEvents,
@@ -139,12 +136,7 @@ const MapWrapper = () => {
       // when a geolocate event occurs.
       geolocate.on("geolocate", (e) => {
         const { longitude, latitude } = e.coords
-        // Reset the search-radius state in the same commit as the
-        // coordinate change, otherwise the fitBounds effect below can
-        // briefly see the previous location's (possibly much wider)
-        // radius paired with the new coordinates and zoom out to match it.
-        resetEvents()
-        setSelectedCoordinates([longitude, latitude])
+        navigateToLocation([longitude, latitude])
 
         fetch(
           `/api/reverse-geocode?longitude=${longitude}&latitude=${latitude}`

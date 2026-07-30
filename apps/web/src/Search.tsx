@@ -4,7 +4,7 @@ import { TextField } from "@workspace/ui/components/ui/TextField"
 import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
 import { useSearchProvider } from "./providers/searchProvider"
 import { useDrawerProvider } from "./providers/drawerProvider"
-import { useEventsContext } from "./providers/eventsProvider"
+import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 
 const useDebounce = (value: string, delayTime: number) => {
   const [debounceValue, setDebounceValue] = useState(value)
@@ -22,7 +22,6 @@ const useDebounce = (value: string, delayTime: number) => {
 
 const Search = () => {
   const {
-    setSelectedCoordinates,
     dateRange,
     setDateRange,
     selectedLocation,
@@ -30,7 +29,7 @@ const Search = () => {
     setInputRef,
   } = useSearchProvider()
   const { setIsDrawerOpen } = useDrawerProvider()
-  const { resetEvents } = useEventsContext()
+  const navigateToLocation = useNavigateToLocation()
 
   const [searchTerm, setSearchTerm] = useState("")
   const [places, setPlaces] = useState<GeoJSONFeature[]>([])
@@ -61,12 +60,10 @@ const Search = () => {
     if (place.geometry.type === "GeometryCollection") return
     const coordinates = place.geometry.coordinates as [number, number]
     setPlaces([place])
-    // Reset in the same commit as the coordinate change — see the matching
-    // comment in MapWrapper's geolocate handler for why this must not be
-    // left to streamEvents' own (one-render-late) reset.
-    resetEvents()
-    setSelectedCoordinates([coordinates[0], coordinates[1]])
-    setSelectedLocation(place.properties?.full_address)
+    navigateToLocation(
+      [coordinates[0], coordinates[1]],
+      place.properties?.full_address
+    )
     setIsDrawerOpen(true)
   }
 
