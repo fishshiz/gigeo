@@ -370,7 +370,7 @@ const MapWrapper = () => {
     // selectedEvents intentionally omitted: the effect above already patches
     // icon-image via setLayoutProperty when the selection changes, so
     // rebuilding the whole layer/source here on every click isn't needed.
-  }, [eventsByDate, selectEvents])
+  }, [eventsByDate, selectEvents, selectedEvents])
 
   useEffect(() => {
     if (!mapRef.current) return

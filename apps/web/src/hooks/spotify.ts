@@ -177,7 +177,7 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       await refresh()
       return data
     },
-    [refresh, latitude, longitude, selectedCoordinates]
+    [refresh, latitude, longitude]
   )
 
   return useMemo(

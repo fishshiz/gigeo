@@ -9,7 +9,7 @@ import {
 } from "@workspace/ui/components/ui/Drawer"
 import { useEventsContext } from "../providers/eventsProvider"
 import { useMediaQuery } from "usehooks-ts"
-import { useEffect, useRef, useState, lazy, Suspense } from "react"
+import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react"
 import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
 import type { Key } from "react-aria-components/Tabs"
@@ -80,6 +80,14 @@ const DrawerWrapper = () => {
   const [activeTab, setActiveTab] = useState<Key>("explore")
   const eventListRef = useRef<HTMLDivElement>(null)
 
+  const handleDestinationTab = useCallback(
+    (tab: Key) => {
+      setIsDrawerOpen(true)
+      setActiveTab(tab)
+    },
+    [setIsDrawerOpen]
+  )
+
   useEffect(() => {
     // Syncs drawer visibility/active tab to event selection, which is owned
     // by a different provider (eventsProvider) — not derivable at render
@@ -95,12 +103,8 @@ const DrawerWrapper = () => {
   useEffect(() => {
     if (!eventListRef.current) return
     handleDestinationTab("explore")
-  }, [eventsByDate, setIsDrawerOpen])
+  }, [eventsByDate, setIsDrawerOpen, handleDestinationTab])
 
-  const handleDestinationTab = (tab: Key) => {
-    setIsDrawerOpen(true)
-    setActiveTab(tab)
-  }
   const isDesktop = useMediaQuery("(min-width: 768px)", {
     defaultValue: false,
     initializeWithValue: false,
