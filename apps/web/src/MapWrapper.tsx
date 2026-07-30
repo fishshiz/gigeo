@@ -70,13 +70,25 @@ const MapWrapper = () => {
   })
 
   useEffect(() => {
+    // Debounced rather than calling resize() on every tick: Mapbox
+    // recalculates its internal camera transform on each resize() call, and
+    // the drawer's open/close transition fires this observer continuously
+    // as its reserved width animates (~150ms). Resizing the GL canvas that
+    // often before it settles produces a visible zoom/scale glitch. Waiting
+    // for the container to go quiet avoids it — the canvas just stretches
+    // via CSS in the meantime, which is cheap and doesn't touch the camera.
+    let settleTimeout: ReturnType<typeof setTimeout> | null = null
     const resizeObserver = new ResizeObserver(() => {
-      mapRef.current?.resize()
+      if (settleTimeout) clearTimeout(settleTimeout)
+      settleTimeout = setTimeout(() => {
+        mapRef.current?.resize()
+      }, 200)
     })
     if (mapContainer.current) {
       resizeObserver.observe(mapContainer.current)
     }
     return () => {
+      if (settleTimeout) clearTimeout(settleTimeout)
       resizeObserver.disconnect()
     }
   }, [])
