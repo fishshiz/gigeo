@@ -16,6 +16,7 @@ import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
+import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 
 const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   const { attractions } = eventData
@@ -204,11 +205,6 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
   )
 }
 
-type Artwork = {
-  url: string
-  bgColor?: string
-}
-
 type SimilarArtist = {
   id: string
   name: string
@@ -222,14 +218,6 @@ type ArtistCardProps = {
   futureEvents?: Event[]
 }
 
-const buildArtworkUrl = (artwork: Artwork, size: number) => {
-  return artwork.url.replace("{w}", String(size)).replace("{h}", String(size))
-}
-
-const normalizeBg = (bgColor?: string) => {
-  if (!bgColor) return "#111827" // fallback
-  return bgColor.startsWith("#") ? bgColor : `#${bgColor}`
-}
 export const ArtistCard: React.FC<ArtistCardProps> = ({
   artist,
   similarArtists = [],
