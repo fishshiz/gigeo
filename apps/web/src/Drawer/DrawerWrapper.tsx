@@ -1,5 +1,6 @@
 import { EventDetails } from "../EventDetails"
 import { XIcon } from "lucide-react"
+import { motion } from "motion/react"
 import {
   DrawerBody,
   DrawerContent,
@@ -96,6 +97,11 @@ const DrawerWrapper = () => {
     setIsDrawerOpen(true)
     setActiveTab("explore")
   }, [eventsByDate, setIsDrawerOpen])
+
+  const handleDestinationTab = (tab: Key) => {
+    setIsDrawerOpen(true)
+    setActiveTab(tab)
+  }
   const isDesktop = useMediaQuery("(min-width: 768px)", {
     defaultValue: false,
     initializeWithValue: false,
@@ -103,17 +109,97 @@ const DrawerWrapper = () => {
 
   const entries = Object.entries(eventsByDate).sort()
 
+  // Kept in lockstep with the DrawerContent slide transition in the shared
+  // Drawer component, so the reserved layout width and the visible slide
+  // finish at the same time instead of the map snapping to size afterward.
+  const DRAWER_TRANSITION = { duration: 0.15, ease: "easeInOut" as const }
+  // Must match the literal "w-[26rem]" on DrawerContent below — Tailwind
+  // can't see this value if it's interpolated into a class name, so the
+  // two have to be kept in sync by hand.
+  const desktopDrawerWidth = "26rem"
+
+  const drawerContent = (
+    <DrawerContent
+      isOpen={isDrawerOpen}
+      closeDrawer={() => setIsDrawerOpen(false)}
+      notch={isDesktop ? false : true}
+      side={isDesktop ? "left" : "bottom"}
+      className={
+        isDesktop
+          ? "z-10 flex h-full w-[26rem] flex-col overflow-hidden"
+          : "z-10 flex h-full w-full flex-col overflow-hidden"
+      }
+    >
+      <DrawerClose
+        aria-label="Close drawer"
+        className="absolute top-3 right-3 z-20"
+        variant="quiet"
+        onClick={() => setIsDrawerOpen(false)}
+      >
+        <XIcon />
+      </DrawerClose>
+
+      {!isDesktop && (
+        <TabList
+          aria-label="Content sections"
+          className="flex shrink-0 items-center justify-center gap-1.5 border-b border-black/10 px-3 pt-1 pr-14 pb-2 dark:border-white/10"
+        >
+          {destinationTabs.map(({ id, label }) => (
+            <Tab key={id} id={id} className="gap-1.5 px-3">
+              <DestinationIcon id={id} size={16} />
+              <span className="text-xs font-medium">{label}</span>
+            </Tab>
+          ))}
+        </TabList>
+      )}
+
+      <TabPanels>
+        <TabPanel id="explore" className="p-0">
+          {!selectedEvents.length && entries.length > 0 && (
+            <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
+              <EventsDrawerHeader />
+            </DrawerHeader>
+          )}
+          <DrawerBody className="h-full flex-1 overflow-y-auto scroll-smooth">
+            {selectedEvents.length === 1 ? (
+              <EventDetails eventData={selectedEvents[0]} />
+            ) : selectedEvents.length ? (
+              <VenueDetails events={selectedEvents} />
+            ) : (
+              <EventsDrawer />
+            )}
+          </DrawerBody>
+        </TabPanel>
+
+        <TabPanel id="spotify" className="flex flex-col">
+          <Suspense fallback={null}>
+            <PlaylistDrawerHeader />
+            <PlaylistsDrawerBody />
+          </Suspense>
+        </TabPanel>
+        <TabPanel
+          id="search"
+          className="flex items-center justify-center"
+        ></TabPanel>
+        <TabPanel
+          id="settings"
+          className="flex items-center justify-center"
+        ></TabPanel>
+      </TabPanels>
+    </DrawerContent>
+  )
+
   return (
     <Tabs
       orientation={isDesktop ? "vertical" : "horizontal"}
-      className="h-[40vh] shrink-0 md:h-full md:w-[30rem]"
+      className="h-[40vh] shrink-0 md:h-full"
       selectedKey={activeTab}
-      onSelectionChange={(t) => setActiveTab(t)}
+      onSelectionChange={(t) => handleDestinationTab(t)}
     >
       {isDesktop && (
         <TabList
           aria-label="Content sections"
-          className="flex-col items-center gap-1 border-r border-black/10 py-2 dark:border-white/10"
+          className="h-full flex-col items-center gap-1 border-r border-black/10 py-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
             <Tab
@@ -131,70 +217,18 @@ const DrawerWrapper = () => {
         </TabList>
       )}
 
-      <DrawerContent
-        isOpen={isDrawerOpen}
-        closeDrawer={() => setIsDrawerOpen(false)}
-        notch={isDesktop ? false : true}
-        side={isDesktop ? "left" : "bottom"}
-        className="z-10 flex h-full w-full flex-col overflow-hidden"
-      >
-        <DrawerClose
-          aria-label="Close drawer"
-          className="absolute top-3 right-3 z-20"
-          variant="quiet"
-          onClick={() => setIsDrawerOpen(false)}
+      {isDesktop ? (
+        <motion.div
+          className="h-full shrink-0 overflow-hidden"
+          initial={false}
+          animate={{ width: isDrawerOpen ? desktopDrawerWidth : "0rem" }}
+          transition={DRAWER_TRANSITION}
         >
-          <XIcon />
-        </DrawerClose>
-
-        {!isDesktop && (
-          <TabList
-            aria-label="Content sections"
-            className="flex shrink-0 items-center justify-center gap-1.5 border-b border-black/10 px-3 pt-1 pr-14 pb-2 dark:border-white/10"
-          >
-            {destinationTabs.map(({ id, label }) => (
-              <Tab key={id} id={id} className="gap-1.5 px-3">
-                <DestinationIcon id={id} size={16} />
-                <span className="text-xs font-medium">{label}</span>
-              </Tab>
-            ))}
-          </TabList>
-        )}
-
-        <TabPanels>
-          <TabPanel id="explore" className="p-0">
-            {!selectedEvents.length && entries.length > 0 && (
-              <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
-                <EventsDrawerHeader />
-              </DrawerHeader>
-            )}
-            <DrawerBody className="h-full flex-1 overflow-y-auto scroll-smooth">
-              {selectedEvents.length === 1 ? (
-                <EventDetails eventData={selectedEvents[0]} />
-              ) : selectedEvents.length ? (
-                <VenueDetails events={selectedEvents} />
-              ) : (
-                <EventsDrawer />
-              )}
-            </DrawerBody>
-          </TabPanel>
-
-          <TabPanel id="spotify" className="flex flex-col">
-            <Suspense fallback={null}>
-              <PlaylistDrawerHeader />
-              <PlaylistsDrawerBody />
-            </Suspense>
-          </TabPanel>
-          <TabPanel
-            id="search"
-            className="flex items-center justify-center"
-          ></TabPanel>
-          <TabPanel
-            id="settings"
-            className="flex items-center justify-center"
-          ></TabPanel>
-        </TabPanels>
-      </DrawerContent>
+          {drawerContent}
+        </motion.div>
+      ) : (
+        drawerContent
+      )}
     </Tabs>
   )
 }

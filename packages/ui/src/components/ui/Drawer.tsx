@@ -17,7 +17,7 @@ import {
   OverlayTriggerStateContext,
   Text,
 } from "react-aria-components"
-import { twJoin, twMerge } from "tailwind-merge"
+import { twMerge } from "tailwind-merge"
 import { Button, type ButtonProps } from "./Button"
 
 type PassThroughProps = {
@@ -62,7 +62,7 @@ const DrawerContent = ({
     <AnimatePresence>
       {(props?.isOpen || state?.isOpen) && (
         <DrawerRoot
-          className={twJoin(
+          className={twMerge(
             "bg-background text-foreground h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform",
             side === "top" &&
               (isFloat
@@ -153,7 +153,7 @@ const DrawerContent = ({
           <Dialog
             aria-label="Drawer"
             role="dialog"
-            className={twJoin(
+            className={twMerge(
               "relative flex h-full flex-col overflow-hidden outline-hidden will-change-auto",
               side === "top" || side === "bottom"
                 ? "mx-auto max-w-lg"
