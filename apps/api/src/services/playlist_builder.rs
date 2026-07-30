@@ -22,6 +22,19 @@ pub enum PlaylistUpdateMode {
     Destructive,
 }
 
+/// Resolves the requested `destructive` flag on a create-playlist request
+/// into the `PlaylistUpdateMode` stored for periodic updates.
+///
+/// `Some(true)` or `None` (omitted) both mean updates replace the
+/// playlist's tracks; `Some(false)` means updates only add tracks.
+pub fn resolve_update_mode(destructive: Option<bool>) -> PlaylistUpdateMode {
+    if destructive.unwrap_or(true) {
+        PlaylistUpdateMode::Destructive
+    } else {
+        PlaylistUpdateMode::Additive
+    }
+}
+
 pub async fn get_concerts_tm_impl(
     state: &AppState,
     params: &EventsQuery,
@@ -145,5 +158,25 @@ pub async fn search_tracks_for_artists(
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_update_mode_true_is_destructive() {
+        assert_eq!(resolve_update_mode(Some(true)), PlaylistUpdateMode::Destructive);
+    }
+
+    #[test]
+    fn resolve_update_mode_false_is_additive() {
+        assert_eq!(resolve_update_mode(Some(false)), PlaylistUpdateMode::Additive);
+    }
+
+    #[test]
+    fn resolve_update_mode_none_defaults_to_destructive() {
+        assert_eq!(resolve_update_mode(None), PlaylistUpdateMode::Destructive);
+    }
 }
 

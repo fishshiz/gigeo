@@ -9,7 +9,8 @@ use axum_extra::extract::Query as QueryArray;
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
 use crate::services::playlist_builder::{
-    find_artist_names_near, search_tracks_for_artists, PlaylistUpdateMode, PlaylistVisibility,
+    find_artist_names_near, resolve_update_mode, search_tracks_for_artists, PlaylistUpdateMode,
+    PlaylistVisibility,
 };
 use crate::cookie::utils::build_session_cookie;
 use crate::error::AppError;
@@ -263,11 +264,7 @@ pub async fn create_playlist(
         PlaylistVisibility::Public
     };
 
-    let update_mode = if req.destructive.unwrap_or(true) {
-        PlaylistUpdateMode::Destructive
-    } else {
-        PlaylistUpdateMode::Additive
-    };
+    let update_mode = resolve_update_mode(req.destructive);
 
     create_playlist_record(
         &state.db.pool,
