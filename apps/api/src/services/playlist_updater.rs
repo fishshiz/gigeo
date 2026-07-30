@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    find_artist_names_near, search_tracks_for_artists, PlaylistUpdateMode,
+    PlaylistUpdateMode, find_artist_names_near, search_tracks_for_artists,
 };
 use crate::spotify::token::get_valid_spotify_token;
 use crate::state::AppState;
@@ -146,7 +146,8 @@ async fn update_one_playlist(state: &AppState, p: ClaimedPlaylist) {
         }
         Err(e) => {
             warn!(playlist_id = %p.id, error = %e, "playlist update failed");
-            let deactivate = matches!(&e, AppError::SpotifyApi { status, .. } if status.as_u16() == 404);
+            let deactivate =
+                matches!(&e, AppError::SpotifyApi { status, .. } if status.as_u16() == 404);
             if let Err(e) = finish_run_failure(&state.db.pool, run_id, &e.to_string()).await {
                 error!(playlist_id = %p.id, error = %e, "failed to finalize playlist_update_run (failure)");
             }
@@ -339,11 +340,7 @@ async fn finish_run_success(
     .map(|_| ())
 }
 
-async fn finish_run_failure(
-    pool: &PgPool,
-    run_id: Uuid,
-    message: &str,
-) -> Result<(), sqlx::Error> {
+async fn finish_run_failure(pool: &PgPool, run_id: Uuid, message: &str) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         update playlist_update_run

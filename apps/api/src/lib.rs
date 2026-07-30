@@ -7,12 +7,12 @@ mod db;
 mod error;
 mod http_utils;
 mod mapbox_handlers;
+mod services;
 mod spotify;
 mod state;
 mod ticketmaster_handlers;
 mod ticketmaster_stream;
 mod token_cache;
-mod services;
 use std::sync::Arc;
 
 use anyhow::Result;

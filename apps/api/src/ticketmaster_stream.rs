@@ -327,7 +327,7 @@ async fn fetch_tm_page(
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::TicketmasterApi {
-            status: status,
+            status,
             message: body,
         });
     }
@@ -353,10 +353,11 @@ pub async fn get_concerts_tm_stream(
         message: format!("failed to encode geohash: {e}"),
     })?;
 
-    let windows = date_windows(&params.start, &params.end).map_err(|e| AppError::TicketmasterApi {
-        status: StatusCode::BAD_REQUEST,
-        message: e,
-    })?;
+    let windows =
+        date_windows(&params.start, &params.end).map_err(|e| AppError::TicketmasterApi {
+            status: StatusCode::BAD_REQUEST,
+            message: e,
+        })?;
 
     let client = state.client.clone();
     let api_key = state.ticketmaster_key.clone();
@@ -379,18 +380,18 @@ pub async fn get_concerts_tm_stream(
                     page,
                 ).await?;
 
-                if let Some(meta) = &body.page {
-                    if meta.totalElements >= 1000 {
-                        tracing::warn!(
-                            start = %start,
-                            end = %end,
-                            page = meta.number,
-                            page_size = meta.size,
-                            total_pages = meta.totalPages,
-                            total_elements = meta.totalElements,
-                            "ticketmaster window may exceed deep paging limit"
-                        );
-                    }
+                if let Some(meta) = &body.page
+                    && meta.totalElements >= 1000
+                {
+                    tracing::warn!(
+                        start = %start,
+                        end = %end,
+                        page = meta.number,
+                        page_size = meta.size,
+                        total_pages = meta.totalPages,
+                        total_elements = meta.totalElements,
+                        "ticketmaster window may exceed deep paging limit"
+                    );
                 }
 
                 let events = body
@@ -474,10 +475,7 @@ mod tests {
             },
         );
         let normalized = normalize_event(event);
-        assert_eq!(
-            normalized.dates.as_deref(),
-            Some("2026-08-01T15:00:00")
-        );
+        assert_eq!(normalized.dates.as_deref(), Some("2026-08-01T15:00:00"));
     }
 
     #[test]
@@ -606,8 +604,7 @@ mod tests {
 
     #[test]
     fn date_windows_single_day_produces_one_window_clipped_to_input() {
-        let windows =
-            date_windows("2026-08-01T14:00:00Z", "2026-08-01T22:00:00Z").unwrap();
+        let windows = date_windows("2026-08-01T14:00:00Z", "2026-08-01T22:00:00Z").unwrap();
         assert_eq!(windows.len(), 1);
         assert_eq!(windows[0].0, "2026-08-01T14:00:00Z");
         assert_eq!(windows[0].1, "2026-08-01T22:00:00Z");
@@ -615,8 +612,7 @@ mod tests {
 
     #[test]
     fn date_windows_splits_multi_day_range_by_calendar_day() {
-        let windows =
-            date_windows("2026-08-01T14:00:00Z", "2026-08-03T10:00:00Z").unwrap();
+        let windows = date_windows("2026-08-01T14:00:00Z", "2026-08-03T10:00:00Z").unwrap();
         assert_eq!(windows.len(), 3);
 
         // First window starts at the given start time, not midnight.

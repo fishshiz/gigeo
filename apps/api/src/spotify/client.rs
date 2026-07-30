@@ -228,7 +228,7 @@ impl SpotifyClient {
         artist_name: &str,
         limit: u8,
     ) -> Result<Option<Vec<Track>>, AppError> {
-        let query = format!("{artist_name}");
+        let query = artist_name.to_string();
         let artist_url = format!(
             "{BASE}/search?q={}&type=artist&limit={limit}",
             url_encode(&query),
@@ -239,9 +239,7 @@ impl SpotifyClient {
             .artists
             .items
             .into_iter()
-            .find(|a| {
-                normalize(&a.name) == normalize(artist_name)
-            });
+            .find(|a| normalize(&a.name) == normalize(artist_name));
         let Some(artist) = artist else {
             return Ok(None);
         };
@@ -261,7 +259,7 @@ impl SpotifyClient {
 
     /// `GET /artists/{id}`  — non-deprecated.
     pub async fn get_artist_by_href(&self, token: &str, href: &str) -> Result<Artist, AppError> {
-        let url = format!("{href}");
+        let url = href.to_string();
         self.get_json(token, &url).await
     }
 
@@ -349,8 +347,9 @@ impl SpotifyClient {
         token: &str,
         playlist_id: &str,
     ) -> Result<PlaylistDetails, AppError> {
-        let url =
-            format!("{BASE}/playlists/{playlist_id}?fields=id,name,images,external_urls,tracks.total");
+        let url = format!(
+            "{BASE}/playlists/{playlist_id}?fields=id,name,images,external_urls,tracks.total"
+        );
         self.get_json(token, &url).await
     }
 
@@ -472,7 +471,10 @@ mod tests {
             .collect();
 
         assert_eq!(uris, vec!["spotify:track:1", "spotify:track:2"]);
-        assert_eq!(page.next.as_deref(), Some("https://api.spotify.com/v1/playlists/abc/tracks?offset=100"));
+        assert_eq!(
+            page.next.as_deref(),
+            Some("https://api.spotify.com/v1/playlists/abc/tracks?offset=100")
+        );
     }
 
     #[test]

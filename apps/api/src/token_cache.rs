@@ -82,7 +82,9 @@ mod tests {
     #[tokio::test]
     async fn returns_cached_value_before_expiry() {
         let cache = TokenCache::new(Duration::from_secs(60));
-        cache.set("token".to_string(), Duration::from_secs(3600)).await;
+        cache
+            .set("token".to_string(), Duration::from_secs(3600))
+            .await;
         assert_eq!(cache.get().await, Some("token".to_string()));
     }
 
@@ -91,7 +93,9 @@ mod tests {
         let cache = TokenCache::new(Duration::from_secs(60));
         // Expires in 30s, but the refresh margin is 60s, so it should
         // already read as stale to give callers time to refresh.
-        cache.set("token".to_string(), Duration::from_secs(30)).await;
+        cache
+            .set("token".to_string(), Duration::from_secs(30))
+            .await;
         assert_eq!(cache.get().await, None);
     }
 }

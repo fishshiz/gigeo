@@ -1,11 +1,10 @@
-
-use crate::state::{AppState};
-use crate::error::{AppError};
+use crate::error::AppError;
+use crate::state::AppState;
 use crate::ticketmaster_stream::{
-    EventsQuery, EventResponse, TicketmasterResponse, dedupe_key, normalize_event,
+    EventResponse, EventsQuery, TicketmasterResponse, dedupe_key, normalize_event,
 };
 use chrono::Utc;
-use geohash::{encode, Coord};
+use geohash::{Coord, encode};
 use std::collections::HashSet;
 
 #[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,14 +49,15 @@ pub async fn get_concerts_tm_impl(
 
     let url = format!(
         "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200&sort=date,asc",
-        hash,
-        state.ticketmaster_key,
-        params.radius,
-        params.start,
-        params.end
+        hash, state.ticketmaster_key, params.radius, params.start, params.end
     );
-   
-    let resp = state.client.get(&url).send().await.map_err(AppError::Request)?;
+
+    let resp = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(AppError::Request)?;
 
     let status = resp.status();
     let text = resp.text().await.map_err(AppError::Request)?;
@@ -166,12 +166,18 @@ mod tests {
 
     #[test]
     fn resolve_update_mode_true_is_destructive() {
-        assert_eq!(resolve_update_mode(Some(true)), PlaylistUpdateMode::Destructive);
+        assert_eq!(
+            resolve_update_mode(Some(true)),
+            PlaylistUpdateMode::Destructive
+        );
     }
 
     #[test]
     fn resolve_update_mode_false_is_additive() {
-        assert_eq!(resolve_update_mode(Some(false)), PlaylistUpdateMode::Additive);
+        assert_eq!(
+            resolve_update_mode(Some(false)),
+            PlaylistUpdateMode::Additive
+        );
     }
 
     #[test]
@@ -179,4 +185,3 @@ mod tests {
         assert_eq!(resolve_update_mode(None), PlaylistUpdateMode::Destructive);
     }
 }
-

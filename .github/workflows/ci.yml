@@ -16,10 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/api
+      - run: cargo fmt --check
       - run: cargo check --bins
+      # Scoped to clippy's own lints (clippy::all), not rustc's built-in
+      # ones (dead_code, non_snake_case, ...) — those track pre-existing
+      # debt (e.g. structs mirroring Ticketmaster's raw camelCase JSON)
+      # that isn't part of this gate.
+      - run: cargo clippy --bins --tests -- -D clippy::all
       - run: cargo test --lib
 
   web:

@@ -120,7 +120,6 @@ impl ClientCredentialsManager {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Authorization Code token manager (user-scoped)
 // ---------------------------------------------------------------------------
@@ -207,7 +206,7 @@ impl UserTokenManager {
         let tok: TokenResponse = resp.json().await?;
         let mut guard = self.token.write().await;
         let access_token = &tok.access_token;
-        let refresh_token = tok.refresh_token.as_ref().map(|s| s.clone());
+        let refresh_token = tok.refresh_token.clone();
         *guard = Some(UserToken {
             access_token: access_token.clone(),
             refresh_token: refresh_token
