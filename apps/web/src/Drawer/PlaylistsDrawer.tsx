@@ -84,6 +84,56 @@ const updateFrequencyOptions = [
   { value: "monthly", title: "Monthly", description: "Every 30 days" },
   { value: "bimonthly", title: "Bimonthly", description: "Every 60 days" },
 ]
+
+const updateBehaviorOptions = [
+  {
+    value: "destructive",
+    title: "Replace tracks",
+    description:
+      "Rebuild playlist from scratch on each update, keeping playlist light and fresh.",
+  },
+  {
+    value: "additive",
+    title: "Add new tracks",
+    description: "New tracks are added and old ones are preserved.",
+  },
+]
+
+const radioCardClassName =
+  "relative min-h-20 flex-1 cursor-default gap-1 rounded-lg border border-black/10 bg-white/80 p-3 text-left text-slate-700 transition select-none before:hidden before:content-none hover:border-black/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-slate-200 dark:hover:border-white/20 selected:border-primary selected:bg-primary/5 selected:shadow-md"
+
+const RadioCard = ({
+  value,
+  title,
+  description,
+}: {
+  value: string
+  title: string
+  description: string
+}) => (
+  <Radio value={value} className={radioCardClassName}>
+    {({ isSelected }) => (
+      <>
+        <div className="min-w-0 pr-5">
+          <div className="text-sm font-semibold text-primary">{title}</div>
+          <span slot="description" className="text-xs text-muted-foreground">
+            {description}
+          </span>
+        </div>
+
+        {isSelected && (
+          <span
+            aria-hidden="true"
+            className="absolute top-3 right-3 text-primary"
+          >
+            <CircleCheck size={16} />
+          </span>
+        )}
+      </>
+    )}
+  </Radio>
+)
+
 export const CreatePlaylistForm = () => {
   const { focusSearchInput, selectedLocation } = useSearchProvider()
   const { createPlaylist } = useSpotifyAuth()
@@ -153,36 +203,12 @@ export const CreatePlaylistForm = () => {
           isRequired
         >
           {updateFrequencyOptions.map((option) => (
-            <Radio
+            <RadioCard
               key={option.value}
               value={option.value}
-              className="relative min-h-20 flex-1 cursor-default gap-1 rounded-lg border border-black/10 bg-white/80 p-3 text-left text-slate-700 transition select-none before:hidden before:content-none hover:border-black/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-slate-200 dark:hover:border-white/20 selected:border-primary selected:bg-primary/5 selected:shadow-md"
-            >
-              {({ isSelected }) => (
-                <>
-                  <div className="min-w-0 pr-5">
-                    <div className="text-sm font-semibold text-primary">
-                      {option.title}
-                    </div>
-                    <span
-                      slot="description"
-                      className="text-xs text-muted-foreground"
-                    >
-                      {option.description}
-                    </span>
-                  </div>
-
-                  {isSelected && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-3 right-3 text-primary"
-                    >
-                      <CircleCheck size={16} />
-                    </span>
-                  )}
-                </>
-              )}
-            </Radio>
+              title={option.title}
+              description={option.description}
+            />
           ))}
         </RadioGroup>
         <Label>Update behavior</Label>
@@ -195,67 +221,14 @@ export const CreatePlaylistForm = () => {
           name="behavior"
           isRequired
         >
-          <Radio
-            key="destructive"
-            value="destructive"
-            className="relative min-h-20 flex-1 cursor-default gap-1 rounded-lg border border-black/10 bg-white/80 p-3 text-left text-slate-700 transition select-none before:hidden before:content-none hover:border-black/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-slate-200 dark:hover:border-white/20 selected:border-primary selected:bg-primary/5 selected:shadow-md"
-          >
-            {({ isSelected }) => (
-              <>
-                <div className="min-w-0 pr-5">
-                  <div className="text-sm font-semibold text-primary">
-                    Replace tracks
-                  </div>
-                  <span
-                    slot="description"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Rebuild playlist from scratch on each update, keeping
-                    playlist light and fresh.
-                  </span>
-                </div>
-
-                {isSelected && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-3 right-3 text-primary"
-                  >
-                    <CircleCheck size={16} />
-                  </span>
-                )}
-              </>
-            )}
-          </Radio>
-          <Radio
-            key="additive"
-            value="additive"
-            className="relative min-h-20 flex-1 cursor-default gap-1 rounded-lg border border-black/10 bg-white/80 p-3 text-left text-slate-700 transition select-none before:hidden before:content-none hover:border-black/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-slate-200 dark:hover:border-white/20 selected:border-primary selected:bg-primary/5 selected:shadow-md"
-          >
-            {({ isSelected }) => (
-              <>
-                <div className="min-w-0 pr-5">
-                  <div className="text-sm font-semibold text-primary">
-                    Add new tracks
-                  </div>
-                  <span
-                    slot="description"
-                    className="text-xs text-muted-foreground"
-                  >
-                    New tracks are added and old ones are preserved.
-                  </span>
-                </div>
-
-                {isSelected && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-3 right-3 text-primary"
-                  >
-                    <CircleCheck size={16} />
-                  </span>
-                )}
-              </>
-            )}
-          </Radio>
+          {updateBehaviorOptions.map((option) => (
+            <RadioCard
+              key={option.value}
+              value={option.value}
+              title={option.title}
+              description={option.description}
+            />
+          ))}
         </RadioGroup>
         <Button type="submit">Create Playlist</Button>
       </Form>
