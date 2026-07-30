@@ -94,8 +94,7 @@ const DrawerWrapper = () => {
 
   useEffect(() => {
     if (!eventListRef.current) return
-    setIsDrawerOpen(true)
-    setActiveTab("explore")
+    handleDestinationTab("explore")
   }, [eventsByDate, setIsDrawerOpen])
 
   const handleDestinationTab = (tab: Key) => {
