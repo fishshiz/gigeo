@@ -63,7 +63,7 @@ const DrawerContent = ({
       {(props?.isOpen || state?.isOpen) && (
         <DrawerRoot
           className={twJoin(
-            "bg-bg text-fg h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform",
+            "bg-background text-foreground h-full max-h-full touch-none overflow-hidden align-middle ring ring-input will-change-transform",
             side === "top" &&
               (isFloat
                 ? "inset-x-2 top-2 rounded-lg"

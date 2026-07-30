@@ -1,6 +1,12 @@
 import { usePlaylistContext } from "@/providers/playlistsProvider"
 import { useSpotifyAuth } from "../hooks/spotify"
-import { CircleCheck } from "lucide-react"
+import {
+  CircleCheck,
+  ListMusic,
+  CirclePlus,
+  Music2,
+  ExternalLink,
+} from "lucide-react"
 
 import { Button } from "@workspace/ui/components/ui/Button"
 import { RadioGroup, Radio } from "@workspace/ui/components/ui/RadioGroup"
@@ -24,7 +30,7 @@ import { DrawerBody, DrawerHeader } from "@workspace/ui/components/ui/Drawer"
 
 export const PlaylistDrawerHeader = () => {
   return (
-    <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
+    <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
       <PlaylistButtons />
     </DrawerHeader>
   )
@@ -32,43 +38,75 @@ export const PlaylistDrawerHeader = () => {
 
 export const PlaylistsDrawerBody = () => {
   const { spotifyPlaylists } = usePlaylistContext()
+  const { status } = useSpotifyAuth()
+  const isConnected = Boolean(status?.spotify_connected)
 
   return (
     <DrawerBody>
       <Tabs>
-        <TabList>
-          <Tab id="playlists">My Playlists</Tab>
-          <Tab id="add-playlist">Create</Tab>
+        <TabList aria-label="Playlist actions" className="mb-2">
+          <Tab id="playlists" className="gap-1.5">
+            <ListMusic size={15} />
+            My Playlists
+          </Tab>
+          <Tab id="add-playlist" className="gap-1.5">
+            <CirclePlus size={15} />
+            Create
+          </Tab>
         </TabList>
         <TabPanels>
           <TabPanel id="playlists">
-            <div className="flex flex-col gap-2">
-              {spotifyPlaylists.length > 0 ? (
-                <div>
-                  <h2>Spotify Playlists</h2>
-                  <ul>
-                    {spotifyPlaylists.map((playlist) => (
-                      <li
-                        key={playlist.id}
-                        className="flex items-center gap-2 rounded-lg border border-gray-300 p-2 hover:bg-gray-100"
-                      >
-                        {playlist.images && playlist.images.length > 0 && (
-                          <img
-                            src={playlist.images[0].url}
-                            alt={playlist.name}
-                            className="h-12 w-12 rounded"
-                          />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-4 p-4">
-                  <p>Gigeo is not managing any playlists.</p>
-                </div>
-              )}
-            </div>
+            {spotifyPlaylists.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {spotifyPlaylists.map((playlist) => (
+                  <li key={playlist.id}>
+                    <a
+                      href={playlist.external_url ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 rounded-lg border border-black/10 p-2 transition hover:border-black/20 hover:bg-neutral-50 dark:border-white/10 dark:hover:bg-zinc-800"
+                    >
+                      {playlist.images && playlist.images.length > 0 ? (
+                        <img
+                          src={playlist.images[0].url}
+                          alt=""
+                          className="h-12 w-12 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-neutral-100 text-muted-foreground dark:bg-neutral-800">
+                          <Music2 size={18} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-primary">
+                          {playlist.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {playlist.track_count} track
+                          {playlist.track_count === 1 ? "" : "s"}
+                          {playlist.city ? ` · ${playlist.city}` : ""}
+                        </p>
+                      </div>
+                      {playlist.external_url && (
+                        <ExternalLink
+                          size={14}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                      )}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+                <ListMusic size={24} className="text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {isConnected
+                    ? "Gigeo isn't managing any playlists yet."
+                    : "Connect Spotify to see the playlists Gigeo manages for you."}
+                </p>
+              </div>
+            )}
           </TabPanel>
           <TabPanel id="add-playlist">
             <CreatePlaylistForm />

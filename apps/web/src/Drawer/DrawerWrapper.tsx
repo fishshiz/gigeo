@@ -36,6 +36,42 @@ import AppleMusicLogo from "../assets/Apple_Music_Icon_RGB_lg_073120.svg"
 import { ReactSVG } from "react-svg"
 import { Compass } from "lucide-react"
 
+const destinationTabs = [
+  { id: "explore", label: "Explore" },
+  { id: "spotify", label: "Spotify" },
+  { id: "apple", label: "Apple Music" },
+] as const
+
+const DestinationIcon = ({
+  id,
+  size,
+}: {
+  id: (typeof destinationTabs)[number]["id"]
+  size: number
+}) => {
+  if (id === "explore") return <Compass size={size} />
+  if (id === "spotify")
+    return (
+      <ReactSVG
+        className="shrink-0"
+        style={{ width: size, height: size }}
+        src={SpotifyLogo}
+      />
+    )
+  return (
+    <ReactSVG
+      className="shrink-0"
+      style={{ width: size, height: size }}
+      beforeInjection={(svg) => {
+        svg.setAttribute("width", String(size))
+        svg.setAttribute("height", String(size))
+        svg.setAttribute("viewBox", svg.getAttribute("viewBox") || "0 0 24 24")
+      }}
+      src={AppleMusicLogo}
+    />
+  )
+}
+
 const DrawerWrapper = () => {
   const { eventsByDate, selectedEvents } = useEventsContext()
   const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
@@ -69,55 +105,66 @@ const DrawerWrapper = () => {
 
   return (
     <Tabs
-      orientation="vertical"
+      orientation={isDesktop ? "vertical" : "horizontal"}
       className="h-[40vh] shrink-0 md:h-full md:w-[30rem]"
       selectedKey={activeTab}
       onSelectionChange={(t) => setActiveTab(t)}
     >
-      <TabList
-        aria-label="Tabs"
-        className="border-r border-solid border-l-black"
-      >
-        <Tab id="explore">
-          <Compass size={24} />
-        </Tab>
-        <Tab id="spotify">
-          <ReactSVG className="h-[24px] w-[24px]" src={SpotifyLogo} />
-        </Tab>
-        <Tab id="apple">
-          <ReactSVG
-            beforeInjection={(svg) => {
-              svg.setAttribute("width", "24")
-              svg.setAttribute("height", "24")
-              svg.setAttribute(
-                "viewBox",
-                svg.getAttribute("viewBox") || "0 0 24 24"
-              )
-            }}
-            src={AppleMusicLogo}
-          />
-        </Tab>
-      </TabList>
+      {isDesktop && (
+        <TabList
+          aria-label="Content sections"
+          className="flex-col items-center gap-1 border-r border-black/10 py-2 dark:border-white/10"
+        >
+          {destinationTabs.map(({ id, label }) => (
+            <Tab
+              key={id}
+              id={id}
+              aria-label={label}
+              className="w-16 flex-col gap-1 rounded-lg px-2 py-2"
+            >
+              <DestinationIcon id={id} size={20} />
+              <span className="text-[10px] leading-none font-medium">
+                {label}
+              </span>
+            </Tab>
+          ))}
+        </TabList>
+      )}
 
       <DrawerContent
         isOpen={isDrawerOpen}
         closeDrawer={() => setIsDrawerOpen(false)}
         notch={isDesktop ? false : true}
         side={isDesktop ? "left" : "bottom"}
-        className="z-10 flex h-full w-full flex-col overflow-hidden bg-white"
+        className="z-10 flex h-full w-full flex-col overflow-hidden"
       >
+        <DrawerClose
+          className="absolute top-3 right-3 z-20"
+          variant="quiet"
+          onClick={() => setIsDrawerOpen(false)}
+        >
+          <XIcon />
+        </DrawerClose>
+
+        {!isDesktop && (
+          <TabList
+            aria-label="Content sections"
+            className="flex shrink-0 items-center justify-center gap-1.5 border-b border-black/10 px-3 pt-1 pr-14 pb-2 dark:border-white/10"
+          >
+            {destinationTabs.map(({ id, label }) => (
+              <Tab key={id} id={id} className="gap-1.5 px-3">
+                <DestinationIcon id={id} size={16} />
+                <span className="text-xs font-medium">{label}</span>
+              </Tab>
+            ))}
+          </TabList>
+        )}
+
         <TabPanels>
           <TabPanel id="explore" className="p-0">
-            {!selectedEvents.length && (
-              <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-white">
-                <DrawerClose
-                  className="absolute top-4 right-4 z-10"
-                  variant="quiet"
-                  onClick={() => setIsDrawerOpen(false)}
-                >
-                  <XIcon />
-                </DrawerClose>
-                {entries.length > 0 && <EventsDrawerHeader />}
+            {!selectedEvents.length && entries.length > 0 && (
+              <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
+                <EventsDrawerHeader />
               </DrawerHeader>
             )}
             <DrawerBody className="h-full flex-1 overflow-y-auto scroll-smooth">
@@ -131,10 +178,7 @@ const DrawerWrapper = () => {
             </DrawerBody>
           </TabPanel>
 
-          <TabPanel
-            id="spotify"
-            className="flex flex-col items-center justify-center"
-          >
+          <TabPanel id="spotify" className="flex flex-col">
             <Suspense fallback={null}>
               <PlaylistDrawerHeader />
               <PlaylistsDrawerBody />
