@@ -61,7 +61,7 @@ pub async fn build_app() -> Result<Router> {
     let db = AppDatabase::new(&database_url)
         .await
         .expect("Failed to connect to database");
-    println!("connected to database at {database_url}");
+    tracing::info!("connected to database");
     migrate!("./migrations")
         .run(&db.pool)
         .await
