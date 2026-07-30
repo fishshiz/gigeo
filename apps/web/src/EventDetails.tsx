@@ -95,9 +95,10 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
     <div ref={scrollRef} className="relative overflow-y-scroll">
       {/* sticky compact header inside the pane */}
       {showStickyHeader && (
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800/40 bg-slate-950/90 px-3 py-2 text-xs text-slate-100 backdrop-blur">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pr-14 pl-3 text-xs text-slate-100 backdrop-blur">
           <div className="flex min-w-0 items-center">
             <Button
+              aria-label="Back to events"
               className="z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
               variant="secondary"
               onClick={() => selectEvents([])}
@@ -128,6 +129,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
 
       {/* back + top-right tickets over hero */}
       <Button
+        aria-label="Back to events"
         className="absolute top-2 left-2 z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
         variant="secondary"
         onClick={() => setSelectedEvent(undefined)}
@@ -138,7 +140,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
       {eventData.url && (
         <Link
           variant="button"
-          className="absolute top-2 right-2 z-10 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+          className="absolute top-2 right-14 z-10 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
           href={eventData.url}
           target="_blank"
         >

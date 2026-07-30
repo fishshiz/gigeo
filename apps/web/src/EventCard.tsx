@@ -21,8 +21,16 @@ const EventCard = ({
 
   return (
     <div
-      className="shadow-8 flex overflow-hidden rounded-xl border border-slate-100 bg-white dark:border-(--color-surface-dark-200) dark:bg-(--color-surface-dark-400)"
+      role="button"
+      tabIndex={0}
+      className="relative flex cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:border-slate-200 hover:shadow-md active:scale-[0.99] dark:border-(--color-surface-dark-200) dark:bg-(--color-surface-dark-400) dark:hover:border-(--color-surface-dark-300)"
       onClick={() => selectEvents([event])}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          selectEvents([event])
+        }
+      }}
     >
       <div className="photo-detail h-auto w-full flex-1 overflow-hidden">
         <ResponsiveImage
@@ -33,18 +41,18 @@ const EventCard = ({
             height: "100%",
             width: "100%",
           }}
-          alt="test"
+          alt={event.name}
         />
       </div>
-      <div className="flex h-auto flex-3 flex-col justify-between p-2">
-        <h3 className="leading-none font-semibold text-black dark:text-(--color-primary-dark-900)">
+      <div className="flex h-auto flex-3 flex-col justify-between gap-2 p-3">
+        <h3 className="leading-tight font-semibold text-black dark:text-(--color-primary-dark-900)">
           {event.name}
         </h3>
-        <div className="">
+        <div className="flex flex-col gap-1">
           <div>{date}</div>
-          <div className="flex items-center text-base/7 leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">
-            <HouseIcon aria-hidden className="mr-1 h-4 w-4" />
-            <span className="">{event.venue?.name}</span>
+          <div className="flex items-center gap-1 text-sm leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">
+            <HouseIcon aria-hidden className="h-4 w-4 shrink-0" />
+            <span className="truncate">{event.venue?.name}</span>
           </div>
         </div>
       </div>

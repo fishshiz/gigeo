@@ -139,6 +139,7 @@ const DrawerWrapper = () => {
         className="z-10 flex h-full w-full flex-col overflow-hidden"
       >
         <DrawerClose
+          aria-label="Close drawer"
           className="absolute top-3 right-3 z-20"
           variant="quiet"
           onClick={() => setIsDrawerOpen(false)}

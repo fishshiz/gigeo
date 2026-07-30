@@ -33,31 +33,37 @@ const DateSlider = ({
   return (
     <div className="flex w-full items-center">
       <ul className="flex h-full w-full snap-x justify-around gap-2 overflow-x-scroll">
-        {groupedDates.map((days) => (
-          <div className="flex w-full flex-[0_0_100%] snap-center items-center gap-2">
-            {days.map((day) => (
-              <li
-                className="box-border cursor-pointer snap-center rounded-xl bg-slate-400 p-2 text-center text-xs leading-none"
-                onClick={() => onSelect(day)}
-                style={{
-                  background:
-                    activeDateId && activeDateId === day
-                      ? "var(--color-green-400)"
-                      : "var(--color-slate-400)",
-                }}
-              >
-                <h4 className="font-semibold text-white">
-                  {dayFormatter.format(
-                    parseDate(day).toDate(getLocalTimeZone())
-                  )}
-                </h4>
-                <span>
-                  {dateFormatter.format(
-                    parseDate(day).toDate(getLocalTimeZone())
-                  )}
-                </span>
-              </li>
-            ))}
+        {groupedDates.map((days, groupIdx) => (
+          <div
+            key={days[0] ?? groupIdx}
+            className="flex w-full flex-[0_0_100%] snap-center items-center gap-2"
+          >
+            {days.map((day) => {
+              const isActive = Boolean(activeDateId && activeDateId === day)
+              return (
+                <li
+                  key={day}
+                  className={
+                    "box-border min-w-14 cursor-pointer snap-center rounded-xl p-2 text-center text-xs leading-none transition " +
+                    (isActive
+                      ? "bg-(--color-ivory-600)"
+                      : "bg-slate-400 hover:bg-slate-500 dark:bg-(--color-surface-dark-400) dark:hover:bg-(--color-surface-dark-300)")
+                  }
+                  onClick={() => onSelect(day)}
+                >
+                  <h4 className="font-semibold text-white">
+                    {dayFormatter.format(
+                      parseDate(day).toDate(getLocalTimeZone())
+                    )}
+                  </h4>
+                  <span className="text-white/90">
+                    {dateFormatter.format(
+                      parseDate(day).toDate(getLocalTimeZone())
+                    )}
+                  </span>
+                </li>
+              )
+            })}
           </div>
         ))}
       </ul>
