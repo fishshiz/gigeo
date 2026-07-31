@@ -1,11 +1,20 @@
-import { usePlaylistContext } from "@/providers/playlistsProvider"
-import { useSpotifyAuth } from "../hooks/spotify"
+import {
+  usePlaylistContext,
+  type SpotifyPlaylist,
+} from "@/providers/playlistsProvider"
+import {
+  useSpotifyAuth,
+  parseUpdatePlaylistForm,
+  PlaylistUnavailableError,
+} from "../hooks/spotify"
 import {
   CircleCheck,
   ListMusic,
   CirclePlus,
   Music2,
   ExternalLink,
+  MoreVertical,
+  TriangleAlert,
 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/ui/Button"
@@ -28,6 +37,14 @@ import { PlaylistButtons } from "../PlaylistButtons"
 import { getRandomPlaylistName } from "@/lib/playlistNames"
 
 import { DrawerBody, DrawerHeader } from "@workspace/ui/components/ui/Drawer"
+import { Modal } from "@workspace/ui/components/ui/Modal"
+import { Dialog } from "@workspace/ui/components/ui/Dialog"
+import { AlertDialog } from "@workspace/ui/components/ui/AlertDialog"
+import {
+  MenuTrigger,
+  Menu,
+  MenuItem,
+} from "@workspace/ui/components/ui/Menu"
 
 export const PlaylistDrawerHeader = () => {
   return (
@@ -60,42 +77,7 @@ export const PlaylistsDrawerBody = () => {
             {spotifyPlaylists.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {spotifyPlaylists.map((playlist) => (
-                  <li key={playlist.id}>
-                    <a
-                      href={playlist.external_url ?? undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-3 rounded-lg border border-black/10 p-2 transition hover:border-black/20 hover:bg-neutral-50 dark:border-white/10 dark:hover:bg-zinc-800"
-                    >
-                      {playlist.images && playlist.images.length > 0 ? (
-                        <img
-                          src={playlist.images[0].url}
-                          alt=""
-                          className="h-12 w-12 shrink-0 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-neutral-100 text-muted-foreground dark:bg-neutral-800">
-                          <Music2 size={18} />
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-primary">
-                          {playlist.name}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {playlist.track_count} track
-                          {playlist.track_count === 1 ? "" : "s"}
-                          {playlist.city ? ` · ${playlist.city}` : ""}
-                        </p>
-                      </div>
-                      {playlist.external_url && (
-                        <ExternalLink
-                          size={14}
-                          className="shrink-0 text-muted-foreground"
-                        />
-                      )}
-                    </a>
-                  </li>
+                  <PlaylistListItem key={playlist.playlist_id} playlist={playlist} />
                 ))}
               </ul>
             ) : (
@@ -115,6 +97,224 @@ export const PlaylistsDrawerBody = () => {
         </TabPanels>
       </Tabs>
     </DrawerBody>
+  )
+}
+
+const cadenceToFrequencyValue = (cadence: 7 | 30 | 60) =>
+  cadence === 60 ? "bimonthly" : cadence === 7 ? "weekly" : "monthly"
+
+const PlaylistListItem = ({ playlist }: { playlist: SpotifyPlaylist }) => {
+  const { deletePlaylist } = useSpotifyAuth()
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const isUnavailable = !playlist.is_active
+
+  return (
+    <li>
+      <div
+        className={`flex items-center gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10 ${
+          isUnavailable ? "opacity-50" : "hover:border-black/20 hover:bg-neutral-50 dark:hover:bg-zinc-800"
+        }`}
+      >
+        <a
+          href={isUnavailable ? undefined : (playlist.external_url ?? undefined)}
+          target="_blank"
+          rel="noreferrer"
+          aria-disabled={isUnavailable}
+          className={`flex min-w-0 flex-1 items-center gap-3 ${isUnavailable ? "pointer-events-none" : ""}`}
+        >
+          {playlist.images && playlist.images.length > 0 ? (
+            <img
+              src={playlist.images[0].url}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded object-cover"
+            />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-neutral-100 text-muted-foreground dark:bg-neutral-800">
+              <Music2 size={18} />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-primary">
+              {playlist.name || playlist.city}
+            </p>
+            {isUnavailable ? (
+              <p className="truncate text-xs text-red-500">
+                Unavailable — removed on Spotify
+              </p>
+            ) : (
+              <p className="truncate text-xs text-muted-foreground">
+                {playlist.track_count} track
+                {playlist.track_count === 1 ? "" : "s"}
+                {playlist.city ? ` · ${playlist.city}` : ""}
+              </p>
+            )}
+          </div>
+          {!isUnavailable && playlist.external_url && (
+            <ExternalLink size={14} className="shrink-0 text-muted-foreground" />
+          )}
+        </a>
+
+        <MenuTrigger>
+          <Button
+            variant="secondary"
+            aria-label={`Actions for ${playlist.name || "playlist"}`}
+            className="shrink-0 p-1.5!"
+          >
+            <MoreVertical size={16} />
+          </Button>
+          <Menu
+            onAction={(key) => {
+              if (key === "edit") setIsEditOpen(true)
+              if (key === "delete") setIsDeleteOpen(true)
+            }}
+          >
+            {!isUnavailable && <MenuItem id="edit">Edit</MenuItem>}
+            <MenuItem id="delete">
+              {isUnavailable ? "Remove from Gigeo" : "Delete"}
+            </MenuItem>
+          </Menu>
+        </MenuTrigger>
+      </div>
+
+      <Modal isOpen={isEditOpen} onOpenChange={setIsEditOpen} isDismissable>
+        <Dialog>
+          {({ close }) => (
+            <EditPlaylistForm playlist={playlist} onDone={close} />
+          )}
+        </Dialog>
+      </Modal>
+
+      <Modal isOpen={isDeleteOpen} onOpenChange={setIsDeleteOpen} isDismissable>
+        <AlertDialog
+          title={isUnavailable ? "Remove from Gigeo?" : "Delete playlist?"}
+          variant="destructive"
+          actionLabel={isUnavailable ? "Remove" : "Delete"}
+          onAction={() => {
+            void deletePlaylist(playlist.playlist_id)
+          }}
+        >
+          {isUnavailable
+            ? "This playlist was already removed on Spotify. This just cleans up Gigeo's record of it."
+            : "This unfollows the playlist on Spotify and removes it from Gigeo. This can't be undone."}
+        </AlertDialog>
+      </Modal>
+    </li>
+  )
+}
+
+const EditPlaylistForm = ({
+  playlist,
+  onDone,
+}: {
+  playlist: SpotifyPlaylist
+  onDone: () => void
+}) => {
+  const { updatePlaylist } = useSpotifyAuth()
+  const [isPrivate, setIsPrivate] = useState(playlist.visibility === "private")
+  const [selectedFrequency, setSelectedFrequency] = useState(
+    cadenceToFrequencyValue(playlist.update_cadence_days)
+  )
+  const [selectedBehavior, setSelectedBehavior] = useState(playlist.update_mode)
+  const [error, setError] = useState<string | null>(null)
+
+  const showDestructiveWarning =
+    selectedBehavior === "destructive" && playlist.update_mode === "additive"
+
+  return (
+    <Form
+      className="w-full p-0!"
+      action={async (formData) => {
+        setError(null)
+        try {
+          await updatePlaylist(
+            playlist.playlist_id,
+            parseUpdatePlaylistForm(formData)
+          )
+          onDone()
+        } catch (err) {
+          setError(
+            err instanceof PlaylistUnavailableError
+              ? "This playlist was just removed on Spotify, so it can no longer be edited."
+              : err instanceof Error
+                ? err.message
+                : "Failed to update playlist"
+          )
+        }
+      }}
+    >
+      <input
+        type="hidden"
+        name="privacy"
+        value={isPrivate ? "private" : "public"}
+      />
+      <TextField
+        label="Playlist Name"
+        isRequired
+        name="playlistName"
+        defaultValue={playlist.name}
+      />
+      <Label>Playlist privacy</Label>
+      <ToggleButton
+        aria-label="Make playlist private"
+        isSelected={isPrivate}
+        onChange={setIsPrivate}
+      >
+        {isPrivate ? <Lock size={18} /> : <Unlock size={18} />}
+      </ToggleButton>
+      <p>{isPrivate ? "Private" : "Public"}</p>
+
+      <Label>Update frequency</Label>
+      <RadioGroup
+        aria-label="Playlist update frequency"
+        value={selectedFrequency}
+        onChange={setSelectedFrequency}
+        orientation="horizontal"
+        className="flex w-full gap-2.5"
+        name="cadence"
+        isRequired
+      >
+        {updateFrequencyOptions.map((option) => (
+          <RadioCard
+            key={option.value}
+            value={option.value}
+            title={option.title}
+            description={option.description}
+          />
+        ))}
+      </RadioGroup>
+      <Label>Update behavior</Label>
+      <RadioGroup
+        aria-label="Playlist update behavior"
+        value={selectedBehavior}
+        onChange={(value) =>
+          setSelectedBehavior(value as "additive" | "destructive")
+        }
+        orientation="horizontal"
+        className="flex w-full gap-2.5"
+        name="behavior"
+        isRequired
+      >
+        {updateBehaviorOptions.map((option) => (
+          <RadioCard
+            key={option.value}
+            value={option.value}
+            title={option.title}
+            description={option.description}
+          />
+        ))}
+      </RadioGroup>
+      {showDestructiveWarning && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+          Switching to "Replace tracks" may remove tracks you've kept.
+          Changes apply on the playlist's next scheduled update, not
+          immediately.
+        </p>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <Button type="submit">Save changes</Button>
+    </Form>
   )
 }
 

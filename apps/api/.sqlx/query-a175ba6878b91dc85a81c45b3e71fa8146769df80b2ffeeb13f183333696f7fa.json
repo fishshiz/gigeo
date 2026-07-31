@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id, provider_playlist_id, city,\n            visibility as \"visibility: PlaylistVisibility\",\n            update_mode as \"update_mode: PlaylistUpdateMode\",\n            update_cadence_days, is_active\n        FROM playlist\n        WHERE account_id = $1 AND deleted_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_playlist_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "visibility: PlaylistVisibility",
+        "type_info": {
+          "Custom": {
+            "name": "playlist_visibility",
+            "kind": {
+              "Enum": [
+                "public",
+                "private"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "update_mode: PlaylistUpdateMode",
+        "type_info": {
+          "Custom": {
+            "name": "playlist_update_mode",
+            "kind": {
+              "Enum": [
+                "additive",
+                "destructive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "update_cadence_days",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a175ba6878b91dc85a81c45b3e71fa8146769df80b2ffeeb13f183333696f7fa"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update playlist set deleted_at = now() where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f2fb9f3e676ab9e39dc5305082a42d9080d4e264d667b44b9ff3c0029f315d8"
+}

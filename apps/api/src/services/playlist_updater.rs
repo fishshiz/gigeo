@@ -104,6 +104,7 @@ async fn claim_due_playlist(
         where id = (
             select id from playlist
             where is_active
+              and deleted_at is null
               and (next_update_at is null or next_update_at <= now())
             order by next_update_at nulls first
             limit 1

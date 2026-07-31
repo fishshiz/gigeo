@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update playlist\n        set name = $2, visibility = $3, update_mode = $4, update_cadence_days = $5\n        where id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "playlist_visibility",
+            "kind": {
+              "Enum": [
+                "public",
+                "private"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "playlist_update_mode",
+            "kind": {
+              "Enum": [
+                "additive",
+                "destructive"
+              ]
+            }
+          }
+        },
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b3d98a3906c1222936be4232feecc027c62f8dab21bdb58920222942d558ecf2"
+}

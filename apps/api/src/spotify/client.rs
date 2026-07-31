@@ -340,6 +340,54 @@ impl SpotifyClient {
             .map_err(AppError::from)
     }
 
+    /// `PUT /playlists/{playlist_id}`
+    /// Updates a playlist's name and/or public visibility. No-ops (without
+    /// making a request) if both `name` and `public` are `None`.
+    /// Scopes: `playlist-modify-public`, `playlist-modify-private`
+    pub async fn update_playlist_details(
+        &self,
+        user_token: &str,
+        playlist_id: &str,
+        name: Option<&str>,
+        public: Option<bool>,
+    ) -> Result<(), AppError> {
+        let body = Self::build_update_details_body(name, public);
+        if body.as_object().is_some_and(|m| m.is_empty()) {
+            return Ok(());
+        }
+
+        self.put_with_backoff(&format!("{BASE}/playlists/{playlist_id}"), user_token, &body)
+            .await?;
+
+        Ok(())
+    }
+
+    fn build_update_details_body(name: Option<&str>, public: Option<bool>) -> serde_json::Value {
+        let mut body = serde_json::Map::new();
+        if let Some(n) = name {
+            body.insert("name".into(), serde_json::json!(n));
+        }
+        if let Some(p) = public {
+            body.insert("public".into(), serde_json::json!(p));
+        }
+        serde_json::Value::Object(body)
+    }
+
+    /// `DELETE /playlists/{playlist_id}/followers`
+    /// Spotify's Web API has no true "delete playlist" endpoint — unfollowing
+    /// is the closest primitive, and for the owner it removes the playlist
+    /// from their library.
+    /// Scopes: `playlist-modify-public`, `playlist-modify-private`
+    pub async fn unfollow_playlist(
+        &self,
+        user_token: &str,
+        playlist_id: &str,
+    ) -> Result<(), AppError> {
+        self.delete_with_backoff(&format!("{BASE}/playlists/{playlist_id}/followers"), user_token)
+            .await?;
+        Ok(())
+    }
+
     /// `GET /playlists/{playlist_id}` — non-deprecated.
     /// Uses `fields` to fetch only what the "My Playlists" list needs.
     pub async fn get_playlist(
@@ -440,6 +488,20 @@ impl SpotifyClient {
         )
         .await
     }
+
+    /// DELETE with retry on 429, no body.
+    async fn delete_with_backoff(
+        &self,
+        url: &str,
+        token: &str,
+    ) -> Result<reqwest::Response, AppError> {
+        request_with_backoff(
+            "spotify",
+            || self.http.delete(url).bearer_auth(token),
+            Self::map_error,
+        )
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -483,5 +545,29 @@ mod tests {
         let page: Paging<PlaylistTrackItem> = serde_json::from_str(json).unwrap();
         assert!(page.next.is_none());
         assert!(page.items.is_empty());
+    }
+
+    #[test]
+    fn build_update_details_body_empty_when_nothing_provided() {
+        let body = SpotifyClient::build_update_details_body(None, None);
+        assert_eq!(body, serde_json::json!({}));
+    }
+
+    #[test]
+    fn build_update_details_body_includes_only_name() {
+        let body = SpotifyClient::build_update_details_body(Some("New Name"), None);
+        assert_eq!(body, serde_json::json!({ "name": "New Name" }));
+    }
+
+    #[test]
+    fn build_update_details_body_includes_only_public() {
+        let body = SpotifyClient::build_update_details_body(None, Some(true));
+        assert_eq!(body, serde_json::json!({ "public": true }));
+    }
+
+    #[test]
+    fn build_update_details_body_includes_both() {
+        let body = SpotifyClient::build_update_details_body(Some("New Name"), Some(false));
+        assert_eq!(body, serde_json::json!({ "name": "New Name", "public": false }));
     }
 }

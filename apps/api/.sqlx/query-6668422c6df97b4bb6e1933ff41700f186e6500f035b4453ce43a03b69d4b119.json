@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT provider_playlist_id, city\n        FROM playlist\n        WHERE account_id = $1\n        ",
+  "query": "\n        select provider_playlist_id, is_active\n        from playlist\n        where id = $1 and account_id = $2 and deleted_at is null\n        ",
   "describe": {
     "columns": [
       {
@@ -10,12 +10,13 @@
       },
       {
         "ordinal": 1,
-        "name": "city",
-        "type_info": "Text"
+        "name": "is_active",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -24,5 +25,5 @@
       false
     ]
   },
-  "hash": "89fa7369b0f3354217cc02d45662d1f392c0caf30a81f8f047ff5cbf5158e18b"
+  "hash": "6668422c6df97b4bb6e1933ff41700f186e6500f035b4453ce43a03b69d4b119"
 }

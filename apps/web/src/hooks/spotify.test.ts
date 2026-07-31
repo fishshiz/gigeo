@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseCreatePlaylistForm } from "./spotify"
+import { parseCreatePlaylistForm, parseUpdatePlaylistForm } from "./spotify"
 
 function makeForm(fields: Record<string, string>): FormData {
   const form = new FormData()
@@ -106,5 +106,90 @@ describe("parseCreatePlaylistForm", () => {
     expect(parseCreatePlaylistForm(makeForm(validFields)).description).toBe(
       ""
     )
+  })
+})
+
+const validUpdateFields = {
+  playlistName: "Road Trip",
+  cadence: "weekly",
+}
+
+describe("parseUpdatePlaylistForm", () => {
+  it("parses a valid form into an UpdatePlaylistInput", () => {
+    expect(parseUpdatePlaylistForm(makeForm(validUpdateFields))).toEqual({
+      name: "Road Trip",
+      privacy: false,
+      cadence: 7,
+      destructive: false,
+    })
+  })
+
+  it("trims whitespace from name", () => {
+    const result = parseUpdatePlaylistForm(
+      makeForm({ ...validUpdateFields, playlistName: "  Road Trip  " })
+    )
+    expect(result.name).toBe("Road Trip")
+  })
+
+  it("throws when name is missing", () => {
+    const form = makeForm({ ...validUpdateFields })
+    form.delete("playlistName")
+    expect(() => parseUpdatePlaylistForm(form)).toThrow(
+      "Playlist name is required"
+    )
+  })
+
+  it("throws when name is blank", () => {
+    expect(() =>
+      parseUpdatePlaylistForm(
+        makeForm({ ...validUpdateFields, playlistName: "   " })
+      )
+    ).toThrow("Playlist name is required")
+  })
+
+  it("throws when cadence is missing", () => {
+    const form = makeForm({ ...validUpdateFields })
+    form.delete("cadence")
+    expect(() => parseUpdatePlaylistForm(form)).toThrow(
+      "Cadence is required"
+    )
+  })
+
+  it.each([
+    ["weekly", 7],
+    ["bimonthly", 60],
+    ["monthly", 30],
+    ["anything-else", 30],
+  ])("maps cadence %s to %i days", (cadence, expected) => {
+    const result = parseUpdatePlaylistForm(
+      makeForm({ ...validUpdateFields, cadence })
+    )
+    expect(result.cadence).toBe(expected)
+  })
+
+  it("sets privacy true only when privacy field is 'private'", () => {
+    expect(
+      parseUpdatePlaylistForm(
+        makeForm({ ...validUpdateFields, privacy: "private" })
+      ).privacy
+    ).toBe(true)
+    expect(
+      parseUpdatePlaylistForm(
+        makeForm({ ...validUpdateFields, privacy: "public" })
+      ).privacy
+    ).toBe(false)
+  })
+
+  it("sets destructive true only when behavior field is 'destructive'", () => {
+    expect(
+      parseUpdatePlaylistForm(
+        makeForm({ ...validUpdateFields, behavior: "destructive" })
+      ).destructive
+    ).toBe(true)
+    expect(
+      parseUpdatePlaylistForm(
+        makeForm({ ...validUpdateFields, behavior: "preserve" })
+      ).destructive
+    ).toBe(false)
   })
 })

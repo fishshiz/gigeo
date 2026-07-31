@@ -28,6 +28,21 @@ export type CreatePlaylistOutput = {
   spotify_url?: string | null
 }
 
+export type UpdatePlaylistInput = {
+  name: string
+  privacy: boolean
+  cadence: number
+  destructive: boolean
+}
+
+/** Thrown when the server confirms a playlist is no longer on Spotify (410). */
+export class PlaylistUnavailableError extends Error {
+  constructor() {
+    super("Playlist is no longer available on Spotify")
+    this.name = "PlaylistUnavailableError"
+  }
+}
+
 type UseSpotifyAuthResult = {
   status: AuthStatus | null
   loading: boolean
@@ -37,6 +52,11 @@ type UseSpotifyAuthResult = {
   logout: () => Promise<void>
   createPlaylist: (input: FormData) => Promise<CreatePlaylistOutput>
   getPlaylists: () => Promise<SpotifyPlaylist[]>
+  updatePlaylist: (
+    playlistId: string,
+    input: UpdatePlaylistInput
+  ) => Promise<void>
+  deletePlaylist: (playlistId: string) => Promise<void>
 }
 
 export function parseCreatePlaylistForm(
@@ -68,6 +88,28 @@ export function parseCreatePlaylistForm(
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     destructive: behavior === "destructive",
     radius: 25,
+  }
+}
+
+export function parseUpdatePlaylistForm(formData: FormData): UpdatePlaylistInput {
+  const name = formData.get("playlistName")
+  const privacy = formData.get("privacy")
+  const cadence = formData.get("cadence")
+  const behavior = formData.get("behavior")
+
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("Playlist name is required")
+  }
+
+  if (typeof cadence !== "string" || !cadence) {
+    throw new Error("Cadence is required")
+  }
+
+  return {
+    name: name.trim(),
+    privacy: privacy === "private",
+    cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
+    destructive: behavior === "destructive",
   }
 }
 
@@ -180,6 +222,56 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
     [refresh, latitude, longitude]
   )
 
+  const updatePlaylist = useCallback(
+    async (playlistId: string, input: UpdatePlaylistInput) => {
+      setError(null)
+
+      const res = await fetch(`api/spotify/playlist/${playlistId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      })
+
+      if (res.status === 410) {
+        // Confirmed gone on Spotify's side — refresh so the row flips to
+        // "unavailable", then let the caller distinguish this from a
+        // generic failure.
+        await getPlaylists()
+        throw new PlaylistUnavailableError()
+      }
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `update playlist failed: ${res.status}`)
+      }
+
+      await getPlaylists()
+    },
+    [getPlaylists]
+  )
+
+  const deletePlaylist = useCallback(
+    async (playlistId: string) => {
+      setError(null)
+
+      const res = await fetch(`api/spotify/playlist/${playlistId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `delete playlist failed: ${res.status}`)
+      }
+
+      await getPlaylists()
+    },
+    [getPlaylists]
+  )
+
   return useMemo(
     () => ({
       status,
@@ -190,6 +282,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       logout,
       createPlaylist,
       getPlaylists,
+      updatePlaylist,
+      deletePlaylist,
     }),
     [
       status,
@@ -200,6 +294,8 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
       logout,
       createPlaylist,
       getPlaylists,
+      updatePlaylist,
+      deletePlaylist,
     ]
   )
 }
