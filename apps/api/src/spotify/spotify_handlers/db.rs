@@ -164,6 +164,97 @@ pub(super) struct SpotifyAccountRow {
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
+pub(super) struct PlaylistRow {
+    pub provider_playlist_id: String,
+    pub is_active: bool,
+}
+
+/// Fetches a playlist scoped to the owning account, excluding soft-deleted
+/// rows. `None` covers both "wrong account" and "already deleted" — both
+/// should look like "not found" to the caller.
+pub(super) async fn get_playlist_for_account(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+    account_id: uuid::Uuid,
+) -> Result<Option<PlaylistRow>, sqlx::Error> {
+    sqlx::query_as!(
+        PlaylistRow,
+        r#"
+        select provider_playlist_id, is_active
+        from playlist
+        where id = $1 and account_id = $2 and deleted_at is null
+        "#,
+        playlist_id,
+        account_id
+    )
+    .fetch_optional(db)
+    .await
+}
+
+pub(super) struct UpdatePlaylistParams<'a> {
+    pub name: &'a str,
+    pub visibility: PlaylistVisibility,
+    pub update_mode: PlaylistUpdateMode,
+    pub update_cadence_days: i16,
+}
+
+/// Persists edited config fields only. Deliberately does not touch
+/// `next_update_at` — cadence/mode changes take effect on the playlist's
+/// already-scheduled next run, not immediately.
+pub(super) async fn update_playlist_config(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+    params: UpdatePlaylistParams<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        update playlist
+        set name = $2, visibility = $3, update_mode = $4, update_cadence_days = $5
+        where id = $1
+        "#,
+        playlist_id,
+        params.name,
+        params.visibility as _,
+        params.update_mode as _,
+        params.update_cadence_days,
+    )
+    .execute(db)
+    .await
+    .map(|_| ())
+}
+
+/// Marks a playlist inactive after Spotify confirms it's gone (404).
+/// Used by the list-fetch and edit/delete 404 paths — the background
+/// updater's own `finalize_playlist_failure` handles this separately
+/// since it also manages retry scheduling.
+pub(super) async fn deactivate_playlist(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "update playlist set is_active = false where id = $1",
+        playlist_id
+    )
+    .execute(db)
+    .await
+    .map(|_| ())
+}
+
+/// Soft-delete: preserves the row (and its playlist_update_run history)
+/// while excluding it from all future list/claim queries.
+pub(super) async fn soft_delete_playlist(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "update playlist set deleted_at = now() where id = $1",
+        playlist_id
+    )
+    .execute(db)
+    .await
+    .map(|_| ())
+}
+
 pub(super) async fn get_spotify_account(
     db: &sqlx::PgPool,
     account_id: uuid::Uuid,

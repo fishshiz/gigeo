@@ -1,12 +1,47 @@
-use super::db::{CreatePlaylistParams, create_playlist_record, resolve_session_account};
+use super::db::{
+    CreatePlaylistParams, UpdatePlaylistParams, create_playlist_record, deactivate_playlist,
+    get_playlist_for_account, resolve_session_account, soft_delete_playlist,
+    update_playlist_config,
+};
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    PlaylistVisibility, find_artist_names_near, resolve_update_mode, search_tracks_for_artists,
+    PlaylistUpdateMode, PlaylistVisibility, find_artist_names_near, resolve_update_mode,
+    search_tracks_for_artists, validate_cadence_days,
 };
 use crate::state::AppState;
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
+
+/// Resolves the account tied to the session cookie. Shared by every
+/// handler that requires an authenticated user.
+async fn resolve_account_from_cookie(
+    state: &AppState,
+    jar: &SignedCookieJar,
+) -> Result<uuid::Uuid, AppError> {
+    let cookie = jar
+        .get("spotify_oauth_state")
+        .ok_or_else(|| AppError::AuthRequired("No session cookie. Visit /login first.".into()))?;
+    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Invalid session cookie".into(),
+    })?;
+    resolve_session_account(&state.db.pool, session_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
+        })
+}
+
+/// Returns `true` if a Spotify API error indicates the resource no longer
+/// exists upstream (as opposed to a transient failure).
+fn is_gone_from_spotify(err: &AppError) -> bool {
+    matches!(err, AppError::SpotifyApi { status, .. } if status.as_u16() == 404)
+}
 
 // ---------------------------------------------------------------------------
 // POST /playlist
@@ -55,35 +90,24 @@ pub struct PlaylistTrack {
 
 #[derive(Serialize)]
 pub struct PlaylistSummary {
+    pub playlist_id: String,
     pub id: String,
     pub name: String,
     pub external_url: Option<String>,
     pub images: Vec<crate::spotify::client::Image>,
     pub track_count: u32,
     pub city: String,
+    pub visibility: PlaylistVisibility,
+    pub update_mode: PlaylistUpdateMode,
+    pub update_cadence_days: i16,
+    pub is_active: bool,
 }
 
 pub async fn get_user_playlists(
     State(state): State<AppState>,
     jar: SignedCookieJar,
 ) -> Result<Json<Vec<PlaylistSummary>>, AppError> {
-    let cookie = jar
-        .get("spotify_oauth_state")
-        .ok_or(AppError::Unauthorized {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Unauthorized".into(),
-        })?;
-    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
-        status: StatusCode::UNAUTHORIZED,
-        message: "Unauthorized session id".into(),
-    })?;
-
-    let Some(account_id) = resolve_session_account(&state.db.pool, session_id).await? else {
-        return Err(AppError::Unauthorized {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Unauthorized user id".into(),
-        });
-    };
+    let account_id = resolve_account_from_cookie(&state, &jar).await?;
     let playlists = get_playlists(&state, account_id).await?;
     Ok(playlists)
 }
@@ -102,18 +126,7 @@ pub async fn create_playlist(
     jar: SignedCookieJar,
     Json(req): Json<CreatePlaylistRequest>,
 ) -> Result<(StatusCode, Json<CreatePlaylistResponse>), AppError> {
-    let cookie = jar
-        .get("spotify_oauth_state")
-        .ok_or_else(|| AppError::AuthRequired("No session cookie. Visit /login first.".into()))?;
-    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
-        status: StatusCode::UNAUTHORIZED,
-        message: "Invalid session cookie".into(),
-    })?;
-    let account_id = resolve_session_account(&state.db.pool, session_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
-        })?;
+    let account_id = resolve_account_from_cookie(&state, &jar).await?;
 
     let user_token = crate::spotify::token::get_valid_spotify_token(&state, account_id).await?;
     let cc_token = state.cc_manager.get_token().await?;
@@ -225,9 +238,13 @@ pub async fn get_playlists(
 ) -> Result<Json<Vec<PlaylistSummary>>, AppError> {
     let rows = sqlx::query!(
         r#"
-        SELECT provider_playlist_id, city
+        SELECT
+            id, provider_playlist_id, city,
+            visibility as "visibility: PlaylistVisibility",
+            update_mode as "update_mode: PlaylistUpdateMode",
+            update_cadence_days, is_active
         FROM playlist
-        WHERE account_id = $1
+        WHERE account_id = $1 AND deleted_at IS NULL
         "#,
         account_id
     )
@@ -242,22 +259,63 @@ pub async fn get_playlists(
 
     let mut summaries = Vec::with_capacity(rows.len());
     for row in rows {
+        if !row.is_active {
+            // Already known to be gone from Spotify — no point re-fetching.
+            summaries.push(PlaylistSummary {
+                playlist_id: row.id.to_string(),
+                id: row.provider_playlist_id,
+                name: String::new(),
+                external_url: None,
+                images: vec![],
+                track_count: 0,
+                city: row.city,
+                visibility: row.visibility,
+                update_mode: row.update_mode,
+                update_cadence_days: row.update_cadence_days,
+                is_active: false,
+            });
+            continue;
+        }
+
         match state
             .spotify
             .get_playlist(&token, &row.provider_playlist_id)
             .await
         {
             Ok(details) => summaries.push(PlaylistSummary {
+                playlist_id: row.id.to_string(),
                 id: details.id,
                 name: details.name,
                 external_url: details.external_urls.spotify,
                 images: details.images,
                 track_count: details.tracks.total,
                 city: row.city,
+                visibility: row.visibility,
+                update_mode: row.update_mode,
+                update_cadence_days: row.update_cadence_days,
+                is_active: true,
             }),
+            Err(err) if is_gone_from_spotify(&err) => {
+                if let Err(e) = deactivate_playlist(&state.db.pool, row.id).await {
+                    tracing::warn!(playlist_id = %row.id, error = %e, "failed to persist is_active=false");
+                }
+                summaries.push(PlaylistSummary {
+                    playlist_id: row.id.to_string(),
+                    id: row.provider_playlist_id,
+                    name: String::new(),
+                    external_url: None,
+                    images: vec![],
+                    track_count: 0,
+                    city: row.city,
+                    visibility: row.visibility,
+                    update_mode: row.update_mode,
+                    update_cadence_days: row.update_cadence_days,
+                    is_active: false,
+                });
+            }
             Err(err) => {
-                // A single playlist that's been deleted/renamed on Spotify's side
-                // (or a transient API error) shouldn't take down the whole list.
+                // A transient API error shouldn't take down the whole list,
+                // and shouldn't flip is_active (it may well still exist).
                 tracing::warn!(
                     playlist_id = %row.provider_playlist_id,
                     error = %err,
@@ -268,4 +326,140 @@ pub async fn get_playlists(
     }
 
     Ok(Json(summaries))
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /playlist/{id}
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct UpdatePlaylistRequest {
+    pub name: String,
+    pub privacy: bool,
+    pub cadence: i16,
+    pub destructive: bool,
+}
+
+#[derive(Serialize)]
+pub struct UpdatePlaylistResponse {
+    pub playlist_id: String,
+    pub name: String,
+    pub visibility: PlaylistVisibility,
+    pub update_mode: PlaylistUpdateMode,
+    pub update_cadence_days: i16,
+}
+
+pub async fn update_playlist(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+    Path(playlist_id): Path<uuid::Uuid>,
+    Json(req): Json<UpdatePlaylistRequest>,
+) -> Result<Json<UpdatePlaylistResponse>, AppError> {
+    let account_id = resolve_account_from_cookie(&state, &jar).await?;
+    let cadence = validate_cadence_days(req.cadence)?;
+
+    let row = get_playlist_for_account(&state.db.pool, playlist_id, account_id)
+        .await?
+        .ok_or(AppError::PlaylistNotFound)?;
+
+    if !row.is_active {
+        // Nothing on Spotify's side left to apply an edit to.
+        return Err(AppError::PlaylistNotFound);
+    }
+
+    let token = crate::spotify::token::get_valid_spotify_token(&state, account_id).await?;
+
+    let visibility = if req.privacy {
+        PlaylistVisibility::Private
+    } else {
+        PlaylistVisibility::Public
+    };
+    let update_mode = if req.destructive {
+        PlaylistUpdateMode::Destructive
+    } else {
+        PlaylistUpdateMode::Additive
+    };
+
+    match state
+        .spotify
+        .update_playlist_details(
+            &token,
+            &row.provider_playlist_id,
+            Some(&req.name),
+            Some(!req.privacy),
+        )
+        .await
+    {
+        Ok(()) => {
+            update_playlist_config(
+                &state.db.pool,
+                playlist_id,
+                UpdatePlaylistParams {
+                    name: &req.name,
+                    visibility,
+                    update_mode,
+                    update_cadence_days: cadence,
+                },
+            )
+            .await?;
+
+            Ok(Json(UpdatePlaylistResponse {
+                playlist_id: playlist_id.to_string(),
+                name: req.name,
+                visibility,
+                update_mode,
+                update_cadence_days: cadence,
+            }))
+        }
+        Err(err) if is_gone_from_spotify(&err) => {
+            deactivate_playlist(&state.db.pool, playlist_id).await?;
+            Err(AppError::PlaylistUnavailable { playlist_id })
+        }
+        // Spotify is the source of truth: reject the whole edit, persist nothing.
+        Err(err) => Err(err),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /playlist/{id}
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct DeletePlaylistResponse {
+    pub playlist_id: String,
+}
+
+pub async fn delete_playlist(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+    Path(playlist_id): Path<uuid::Uuid>,
+) -> Result<Json<DeletePlaylistResponse>, AppError> {
+    let account_id = resolve_account_from_cookie(&state, &jar).await?;
+
+    let row = get_playlist_for_account(&state.db.pool, playlist_id, account_id)
+        .await?
+        .ok_or(AppError::PlaylistNotFound)?;
+
+    if row.is_active {
+        let token = crate::spotify::token::get_valid_spotify_token(&state, account_id).await?;
+        match state
+            .spotify
+            .unfollow_playlist(&token, &row.provider_playlist_id)
+            .await
+        {
+            Ok(()) => {}
+            Err(err) if is_gone_from_spotify(&err) => {
+                // Already gone — treat as success and proceed to soft-delete.
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    // If already inactive, there's nothing left to unfollow — skip straight
+    // to soft-delete.
+
+    soft_delete_playlist(&state.db.pool, playlist_id).await?;
+
+    Ok(Json(DeletePlaylistResponse {
+        playlist_id: playlist_id.to_string(),
+    }))
 }

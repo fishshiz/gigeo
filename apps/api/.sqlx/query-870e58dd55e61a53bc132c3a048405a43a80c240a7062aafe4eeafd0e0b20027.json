@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update playlist set is_active = false where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "870e58dd55e61a53bc132c3a048405a43a80c240a7062aafe4eeafd0e0b20027"
+}

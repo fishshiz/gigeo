@@ -8,12 +8,17 @@ export type SpotifyPlaylistImage = {
 }
 
 export type SpotifyPlaylist = {
+  playlist_id: string
   id: string
   name: string
   external_url?: string | null
   images: SpotifyPlaylistImage[]
   track_count: number
   city: string
+  visibility: "public" | "private"
+  update_mode: "additive" | "destructive"
+  update_cadence_days: 7 | 30 | 60
+  is_active: boolean
 }
 
 type PlaylistProviderState = {

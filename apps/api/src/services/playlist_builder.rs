@@ -5,20 +5,36 @@ use crate::ticketmaster_stream::{
 };
 use chrono::Utc;
 use geohash::{Coord, encode};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-#[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(sqlx::Type, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum PlaylistVisibility {
     Public,
     Private,
 }
 
-#[derive(sqlx::Type, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(sqlx::Type, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[sqlx(type_name = "playlist_update_mode", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum PlaylistUpdateMode {
     Additive,
     Destructive,
+}
+
+/// Validates a user-supplied update cadence. Unlike playlist creation
+/// (which silently clamps to the nearest allowed value), editing an
+/// existing playlist should reject an invalid cadence outright rather
+/// than guess at intent.
+pub fn validate_cadence_days(days: i16) -> Result<i16, AppError> {
+    match days {
+        7 | 30 | 60 => Ok(days),
+        other => Err(AppError::InvalidRequest(format!(
+            "update_cadence_days must be 7, 30, or 60 (got {other})"
+        ))),
+    }
 }
 
 /// Resolves the requested `destructive` flag on a create-playlist request
@@ -183,5 +199,19 @@ mod tests {
     #[test]
     fn resolve_update_mode_none_defaults_to_destructive() {
         assert_eq!(resolve_update_mode(None), PlaylistUpdateMode::Destructive);
+    }
+
+    #[test]
+    fn validate_cadence_days_accepts_allowed_values() {
+        assert_eq!(validate_cadence_days(7).unwrap(), 7);
+        assert_eq!(validate_cadence_days(30).unwrap(), 30);
+        assert_eq!(validate_cadence_days(60).unwrap(), 60);
+    }
+
+    #[test]
+    fn validate_cadence_days_rejects_other_values() {
+        assert!(validate_cadence_days(14).is_err());
+        assert!(validate_cadence_days(0).is_err());
+        assert!(validate_cadence_days(-7).is_err());
     }
 }

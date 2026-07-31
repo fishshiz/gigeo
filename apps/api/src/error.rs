@@ -36,10 +36,30 @@ pub enum AppError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
+
+    #[error("Playlist not found")]
+    PlaylistNotFound,
+
+    #[error("Playlist no longer exists on Spotify")]
+    PlaylistUnavailable { playlist_id: uuid::Uuid },
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        if let AppError::PlaylistUnavailable { playlist_id } = &self {
+            return (
+                StatusCode::GONE,
+                Json(json!({
+                    "error": "playlist_unavailable",
+                    "playlist_id": playlist_id.to_string(),
+                })),
+            )
+                .into_response();
+        }
+
         let (status, message) = match &self {
             AppError::SpotifyApi { status, message } => {
                 let code = *status;
@@ -73,6 +93,9 @@ impl IntoResponse for AppError {
                 format!("Database error: {e}"),
             ),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            AppError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::PlaylistNotFound => (StatusCode::NOT_FOUND, "Playlist not found".to_string()),
+            AppError::PlaylistUnavailable { .. } => unreachable!("handled above"),
         };
 
         let body = json!({ "error": message });

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        update playlist\n        set next_update_at = $1\n        where id = (\n            select id from playlist\n            where is_active\n              and (next_update_at is null or next_update_at <= now())\n            order by next_update_at nulls first\n            limit 1\n            for update skip locked\n        )\n        returning\n            id, account_id, provider_playlist_id, geohash,\n            update_mode as \"update_mode: PlaylistUpdateMode\",\n            update_cadence_days\n        ",
+  "query": "\n        update playlist\n        set next_update_at = $1\n        where id = (\n            select id from playlist\n            where is_active\n              and deleted_at is null\n              and (next_update_at is null or next_update_at <= now())\n            order by next_update_at nulls first\n            limit 1\n            for update skip locked\n        )\n        returning\n            id, account_id, provider_playlist_id, geohash,\n            update_mode as \"update_mode: PlaylistUpdateMode\",\n            update_cadence_days\n        ",
   "describe": {
     "columns": [
       {
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "3584f85c95bcc631d0e8ec4abb66e791858b411b0a31d363eae5e90c42965377"
+  "hash": "d4abf01e16ab0bc76ffa6d0a02416adacee2e810d8d229a07b00be0fa0a15040"
 }
