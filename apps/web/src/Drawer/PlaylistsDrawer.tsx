@@ -6,6 +6,7 @@ import {
   useSpotifyAuth,
   parseUpdatePlaylistForm,
   PlaylistUnavailableError,
+  type CreatePlaylistOutput,
 } from "../hooks/spotify"
 import {
   CircleCheck,
@@ -384,13 +385,28 @@ export const CreatePlaylistForm = () => {
   const [isPrivate, setIsPrivate] = useState(false)
   const [selectedFrequency, setSelectedFrequency] = useState("weekly")
   const [selectedBehavior, setSelectedBehavior] = useState("destructive")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<CreatePlaylistOutput | null>(null)
 
   return (
     <div className="flex flex-col items-center justify-center">
       <Form
         className="w-full p-0!"
-        action={(formData) => {
-          createPlaylist(formData)
+        action={async (formData) => {
+          setError(null)
+          setSuccess(null)
+          setIsSubmitting(true)
+          try {
+            const result = await createPlaylist(formData)
+            setSuccess(result)
+          } catch (err) {
+            setError(
+              err instanceof Error ? err.message : "Failed to create playlist"
+            )
+          } finally {
+            setIsSubmitting(false)
+          }
         }}
       >
         <input type="hidden" name="location" value={selectedLocation ?? ""} />
@@ -469,7 +485,30 @@ export const CreatePlaylistForm = () => {
             />
           ))}
         </RadioGroup>
-        <Button type="submit">Create Playlist</Button>
+        {success && (
+          <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+            <CircleCheck size={14} className="shrink-0" />
+            "{success.name}" created
+            {success.spotify_url && (
+              <>
+                {" · "}
+                <a
+                  href={success.spotify_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  Open in Spotify
+                  <ExternalLink size={12} />
+                </a>
+              </>
+            )}
+          </p>
+        )}
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        <Button type="submit" isPending={isSubmitting} isDisabled={isSubmitting}>
+          Create Playlist
+        </Button>
       </Form>
     </div>
   )
