@@ -382,7 +382,12 @@ pub async fn update_playlist(
 
     match state
         .spotify
-        .update_playlist_details(&token, &row.provider_playlist_id, Some(&req.name), Some(!req.privacy))
+        .update_playlist_details(
+            &token,
+            &row.provider_playlist_id,
+            Some(&req.name),
+            Some(!req.privacy),
+        )
         .await
     {
         Ok(()) => {

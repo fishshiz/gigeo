@@ -94,9 +94,7 @@ impl IntoResponse for AppError {
             ),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::PlaylistNotFound => {
-                (StatusCode::NOT_FOUND, "Playlist not found".to_string())
-            }
+            AppError::PlaylistNotFound => (StatusCode::NOT_FOUND, "Playlist not found".to_string()),
             AppError::PlaylistUnavailable { .. } => unreachable!("handled above"),
         };
 

@@ -1,8 +1,8 @@
 'use client';
 import { AlertCircleIcon, InfoIcon } from "lucide-react";
-import React, { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { chain } from "react-aria";
-import { DialogProps, Heading } from "react-aria-components";
+import { Heading, type DialogProps } from "react-aria-components";
 import { Button } from '@workspace/ui/components/ui/Button';
 import { Dialog } from '@workspace/ui/components/ui/Dialog';
 

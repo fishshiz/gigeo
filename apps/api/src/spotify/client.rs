@@ -356,8 +356,12 @@ impl SpotifyClient {
             return Ok(());
         }
 
-        self.put_with_backoff(&format!("{BASE}/playlists/{playlist_id}"), user_token, &body)
-            .await?;
+        self.put_with_backoff(
+            &format!("{BASE}/playlists/{playlist_id}"),
+            user_token,
+            &body,
+        )
+        .await?;
 
         Ok(())
     }
@@ -383,8 +387,11 @@ impl SpotifyClient {
         user_token: &str,
         playlist_id: &str,
     ) -> Result<(), AppError> {
-        self.delete_with_backoff(&format!("{BASE}/playlists/{playlist_id}/followers"), user_token)
-            .await?;
+        self.delete_with_backoff(
+            &format!("{BASE}/playlists/{playlist_id}/followers"),
+            user_token,
+        )
+        .await?;
         Ok(())
     }
 
@@ -568,6 +575,9 @@ mod tests {
     #[test]
     fn build_update_details_body_includes_both() {
         let body = SpotifyClient::build_update_details_body(Some("New Name"), Some(false));
-        assert_eq!(body, serde_json::json!({ "name": "New Name", "public": false }));
+        assert_eq!(
+            body,
+            serde_json::json!({ "name": "New Name", "public": false })
+        );
     }
 }
