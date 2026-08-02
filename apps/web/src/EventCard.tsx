@@ -7,6 +7,7 @@ import {
 import { HouseIcon } from "lucide-react"
 import { useEventsContext } from "./providers/eventsProvider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
+import { ForYouTag } from "./ForYouTag"
 
 import { type ReactElement } from "react"
 import type { EventResponse } from "./hooks/eventsStream"
@@ -45,9 +46,14 @@ const EventCard = ({
         />
       </div>
       <div className="flex h-auto flex-3 flex-col justify-between gap-2 p-3">
-        <h3 className="leading-tight font-semibold text-black dark:text-(--color-primary-dark-900)">
-          {event.name}
-        </h3>
+        <div className="flex flex-col items-start gap-1">
+          <h3 className="leading-tight font-semibold text-black dark:text-(--color-primary-dark-900)">
+            {event.name}
+          </h3>
+          {event.matchedArtist && (
+            <ForYouTag matchedArtist={event.matchedArtist} />
+          )}
+        </div>
         <div className="flex flex-col gap-1">
           <div>{date}</div>
           <div className="flex items-center gap-1 text-sm leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">
