@@ -182,6 +182,17 @@ pub(super) async fn upsert_spotify_account(
     .execute(&mut *tx)
     .await?;
 
+    // A fresh OAuth grant may carry different scopes than whatever produced
+    // the cached top-artist result (e.g. the account reconnecting after
+    // `user-top-read` was added) — drop it so personalization picks up the
+    // new token immediately instead of waiting out the cache TTL.
+    sqlx::query!(
+        "delete from spotify_top_artist_cache where account_id = $1",
+        account_id
+    )
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
     Ok(account_id)

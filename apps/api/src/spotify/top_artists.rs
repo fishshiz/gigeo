@@ -6,6 +6,7 @@
 
 use std::collections::HashSet;
 
+use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 
 use crate::error::AppError;
@@ -53,16 +54,46 @@ pub(crate) async fn get_top_artist_names(
         Err(err) => return Err(err),
     };
 
-    let artists = state
+    let artists = match state
         .spotify
         .get_top_artists(&user_token, TopArtistsTimeRange::Medium, 50)
-        .await?;
+        .await
+    {
+        Ok(artists) => artists,
+        Err(AppError::SpotifyApi {
+            status: StatusCode::FORBIDDEN,
+            ..
+        }) => {
+            // Token predates the `user-top-read` scope (added after this
+            // account connected). Cache the empty result so we don't retry
+            // Spotify — and warn on every request — until the account
+            // reconnects, which clears this cache immediately (see
+            // `upsert_spotify_account`).
+            tracing::info!(
+                %account_id,
+                "spotify token missing user-top-read scope, disabling personalization until reconnect"
+            );
+            cache_names(state, account_id, &[]).await?;
+            return Ok(HashSet::new());
+        }
+        Err(err) => return Err(err),
+    };
 
     let normalized_names: Vec<String> = artists
         .iter()
         .map(|a| normalize_artist_name(&a.name))
         .collect();
 
+    cache_names(state, account_id, &normalized_names).await?;
+
+    Ok(normalized_names.into_iter().collect())
+}
+
+async fn cache_names(
+    state: &AppState,
+    account_id: uuid::Uuid,
+    normalized_names: &[String],
+) -> Result<(), AppError> {
     sqlx::query!(
         r#"
         insert into spotify_top_artist_cache (account_id, normalized_names, fetched_at)
@@ -72,10 +103,10 @@ pub(crate) async fn get_top_artist_names(
             fetched_at = excluded.fetched_at
         "#,
         account_id,
-        &normalized_names,
+        normalized_names,
     )
     .execute(&state.db.pool)
     .await?;
 
-    Ok(normalized_names.into_iter().collect())
+    Ok(())
 }
