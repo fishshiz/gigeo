@@ -16,9 +16,10 @@ mod types;
 
 pub use types::*;
 
-pub(crate) use normalize::{dedupe_key, normalize_event};
+pub(crate) use normalize::{apply_personalization, dedupe_key, normalize_event};
 
 use crate::error::AppError;
+use crate::spotify::spotify_handlers::resolve_account_from_cookie_lenient;
 use crate::state::AppState;
 use axum::{
     body::Body,
@@ -26,6 +27,7 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
+use axum_extra::extract::cookie::SignedCookieJar;
 use bytes::Bytes;
 use client::fetch_tm_page;
 use dates::date_windows;
@@ -35,8 +37,25 @@ use std::collections::HashSet;
 
 pub async fn get_concerts_tm_stream(
     State(state): State<AppState>,
+    jar: SignedCookieJar,
     Query(params): Query<EventsQuery>,
 ) -> Result<Response, AppError> {
+    // Personalized discovery is best-effort: no session, no Spotify
+    // connection, or a failed fetch should silently disable it rather than
+    // break event browsing for everyone.
+    let top_artist_names = match resolve_account_from_cookie_lenient(&state, &jar).await {
+        Some(account_id) => crate::spotify::top_artists::get_top_artist_names(&state, account_id)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(
+                    error = %err,
+                    "failed to fetch top artists for personalized discovery, skipping"
+                );
+                HashSet::new()
+            }),
+        None => HashSet::new(),
+    };
+
     let geo_hash = encode(
         Coord {
             x: params.longitude,
@@ -96,7 +115,8 @@ pub async fn get_concerts_tm_stream(
                     .unwrap_or_default();
 
                 for raw in events {
-                    let event = normalize_event(raw);
+                    let mut event = normalize_event(raw);
+                    apply_personalization(&mut event, &top_artist_names);
                     let key = dedupe_key(&event);
 
                     if seen.insert(key) {

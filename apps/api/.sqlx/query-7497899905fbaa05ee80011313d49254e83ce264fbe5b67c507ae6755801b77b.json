@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select normalized_names, fetched_at\n        from spotify_top_artist_cache\n        where account_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "normalized_names",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 1,
+        "name": "fetched_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7497899905fbaa05ee80011313d49254e83ce264fbe5b67c507ae6755801b77b"
+}
