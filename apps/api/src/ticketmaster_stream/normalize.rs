@@ -2,8 +2,10 @@
 //! and deriving a stable key for deduplicating events seen across
 //! overlapping date windows.
 
-use super::types::{EventResponse, LocationResponse, TmEvent, VenueResponse};
+use super::types::{EventResponse, LocationResponse, TmAttraction, TmEvent, VenueResponse};
+use crate::spotify::client::normalize_artist_name;
 use chrono::{DateTime, Local};
+use std::collections::HashSet;
 
 pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
     let dates = e.dates.start.date_time.or_else(|| {
@@ -51,7 +53,38 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
         classifications: e.classifications,
         attractions,
         price_ranges: e.price_ranges,
+        matched_artist: None,
     }
+}
+
+/// Sets `matched_artist` on `event` if any of its Ticketmaster attractions
+/// exact-normalize-matches one of the caller's Spotify top artists.
+/// `top_artist_names` must already be exact-normalized (see
+/// `spotify::top_artists::get_top_artist_names`). A no-op when the caller
+/// has no personalization set (not connected, no session, or fetch failed).
+pub(crate) fn apply_personalization(
+    event: &mut EventResponse,
+    top_artist_names: &HashSet<String>,
+) {
+    if top_artist_names.is_empty() {
+        return;
+    }
+    event.matched_artist = event
+        .attractions
+        .as_ref()
+        .and_then(|attractions| find_matching_attraction(attractions, top_artist_names));
+}
+
+fn find_matching_attraction(
+    attractions: &[TmAttraction],
+    top_artist_names: &HashSet<String>,
+) -> Option<String> {
+    attractions.iter().find_map(|a| {
+        let name = a.name.as_ref()?;
+        top_artist_names
+            .contains(&normalize_artist_name(name))
+            .then(|| name.clone())
+    })
 }
 
 pub(crate) fn dedupe_key(event: &EventResponse) -> String {
@@ -202,6 +235,7 @@ mod tests {
             }]),
             url: None,
             price_ranges: None,
+            matched_artist: None,
         };
 
         // Same date/venue/attraction but a different Ticketmaster event id
@@ -228,6 +262,7 @@ mod tests {
             attractions: None,
             url: None,
             price_ranges: None,
+            matched_artist: None,
         };
         let mut other = EventResponse {
             venue: Some(VenueResponse {
@@ -240,5 +275,66 @@ mod tests {
         other.id = "2".to_string();
 
         assert_ne!(dedupe_key(&base), dedupe_key(&other));
+    }
+
+    fn event_with_attraction(name: &str) -> EventResponse {
+        EventResponse {
+            id: "1".to_string(),
+            name: "Event".to_string(),
+            venue: None,
+            images: vec![],
+            dates: None,
+            dates_pretty: None,
+            classifications: None,
+            attractions: Some(vec![TmAttraction {
+                name: Some(name.to_string()),
+                id: Some("artist-1".to_string()),
+                classifications: None,
+                external_links: None,
+                images: None,
+            }]),
+            url: None,
+            price_ranges: None,
+            matched_artist: None,
+        }
+    }
+
+    #[test]
+    fn apply_personalization_matches_exact_normalized_name() {
+        let mut event = event_with_attraction("Tyler, The Creator");
+        let top_artists = HashSet::from([normalize_artist_name("Tyler, The Creator")]);
+
+        apply_personalization(&mut event, &top_artists);
+
+        assert_eq!(event.matched_artist.as_deref(), Some("Tyler, The Creator"));
+    }
+
+    #[test]
+    fn apply_personalization_is_case_and_punctuation_insensitive() {
+        let mut event = event_with_attraction("Tyler, The Creator");
+        let top_artists = HashSet::from([normalize_artist_name("tyler the creator")]);
+
+        apply_personalization(&mut event, &top_artists);
+
+        assert_eq!(event.matched_artist.as_deref(), Some("Tyler, The Creator"));
+    }
+
+    #[test]
+    fn apply_personalization_leaves_none_when_no_match() {
+        let mut event = event_with_attraction("Some Other Artist");
+        let top_artists = HashSet::from([normalize_artist_name("Tyler, The Creator")]);
+
+        apply_personalization(&mut event, &top_artists);
+
+        assert_eq!(event.matched_artist, None);
+    }
+
+    #[test]
+    fn apply_personalization_is_a_noop_with_no_top_artists() {
+        let mut event = event_with_attraction("Tyler, The Creator");
+
+        apply_personalization(&mut event, &HashSet::new());
+
+        assert_eq!(event.matched_artist, None);
     }
 }

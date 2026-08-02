@@ -13,7 +13,11 @@ use crate::error::AppError;
 use crate::http_utils::{request_with_backoff, url_encode};
 use unicode_normalization::UnicodeNormalization;
 
-fn normalize(s: &str) -> String {
+/// Lowercases, strips accents (NFD), and drops non-alphanumeric characters —
+/// used both to match a searched artist name against Spotify search results
+/// and, exact-normalized, to match a Spotify top artist against a
+/// Ticketmaster attraction name for personalized discovery.
+pub(crate) fn normalize_artist_name(s: &str) -> String {
     s.to_lowercase()
         .nfd()
         .filter(|c| c.is_alphanumeric() && !c.is_whitespace())
@@ -55,6 +59,28 @@ pub struct Artist {
 pub struct SimplifiedArtist {
     pub id: String,
     pub name: String,
+}
+
+/// Window over which Spotify computes "top artists" — passed as the
+/// `time_range` query param on `GET /me/top/artists`.
+#[derive(Debug, Clone, Copy)]
+pub enum TopArtistsTimeRange {
+    /// ~4 weeks
+    Short,
+    /// ~6 months
+    Medium,
+    /// Several years, calculated periodically
+    Long,
+}
+
+impl TopArtistsTimeRange {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Short => "short_term",
+            Self::Medium => "medium_term",
+            Self::Long => "long_term",
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -239,7 +265,7 @@ impl SpotifyClient {
             .artists
             .items
             .into_iter()
-            .find(|a| normalize(&a.name) == normalize(artist_name));
+            .find(|a| normalize_artist_name(&a.name) == normalize_artist_name(artist_name));
         let Some(artist) = artist else {
             return Ok(None);
         };
@@ -261,6 +287,23 @@ impl SpotifyClient {
     pub async fn get_artist_by_href(&self, token: &str, href: &str) -> Result<Artist, AppError> {
         let url = href.to_string();
         self.get_json(token, &url).await
+    }
+
+    /// `GET /me/top/artists?time_range={time_range}&limit={limit}`
+    /// Scopes: `user-top-read`
+    pub async fn get_top_artists(
+        &self,
+        user_token: &str,
+        time_range: TopArtistsTimeRange,
+        limit: u8,
+    ) -> Result<Vec<Artist>, AppError> {
+        let url = format!(
+            "{BASE}/me/top/artists?time_range={}&limit={limit}",
+            time_range.as_str(),
+        );
+        self.get_json::<Paging<Artist>>(user_token, &url)
+            .await
+            .map(|p| p.items)
     }
 
     // -- Playlists (require user-scoped token) ------------------------------

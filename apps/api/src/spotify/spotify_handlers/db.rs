@@ -1,5 +1,39 @@
 use crate::auth::TokenResponse;
+use crate::error::AppError;
 use crate::services::playlist_builder::{PlaylistUpdateMode, PlaylistVisibility};
+use crate::state::AppState;
+use axum::http::StatusCode;
+use axum_extra::extract::cookie::SignedCookieJar;
+
+/// Resolves the account tied to the session cookie. Shared by every
+/// handler that requires an authenticated user.
+pub(super) async fn resolve_account_from_cookie(
+    state: &AppState,
+    jar: &SignedCookieJar,
+) -> Result<uuid::Uuid, AppError> {
+    let cookie = jar
+        .get("spotify_oauth_state")
+        .ok_or_else(|| AppError::AuthRequired("No session cookie. Visit /login first.".into()))?;
+    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Invalid session cookie".into(),
+    })?;
+    resolve_session_account(&state.db.pool, session_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
+        })
+}
+
+/// Lenient variant of `resolve_account_from_cookie`, for endpoints where a
+/// missing or invalid session should silently disable a feature (e.g.
+/// personalized discovery) rather than fail the whole request.
+pub(crate) async fn resolve_account_from_cookie_lenient(
+    state: &AppState,
+    jar: &SignedCookieJar,
+) -> Option<uuid::Uuid> {
+    resolve_account_from_cookie(state, jar).await.ok()
+}
 
 pub(super) async fn create_session(
     db: &sqlx::PgPool,

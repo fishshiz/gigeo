@@ -157,6 +157,11 @@ pub struct EventResponse {
     pub url: Option<String>,
     #[serde(rename = "priceRanges")]
     pub price_ranges: Option<Vec<TmPriceRange>>,
+    /// Name of the attraction that matched one of the caller's Spotify top
+    /// artists, for personalized discovery. `None` when the caller isn't
+    /// connected, has no personalization data, or no attraction matched.
+    #[serde(rename = "matchedArtist")]
+    pub matched_artist: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

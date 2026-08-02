@@ -1,6 +1,6 @@
 use super::db::{
     CreatePlaylistParams, UpdatePlaylistParams, create_playlist_record, deactivate_playlist,
-    get_playlist_for_account, resolve_session_account, soft_delete_playlist,
+    get_playlist_for_account, resolve_account_from_cookie, soft_delete_playlist,
     update_playlist_config,
 };
 use crate::error::AppError;
@@ -16,26 +16,6 @@ use axum::{
 };
 use axum_extra::extract::cookie::SignedCookieJar;
 use serde::{Deserialize, Serialize};
-
-/// Resolves the account tied to the session cookie. Shared by every
-/// handler that requires an authenticated user.
-async fn resolve_account_from_cookie(
-    state: &AppState,
-    jar: &SignedCookieJar,
-) -> Result<uuid::Uuid, AppError> {
-    let cookie = jar
-        .get("spotify_oauth_state")
-        .ok_or_else(|| AppError::AuthRequired("No session cookie. Visit /login first.".into()))?;
-    let session_id = uuid::Uuid::parse_str(cookie.value()).map_err(|_| AppError::Unauthorized {
-        status: StatusCode::UNAUTHORIZED,
-        message: "Invalid session cookie".into(),
-    })?;
-    resolve_session_account(&state.db.pool, session_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::AuthRequired("Session expired or invalid. Visit /login first.".into())
-        })
-}
 
 /// Returns `true` if a Spotify API error indicates the resource no longer
 /// exists upstream (as opposed to a transient failure).

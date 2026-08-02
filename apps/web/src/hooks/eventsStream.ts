@@ -33,5 +33,8 @@ export type EventResponse = {
     min: number
     max: number
   }> | null
+  /** Name of the artist that matched one of the caller's Spotify top
+   * artists, for personalized discovery. Absent/null when not applicable. */
+  matchedArtist?: string | null
 }
 

@@ -3,6 +3,11 @@
 //! - `auth`: OAuth login/callback/status
 //! - `playlists`: playlist creation, retrieval, edit, and delete
 //! - `db`: persistence for sessions, accounts, and playlists
+//!
+//! `resolve_account_from_cookie_lenient` is re-exported at `pub(crate)` for
+//! endpoints outside this module (e.g. the concerts stream) where a
+//! missing/invalid session should silently disable a feature rather than
+//! fail the request.
 
 mod artist;
 mod auth;
@@ -12,3 +17,4 @@ mod playlists;
 pub use artist::*;
 pub use auth::*;
 pub use playlists::*;
+pub(crate) use db::resolve_account_from_cookie_lenient;
