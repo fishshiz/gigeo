@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from spotify_top_artist_cache where account_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "38bc38b05e32596f871b6d80606fa50cc5caeca7e96a8f5c0fad6c5563595162"
+}
