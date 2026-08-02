@@ -51,7 +51,10 @@ const EventCard = ({
             {event.name}
           </h3>
           {event.matchedArtist && (
-            <ForYouTag matchedArtist={event.matchedArtist} />
+            <ForYouTag
+              matchedArtist={event.matchedArtist}
+              matchedVia={event.matchedVia}
+            />
           )}
         </div>
         <div className="flex flex-col gap-1">
