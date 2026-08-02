@@ -4,8 +4,9 @@
 
 use super::types::{EventResponse, LocationResponse, TmAttraction, TmEvent, VenueResponse};
 use crate::spotify::client::normalize_artist_name;
+use crate::spotify::top_artists::MatchReason;
 use chrono::{DateTime, Local};
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
     let dates = e.dates.start.date_time.or_else(|| {
@@ -54,33 +55,47 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
         attractions,
         price_ranges: e.price_ranges,
         matched_artist: None,
+        matched_via: None,
     }
 }
 
-/// Sets `matched_artist` on `event` if any of its Ticketmaster attractions
-/// exact-normalize-matches one of the caller's Spotify top artists.
-/// `top_artist_names` must already be exact-normalized (see
-/// `spotify::top_artists::get_top_artist_names`). A no-op when the caller
-/// has no personalization set (not connected, no session, or fetch failed).
-pub(crate) fn apply_personalization(event: &mut EventResponse, top_artist_names: &HashSet<String>) {
-    if top_artist_names.is_empty() {
+/// Sets `matched_artist` (and, for a similar-artist match, `matched_via`) on
+/// `event` if any of its Ticketmaster attractions exact-normalize-matches an
+/// entry in `matches`. Keys in `matches` must already be exact-normalized
+/// (see `spotify::top_artists::get_personalization_matches`). A no-op when
+/// the caller has no personalization set (not connected, no session, or
+/// fetch failed).
+pub(crate) fn apply_personalization(
+    event: &mut EventResponse,
+    matches: &HashMap<String, MatchReason>,
+) {
+    if matches.is_empty() {
         return;
     }
-    event.matched_artist = event
+    let Some((name, reason)) = event
         .attractions
         .as_ref()
-        .and_then(|attractions| find_matching_attraction(attractions, top_artist_names));
+        .and_then(|attractions| find_matching_attraction(attractions, matches))
+    else {
+        return;
+    };
+
+    event.matched_artist = Some(name);
+    event.matched_via = match reason {
+        MatchReason::Direct => None,
+        MatchReason::Similar { seed } => Some(seed),
+    };
 }
 
 fn find_matching_attraction(
     attractions: &[TmAttraction],
-    top_artist_names: &HashSet<String>,
-) -> Option<String> {
+    matches: &HashMap<String, MatchReason>,
+) -> Option<(String, MatchReason)> {
     attractions.iter().find_map(|a| {
         let name = a.name.as_ref()?;
-        top_artist_names
-            .contains(&normalize_artist_name(name))
-            .then(|| name.clone())
+        matches
+            .get(&normalize_artist_name(name))
+            .map(|reason| (name.clone(), reason.clone()))
     })
 }
 
@@ -233,6 +248,7 @@ mod tests {
             url: None,
             price_ranges: None,
             matched_artist: None,
+            matched_via: None,
         };
 
         // Same date/venue/attraction but a different Ticketmaster event id
@@ -260,6 +276,7 @@ mod tests {
             url: None,
             price_ranges: None,
             matched_artist: None,
+            matched_via: None,
         };
         let mut other = EventResponse {
             venue: Some(VenueResponse {
@@ -293,25 +310,34 @@ mod tests {
             url: None,
             price_ranges: None,
             matched_artist: None,
+            matched_via: None,
         }
+    }
+
+    fn direct_matches(names: &[&str]) -> HashMap<String, MatchReason> {
+        names
+            .iter()
+            .map(|n| (normalize_artist_name(n), MatchReason::Direct))
+            .collect()
     }
 
     #[test]
     fn apply_personalization_matches_exact_normalized_name() {
         let mut event = event_with_attraction("Tyler, The Creator");
-        let top_artists = HashSet::from([normalize_artist_name("Tyler, The Creator")]);
+        let matches = direct_matches(&["Tyler, The Creator"]);
 
-        apply_personalization(&mut event, &top_artists);
+        apply_personalization(&mut event, &matches);
 
         assert_eq!(event.matched_artist.as_deref(), Some("Tyler, The Creator"));
+        assert_eq!(event.matched_via, None);
     }
 
     #[test]
     fn apply_personalization_is_case_and_punctuation_insensitive() {
         let mut event = event_with_attraction("Tyler, The Creator");
-        let top_artists = HashSet::from([normalize_artist_name("tyler the creator")]);
+        let matches = direct_matches(&["tyler the creator"]);
 
-        apply_personalization(&mut event, &top_artists);
+        apply_personalization(&mut event, &matches);
 
         assert_eq!(event.matched_artist.as_deref(), Some("Tyler, The Creator"));
     }
@@ -319,18 +345,60 @@ mod tests {
     #[test]
     fn apply_personalization_leaves_none_when_no_match() {
         let mut event = event_with_attraction("Some Other Artist");
-        let top_artists = HashSet::from([normalize_artist_name("Tyler, The Creator")]);
+        let matches = direct_matches(&["Tyler, The Creator"]);
 
-        apply_personalization(&mut event, &top_artists);
+        apply_personalization(&mut event, &matches);
 
         assert_eq!(event.matched_artist, None);
+        assert_eq!(event.matched_via, None);
     }
 
     #[test]
-    fn apply_personalization_is_a_noop_with_no_top_artists() {
+    fn apply_personalization_sets_matched_via_for_similar_artist_match() {
+        let mut event = event_with_attraction("Kali Uchis");
+        let matches = HashMap::from([(
+            normalize_artist_name("Kali Uchis"),
+            MatchReason::Similar {
+                seed: "Tyler, The Creator".to_string(),
+            },
+        )]);
+
+        apply_personalization(&mut event, &matches);
+
+        assert_eq!(event.matched_artist.as_deref(), Some("Kali Uchis"));
+        assert_eq!(event.matched_via.as_deref(), Some("Tyler, The Creator"));
+    }
+
+    #[test]
+    fn apply_personalization_prefers_direct_over_similar_for_the_same_name() {
+        let mut event = event_with_attraction("Tyler, The Creator");
+        let mut matches = HashMap::new();
+        matches.insert(
+            normalize_artist_name("Tyler, The Creator"),
+            MatchReason::Similar {
+                seed: "Kali Uchis".to_string(),
+            },
+        );
+        // A direct match on the same normalized name always wins when
+        // building the cache (see `expand_via_similar_artists`); this test
+        // just documents that `apply_personalization` renders whichever
+        // reason it's given rather than re-deciding precedence itself.
+        apply_personalization(&mut event, &matches);
+        assert_eq!(event.matched_via.as_deref(), Some("Kali Uchis"));
+
+        matches.insert(
+            normalize_artist_name("Tyler, The Creator"),
+            MatchReason::Direct,
+        );
+        apply_personalization(&mut event, &matches);
+        assert_eq!(event.matched_via, None);
+    }
+
+    #[test]
+    fn apply_personalization_is_a_noop_with_no_matches() {
         let mut event = event_with_attraction("Tyler, The Creator");
 
-        apply_personalization(&mut event, &HashSet::new());
+        apply_personalization(&mut event, &HashMap::new());
 
         assert_eq!(event.matched_artist, None);
     }

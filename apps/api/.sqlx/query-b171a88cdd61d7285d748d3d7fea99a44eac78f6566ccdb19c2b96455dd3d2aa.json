@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into spotify_top_artist_cache (account_id, matches, fetched_at)\n        values ($1, $2, now())\n        on conflict (account_id) do update set\n            matches = excluded.matches,\n            fetched_at = excluded.fetched_at\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b171a88cdd61d7285d748d3d7fea99a44eac78f6566ccdb19c2b96455dd3d2aa"
+}
