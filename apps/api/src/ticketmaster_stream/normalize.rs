@@ -62,10 +62,7 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
 /// `top_artist_names` must already be exact-normalized (see
 /// `spotify::top_artists::get_top_artist_names`). A no-op when the caller
 /// has no personalization set (not connected, no session, or fetch failed).
-pub(crate) fn apply_personalization(
-    event: &mut EventResponse,
-    top_artist_names: &HashSet<String>,
-) {
+pub(crate) fn apply_personalization(event: &mut EventResponse, top_artist_names: &HashSet<String>) {
     if top_artist_names.is_empty() {
         return;
     }

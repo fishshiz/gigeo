@@ -16,5 +16,5 @@ mod playlists;
 
 pub use artist::*;
 pub use auth::*;
-pub use playlists::*;
 pub(crate) use db::resolve_account_from_cookie_lenient;
+pub use playlists::*;

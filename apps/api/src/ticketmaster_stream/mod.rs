@@ -44,17 +44,15 @@ pub async fn get_concerts_tm_stream(
     // connection, or a failed fetch should silently disable it rather than
     // break event browsing for everyone.
     let top_artist_names = match resolve_account_from_cookie_lenient(&state, &jar).await {
-        Some(account_id) => {
-            crate::spotify::top_artists::get_top_artist_names(&state, account_id)
-                .await
-                .unwrap_or_else(|err| {
-                    tracing::warn!(
-                        error = %err,
-                        "failed to fetch top artists for personalized discovery, skipping"
-                    );
-                    HashSet::new()
-                })
-        }
+        Some(account_id) => crate::spotify::top_artists::get_top_artist_names(&state, account_id)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(
+                    error = %err,
+                    "failed to fetch top artists for personalized discovery, skipping"
+                );
+                HashSet::new()
+            }),
         None => HashSet::new(),
     };
 
