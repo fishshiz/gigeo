@@ -5,6 +5,7 @@ import { useEventsContext } from "../providers/eventsProvider"
 import type { Ref } from "react"
 import { formatDate } from "../lib/dates"
 import { EventFilter } from "../EventFilter"
+import { ForYouConnectNudge } from "../ForYouConnectNudge"
 
 type RegisterItem = (id: string) => Ref<HTMLDivElement>
 
@@ -29,6 +30,7 @@ export const EventsDrawer = ({
 
   return (
     <>
+      <ForYouConnectNudge />
       {entries.length ? (
         <div className="flex flex-col gap-4">
           {entries.map(([date, events]) => (
