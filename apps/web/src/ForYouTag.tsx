@@ -6,11 +6,18 @@ import { DialogTrigger } from "react-aria-components"
 
 /**
  * Neutral, provider-agnostic badge shown on events matching one of the
- * viewer's Spotify top artists. Tap-to-reveal (not hover) on both desktop
- * and mobile, since this drawer UI has no other hover-dependent affordance.
+ * viewer's Spotify top artists, directly or via Apple Music's
+ * similar-artists expansion. Tap-to-reveal (not hover) on both desktop and
+ * mobile, since this drawer UI has no other hover-dependent affordance.
  * Stops propagation so tapping it doesn't also open the event's details.
  */
-export function ForYouTag({ matchedArtist }: { matchedArtist: string }) {
+export function ForYouTag({
+  matchedArtist,
+  matchedVia,
+}: {
+  matchedArtist: string
+  matchedVia?: string | null
+}) {
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -24,8 +31,17 @@ export function ForYouTag({ matchedArtist }: { matchedArtist: string }) {
         </Button>
         <Popover showArrow placement="top">
           <Dialog className="w-auto max-w-[220px] p-3 text-sm">
-            Because you've been listening to{" "}
-            <span className="font-semibold">{matchedArtist}</span>
+            {matchedVia ? (
+              <>
+                Similar to <span className="font-semibold">{matchedVia}</span>
+                , who you listen to
+              </>
+            ) : (
+              <>
+                Because you've been listening to{" "}
+                <span className="font-semibold">{matchedArtist}</span>
+              </>
+            )}
           </Dialog>
         </Popover>
       </DialogTrigger>

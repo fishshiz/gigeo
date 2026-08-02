@@ -162,6 +162,13 @@ pub struct EventResponse {
     /// connected, has no personalization data, or no attraction matched.
     #[serde(rename = "matchedArtist")]
     pub matched_artist: Option<String>,
+    /// Set only when `matched_artist` matched via Apple Music similar-artist
+    /// expansion rather than being one of the caller's own Spotify top
+    /// artists — names the top artist (`seed`) that produced the match, so
+    /// the frontend can render "similar to X" instead of implying the
+    /// caller directly listens to `matched_artist`.
+    #[serde(rename = "matchedVia")]
+    pub matched_via: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

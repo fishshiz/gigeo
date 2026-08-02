@@ -33,7 +33,7 @@ use client::fetch_tm_page;
 use dates::date_windows;
 use futures::{StreamExt, stream::BoxStream};
 use geohash::{Coord, encode};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub async fn get_concerts_tm_stream(
     State(state): State<AppState>,
@@ -43,17 +43,19 @@ pub async fn get_concerts_tm_stream(
     // Personalized discovery is best-effort: no session, no Spotify
     // connection, or a failed fetch should silently disable it rather than
     // break event browsing for everyone.
-    let top_artist_names = match resolve_account_from_cookie_lenient(&state, &jar).await {
-        Some(account_id) => crate::spotify::top_artists::get_top_artist_names(&state, account_id)
-            .await
-            .unwrap_or_else(|err| {
-                tracing::warn!(
-                    error = %err,
-                    "failed to fetch top artists for personalized discovery, skipping"
-                );
-                HashSet::new()
-            }),
-        None => HashSet::new(),
+    let personalization_matches = match resolve_account_from_cookie_lenient(&state, &jar).await {
+        Some(account_id) => {
+            crate::spotify::top_artists::get_personalization_matches(&state, account_id)
+                .await
+                .unwrap_or_else(|err| {
+                    tracing::warn!(
+                        error = %err,
+                        "failed to fetch personalized discovery matches, skipping"
+                    );
+                    HashMap::new()
+                })
+        }
+        None => HashMap::new(),
     };
 
     let geo_hash = encode(
@@ -116,7 +118,7 @@ pub async fn get_concerts_tm_stream(
 
                 for raw in events {
                     let mut event = normalize_event(raw);
-                    apply_personalization(&mut event, &top_artist_names);
+                    apply_personalization(&mut event, &personalization_matches);
                     let key = dedupe_key(&event);
 
                     if seen.insert(key) {
