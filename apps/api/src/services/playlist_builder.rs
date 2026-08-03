@@ -1,8 +1,6 @@
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::ticketmaster_stream::{
-    EventResponse, EventsQuery, TicketmasterResponse, dedupe_key, normalize_event,
-};
+use crate::ticketmaster_stream::{PageLimit, fetch_events_near};
 use chrono::Utc;
 use geohash::{Coord, encode};
 use serde::{Deserialize, Serialize};
@@ -50,61 +48,16 @@ pub fn resolve_update_mode(destructive: Option<bool>) -> PlaylistUpdateMode {
     }
 }
 
-pub async fn get_concerts_tm_impl(
-    state: &AppState,
-    params: &EventsQuery,
-) -> Result<Vec<EventResponse>, AppError> {
-    let hash = encode(
-        Coord {
-            x: params.longitude,
-            y: params.latitude,
-        },
-        6,
-    )
-    .map_err(|e| AppError::Internal(format!("Failed to encode geohash: {e}")))?;
-
-    let url = format!(
-        "https://app.ticketmaster.com/discovery/v2/events.json?geoPoint={}&apikey={}&radius={}&startDateTime={}&endDateTime={}&size=200&sort=date,asc",
-        hash, state.ticketmaster_key, params.radius, params.start, params.end
-    );
-
-    let resp = state
-        .client
-        .get(&url)
-        .send()
-        .await
-        .map_err(AppError::Request)?;
-
-    let status = resp.status();
-    let text = resp.text().await.map_err(AppError::Request)?;
-
-    if !status.is_success() {
-        return Err(AppError::TicketmasterApi {
-            status,
-            message: text,
-        });
-    }
-
-    let body: TicketmasterResponse = serde_json::from_str(&text)
-        .map_err(|e| AppError::Internal(format!("Ticketmaster decode error: {e}")))?;
-
-    let mut seen = HashSet::<String>::new();
-    let events: Vec<EventResponse> = body
-        .embedded
-        .into_iter()
-        .flat_map(|e| e.events)
-        .map(normalize_event)
-        .filter(|event| seen.insert(dedupe_key(event)))
-        .collect();
-
-    Ok(events)
-}
-
 /// Finds nearby Ticketmaster events and returns the unique set of artist
 /// names playing within `radius_miles` over the next `window_days`.
 ///
 /// Shared by the create-playlist handler and the periodic playlist
-/// updater, so both build a playlist's artist list the same way.
+/// updater, so both build a playlist's artist list the same way. Fetches
+/// only the first page (`PageLimit::First`) — this runs on the updater's
+/// 5-minute timer across up to 25 playlists per tick, so it trades
+/// completeness in dense areas for a bounded, predictable number of
+/// Ticketmaster requests. `ticketmaster_stream::get_concerts_tm_stream`
+/// (the map view) is the one that needs — and pays for — full coverage.
 pub async fn find_artist_names_near(
     state: &AppState,
     latitude: f64,
@@ -112,18 +65,31 @@ pub async fn find_artist_names_near(
     radius_miles: u8,
     window_days: i64,
 ) -> Result<Vec<String>, AppError> {
-    let now = Utc::now();
-    let query = EventsQuery {
-        latitude,
-        longitude,
-        radius: radius_miles,
-        start: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-        end: (now + chrono::Duration::days(window_days))
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string(),
-    };
+    let geo_hash = encode(
+        Coord {
+            x: longitude,
+            y: latitude,
+        },
+        6,
+    )
+    .map_err(|e| AppError::Internal(format!("Failed to encode geohash: {e}")))?;
 
-    let events = get_concerts_tm_impl(state, &query).await?;
+    let now = Utc::now();
+    let start = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let end = (now + chrono::Duration::days(window_days))
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+
+    let events = fetch_events_near(
+        &state.client,
+        &state.ticketmaster_key,
+        &geo_hash,
+        radius_miles,
+        &start,
+        &end,
+        PageLimit::First,
+    )
+    .await?;
 
     Ok(events
         .iter()

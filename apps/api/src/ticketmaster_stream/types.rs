@@ -12,6 +12,24 @@ pub struct EventsQuery {
     pub end: String,
 }
 
+#[derive(Deserialize)]
+pub struct AttractionEventsQuery {
+    pub id: String,
+}
+
+/// How many pages of a Ticketmaster response to fetch.
+///
+/// `First` stops after page 0 — used where completeness matters less than
+/// call volume (e.g. `playlist_builder`, which runs on a 5-minute timer).
+/// `All` pages through to the end — used where a caller needs every result
+/// (the map stream, and attraction lookups where truncating would silently
+/// hide an artist's later shows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageLimit {
+    First,
+    All,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TicketmasterResponse {
     #[serde(rename = "_embedded")]
