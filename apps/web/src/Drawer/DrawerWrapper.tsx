@@ -15,6 +15,7 @@ import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
 import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
 import type { Key } from "react-aria-components/Tabs"
 import { useDrawerProvider } from "@/providers/drawerProvider"
+import { groupEvents } from "../lib/groupEvents"
 
 const PlaylistsDrawerBody = lazy(() =>
   import("./PlaylistsDrawer").then((m) => ({ default: m.PlaylistsDrawerBody }))
@@ -127,6 +128,11 @@ const DrawerWrapper = () => {
   })
 
   const entries = Object.entries(eventsByDate).sort()
+  // A single group means selectedEvents is either one event, or several
+  // showtimes of the *same* event (selected via a GroupedEventCard) — both
+  // go to EventDetails. More than one group means genuinely distinct events
+  // (e.g. a venue-marker click), which go to VenueDetails.
+  const selectedGroups = groupEvents(selectedEvents)
 
   // Kept in lockstep with the DrawerContent slide transition in the shared
   // Drawer component, so the reserved layout width and the visible slide
@@ -183,9 +189,12 @@ const DrawerWrapper = () => {
             ref={eventsScrollRef}
             className="h-full flex-1 overflow-y-auto scroll-smooth"
           >
-            {selectedEvents.length === 1 ? (
-              <EventDetails eventData={selectedEvents[0]} />
-            ) : selectedEvents.length ? (
+            {selectedGroups.length === 1 ? (
+              <EventDetails
+                eventData={selectedGroups[0].events[0]}
+                otherShowtimes={selectedGroups[0].events.slice(1)}
+              />
+            ) : selectedGroups.length ? (
               <VenueDetails events={selectedEvents} />
             ) : (
               <EventsDrawer registerItem={registerItem} />

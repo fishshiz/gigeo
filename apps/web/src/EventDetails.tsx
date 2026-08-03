@@ -17,14 +17,23 @@ import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
+import { formatTime } from "./lib/dates"
 
-const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
+const EventDetails = ({
+  eventData,
+  otherShowtimes = [],
+}: {
+  eventData: EventResponse
+  /** Other showtimes of this same event today (same name/venue/day),
+   * excluding eventData itself. */
+  otherShowtimes?: EventResponse[]
+}) => {
   const { attractions } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
   const [futureEvents, setFutureEvents] = useState<Record<string, Event[]>>({})
   const [showStickyHeader, setShowStickyHeader] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const { selectEvents, setSelectedEvent } = useEventsContext()
+  const { selectEvents } = useEventsContext()
 
   const { classifications } = eventData
   const segment =
@@ -133,7 +142,7 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
         aria-label="Back to events"
         className="absolute top-2 left-2 z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
         variant="secondary"
-        onClick={() => setSelectedEvent(undefined)}
+        onClick={() => selectEvents([])}
       >
         <ArrowLeftIcon aria-hidden className="h-4 w-4" />
       </Button>
@@ -178,6 +187,36 @@ const EventDetails = ({ eventData }: { eventData: EventResponse }) => {
           )}
         </div>
       </div>
+
+      {otherShowtimes.length > 0 && (
+        <div className="p-2">
+          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+            Other showtimes today
+          </h3>
+          <ul className="mt-1 flex flex-col gap-2 text-sm">
+            {otherShowtimes.map((showtime) => (
+              <li
+                key={showtime.id}
+                className="flex items-center justify-between gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
+              >
+                <span>
+                  {(showtime.dates && formatTime(showtime.dates)) ||
+                    showtime.datesPretty}
+                </span>
+                {showtime.url && (
+                  <Link
+                    href={showtime.url}
+                    target="_blank"
+                    className="text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+                  >
+                    Tickets
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {artistInfo.length
         ? artistInfo.map((artist) => (
