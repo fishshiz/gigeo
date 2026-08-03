@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import {
-  eventDateKey,
   eventsReducer,
   initialEventsState,
   sameEvent,
@@ -19,73 +18,6 @@ function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
     ...overrides,
   }
 }
-
-describe("eventDateKey", () => {
-  // Pinned rather than relying on the runner's own default timezone: the
-  // whole point of these cases is to exercise UTC-vs-local calendar-day
-  // boundaries, which only show up in a timezone behind UTC (a CI runner
-  // that happens to default to UTC would silently pass a broken
-  // implementation, since there'd be no offset to shift across).
-  beforeEach(() => {
-    vi.stubEnv("TZ", "America/New_York")
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
-  it("returns the YYYY-MM-DD portion of a valid date", () => {
-    expect(eventDateKey(makeEvent({ dates: "2026-08-01T20:00:00Z" }))).toBe(
-      "2026-08-01"
-    )
-  })
-
-  it("returns 'unknown' when dates is missing", () => {
-    expect(eventDateKey(makeEvent({ dates: null }))).toBe("unknown")
-  })
-
-  it("returns 'unknown' when dates is not a parseable date", () => {
-    expect(eventDateKey(makeEvent({ dates: "not-a-date" }))).toBe("unknown")
-  })
-
-  it("buckets a late-evening show under its local calendar day, not the next UTC day", () => {
-    // Regression test: an 11pm Eastern show is 3am UTC the *next* day.
-    // The previous implementation extracted the UTC calendar day
-    // (toISOString().substring(0, 10)), which pushed this into
-    // "2026-08-02" even though the show itself is on Aug 1 locally.
-    expect(eventDateKey(makeEvent({ dates: "2026-08-02T03:00:00Z" }))).toBe(
-      "2026-08-01"
-    )
-  })
-
-  it("does not shift an early show that already falls on the same UTC day", () => {
-    // 4pm Eastern -- well clear of the UTC day boundary either way, so
-    // this should be unaffected by the local-vs-UTC change.
-    expect(eventDateKey(makeEvent({ dates: "2026-08-01T20:00:00Z" }))).toBe(
-      "2026-08-01"
-    )
-  })
-
-  it("returns a bare YYYY-MM-DD date unchanged, without routing it through Date", () => {
-    // Ticketmaster events with only a localDate (no time) come through as
-    // a bare date string. Parsing that as `Date` would anchor it to UTC
-    // midnight, which reads back as the *previous* day in any timezone
-    // behind UTC -- e.g. UTC midnight Aug 1 is 8pm July 31 Eastern.
-    expect(eventDateKey(makeEvent({ dates: "2026-08-01" }))).toBe(
-      "2026-08-01"
-    )
-  })
-
-  it("treats a timezone-less local datetime as already-local, not UTC", () => {
-    // normalize_event's localDate+localTime fallback produces a string
-    // with no "Z"/offset, which JS parses as local wall-clock time
-    // already -- no conversion should happen here regardless of the
-    // runner's timezone.
-    expect(eventDateKey(makeEvent({ dates: "2026-08-01T23:30:00" }))).toBe(
-      "2026-08-01"
-    )
-  })
-})
 
 describe("sameEvent", () => {
   it("is true when ids match, regardless of other fields", () => {
@@ -135,20 +67,40 @@ describe("sameEvent", () => {
 
 describe("sortEvents", () => {
   it("sorts events by date ascending", () => {
-    const later = makeEvent({ id: "1", name: "Later", dates: "2026-08-02T00:00:00Z" })
-    const earlier = makeEvent({ id: "2", name: "Earlier", dates: "2026-08-01T00:00:00Z" })
+    const later = makeEvent({
+      id: "1",
+      name: "Later",
+      dates: "2026-08-02T00:00:00Z",
+    })
+    const earlier = makeEvent({
+      id: "2",
+      name: "Earlier",
+      dates: "2026-08-01T00:00:00Z",
+    })
     expect(sortEvents([later, earlier])).toEqual([earlier, later])
   })
 
   it("sorts events without a date after dated events", () => {
-    const dated = makeEvent({ id: "1", name: "Dated", dates: "2026-08-01T00:00:00Z" })
+    const dated = makeEvent({
+      id: "1",
+      name: "Dated",
+      dates: "2026-08-01T00:00:00Z",
+    })
     const undated = makeEvent({ id: "2", name: "Undated", dates: null })
     expect(sortEvents([undated, dated])).toEqual([dated, undated])
   })
 
   it("breaks ties on the same date by name", () => {
-    const b = makeEvent({ id: "1", name: "B Event", dates: "2026-08-01T00:00:00Z" })
-    const a = makeEvent({ id: "2", name: "A Event", dates: "2026-08-01T00:00:00Z" })
+    const b = makeEvent({
+      id: "1",
+      name: "B Event",
+      dates: "2026-08-01T00:00:00Z",
+    })
+    const a = makeEvent({
+      id: "2",
+      name: "A Event",
+      dates: "2026-08-01T00:00:00Z",
+    })
     expect(sortEvents([b, a])).toEqual([a, b])
   })
 

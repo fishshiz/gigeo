@@ -1,5 +1,6 @@
 import type { EventResponse } from "../hooks/eventsStream"
-import { eventDateKey, sortEvents } from "../reducers/events"
+import { sortEvents } from "../reducers/events"
+import { eventDateKey } from "./dates"
 
 type EventGroup = {
   events: EventResponse[]

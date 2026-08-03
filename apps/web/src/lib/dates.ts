@@ -4,6 +4,73 @@ import {
   getLocalTimeZone,
   type CalendarDate,
 } from "@internationalized/date"
+import type { EventResponse } from "../hooks/eventsStream"
+
+// ---------------------------------------------------------------------------
+// LocalDay — the calendar day an event or search boundary falls on in the
+// viewer's own timezone (not necessarily the venue's — the app assumes the
+// two approximate each other; see apps/web/CONTEXT.md). This is the single
+// owner of that concept: every place that needs to bucket, query, or display
+// something by local day goes through here.
+// ---------------------------------------------------------------------------
+
+const BARE_DATE = /^\d{4}-\d{2}-\d{2}$/
+const HAS_OFFSET = /[Zz]|[+-]\d{2}:?\d{2}$/
+
+/** Extracts the `YYYY-MM-DD` LocalDay from an arbitrary date-time string,
+ * honoring `timeZone` (defaults to the viewer's own).
+ *
+ * `EventResponse.dates` comes through in three shapes, and only one of them
+ * involves a real timezone conversion:
+ *
+ * - A bare `YYYY-MM-DD` (no time-of-day) — already the day, as written.
+ * - A timezone-less local wall-clock string, e.g. `"2026-08-01T23:30:00"`
+ *   (from `normalize_event`'s localDate+localTime fallback) — also already
+ *   the day, as written. Routing this through `Date` would silently assume
+ *   it's local to *this runtime*, then reformatting in an arbitrary target
+ *   `timeZone` would double-convert it — reading the date substring
+ *   directly avoids that entirely, and is correct regardless of what
+ *   `timeZone` is passed or what zone the runtime itself is in.
+ * - A genuine UTC/offset instant, e.g. `"2026-08-02T03:00:00Z"` — the only
+ *   shape that actually needs conversion. An 11pm Eastern show is 3am UTC
+ *   the *next* day; reading the UTC calendar day instead of the local one
+ *   is exactly the bug this module exists to prevent (see reducers/events.ts
+ *   history, and dateRangeToApiParams below for the matching search-side
+ *   bug it exposed).
+ */
+const toLocalDay = (
+  dateString: string,
+  timeZone: string = getLocalTimeZone()
+): string | null => {
+  if (!HAS_OFFSET.test(dateString)) {
+    const day = dateString.slice(0, 10)
+    return BARE_DATE.test(day) ? day : null
+  }
+
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return null
+
+  // en-CA formats numeric dates as YYYY-MM-DD -- the standard idiom for
+  // getting an ISO-ordered date out of Intl without hand-assembling one
+  // from formatToParts.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
+}
+
+/** The LocalDay an event belongs to, or `"unknown"` if it has no (or an
+ * unparseable) `dates` value. Used to bucket events for the drawer and to
+ * key same-day/same-venue showtime grouping (`lib/groupEvents.ts`). */
+const eventDateKey = (
+  event: EventResponse,
+  timeZone: string = getLocalTimeZone()
+): string => {
+  if (!event.dates) return "unknown"
+  return toLocalDay(event.dates, timeZone) ?? "unknown"
+}
 
 const formatDate = (dateString: string) => {
   // Parse YYYY-MM-DD as UTC to avoid timezone shifts
@@ -25,7 +92,10 @@ const formatDate = (dateString: string) => {
  * have no time-of-day to format, only a date. */
 const hasTimeComponent = (dateString: string) => dateString.includes("T")
 
-const formatDateTime = (date: string) => {
+const formatDateTime = (
+  date: string,
+  timeZone: string = getLocalTimeZone()
+) => {
   if (!hasTimeComponent(date)) return formatDate(date)
 
   const parsedDate = parseAbsolute(date, "UTC")
@@ -36,12 +106,15 @@ const formatDateTime = (date: string) => {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: getLocalTimeZone(), // or a specific IANA tz
+    timeZone,
   })
   return dateFormatter.format(parsedDate.toDate())
 }
 
-const formatTime = (dateString: string) => {
+const formatTime = (
+  dateString: string,
+  timeZone: string = getLocalTimeZone()
+) => {
   if (!hasTimeComponent(dateString)) return null
 
   const parsedDate = parseAbsolute(dateString, "UTC")
@@ -50,7 +123,7 @@ const formatTime = (dateString: string) => {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: getLocalTimeZone(),
+    timeZone,
   })
   return formatter.format(parsedDate.toDate())
 }
@@ -96,6 +169,7 @@ const groupDatesByWeek = (dates: string[]): string[][] => {
 }
 
 export {
+  eventDateKey,
   formatDateTime,
   formatDate,
   formatTime,
