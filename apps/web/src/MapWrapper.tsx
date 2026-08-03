@@ -10,6 +10,7 @@ import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
 import { boundsForRadius } from "./lib/geo"
+import { dateRangeToApiParams } from "./lib/dates"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 import type { Feature, FeatureCollection } from "geojson"
@@ -216,8 +217,7 @@ const MapWrapper = () => {
   const { latitude, longitude, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
-    start: dateRange.start.toString() + "T00:00:00Z",
-    end: dateRange.end.toString() + "T23:59:59Z",
+    ...dateRangeToApiParams(dateRange.start, dateRange.end),
   }
   useEffect(() => {
     if (!rendered) return
