@@ -1,9 +1,131 @@
 import { describe, expect, it } from "vitest"
 import { CalendarDate } from "@internationalized/date"
-import { dateRangeToApiParams, groupDatesByWeek } from "./dates"
+import type { EventResponse } from "../hooks/eventsStream"
+import {
+  dateRangeToApiParams,
+  eventDateKey,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  groupDatesByWeek,
+} from "./dates"
 
 const dates = (count: number) =>
   Array.from({ length: count }, (_, i) => `d${i}`)
+
+const EASTERN = "America/New_York"
+
+function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
+  return {
+    id: "1",
+    name: "Test Event",
+    images: [],
+    dates: "2026-08-01T20:00:00Z",
+    source: "ticketmaster",
+    ...overrides,
+  }
+}
+
+describe("eventDateKey", () => {
+  // LocalDay: the calendar day an event falls on in the viewer's own
+  // timezone. Timezone passed explicitly rather than relying on the
+  // runner's own default -- the whole point of these cases is to exercise
+  // UTC-vs-local calendar-day boundaries, which only show up in a timezone
+  // behind UTC (a CI runner that happens to default to UTC would silently
+  // pass a broken implementation, since there'd be no offset to shift
+  // across).
+  it("returns the YYYY-MM-DD portion of a valid date", () => {
+    expect(
+      eventDateKey(makeEvent({ dates: "2026-08-01T20:00:00Z" }), EASTERN)
+    ).toBe("2026-08-01")
+  })
+
+  it("returns 'unknown' when dates is missing", () => {
+    expect(eventDateKey(makeEvent({ dates: null }), EASTERN)).toBe("unknown")
+  })
+
+  it("returns 'unknown' when dates is not a parseable date", () => {
+    expect(eventDateKey(makeEvent({ dates: "not-a-date" }), EASTERN)).toBe(
+      "unknown"
+    )
+  })
+
+  it("buckets a late-evening show under its local calendar day, not the next UTC day", () => {
+    // Regression test: an 11pm Eastern show is 3am UTC the *next* day. The
+    // previous implementation extracted the UTC calendar day
+    // (toISOString().substring(0, 10)), which pushed this into
+    // "2026-08-02" even though the show itself is on Aug 1 locally.
+    expect(
+      eventDateKey(makeEvent({ dates: "2026-08-02T03:00:00Z" }), EASTERN)
+    ).toBe("2026-08-01")
+  })
+
+  it("does not shift an early show that already falls on the same UTC day", () => {
+    // 4pm Eastern -- well clear of the UTC day boundary either way, so
+    // this should be unaffected by the local-vs-UTC change.
+    expect(
+      eventDateKey(makeEvent({ dates: "2026-08-01T20:00:00Z" }), EASTERN)
+    ).toBe("2026-08-01")
+  })
+
+  it("returns a bare YYYY-MM-DD date unchanged, regardless of timezone", () => {
+    // Ticketmaster events with only a localDate (no time) come through as
+    // a bare date string -- already the day, as written, with nothing to
+    // resolve. Proven independent of timezone by picking one nowhere near
+    // America/New_York.
+    expect(eventDateKey(makeEvent({ dates: "2026-08-01" }), "Asia/Tokyo")).toBe(
+      "2026-08-01"
+    )
+  })
+
+  it("treats a timezone-less local datetime as already-local, regardless of the target timezone", () => {
+    // normalize_event's localDate+localTime fallback produces a string
+    // with no "Z"/offset. Routing this through `Date` before reformatting
+    // in an arbitrary target timezone would double-convert it -- e.g. a
+    // 2am no-zone string reformatted in a different zone than whatever
+    // produced it can land on the *previous* day. Reading the date
+    // substring directly sidesteps that: proven here by using a timezone
+    // (Tokyo, UTC+9) that would expose a double-conversion if one were
+    // happening, and confirming the day doesn't move.
+    expect(
+      eventDateKey(makeEvent({ dates: "2026-08-01T23:30:00" }), "Asia/Tokyo")
+    ).toBe("2026-08-01")
+  })
+
+  it("defaults to the viewer's own timezone when none is passed", () => {
+    expect(eventDateKey(makeEvent({ dates: "2026-08-01T20:00:00Z" }))).toMatch(
+      /^\d{4}-\d{2}-\d{2}$/
+    )
+  })
+})
+
+describe("formatDate", () => {
+  it("formats a bare YYYY-MM-DD date", () => {
+    expect(formatDate("2026-08-01")).toBe("August 1, 2026")
+  })
+})
+
+describe("formatDateTime", () => {
+  it("formats a UTC instant in the given timezone", () => {
+    expect(formatDateTime("2026-08-01T23:00:00Z", EASTERN)).toBe(
+      "August 1 at 7:00 PM"
+    )
+  })
+
+  it("falls back to formatDate for a bare date with no time component", () => {
+    expect(formatDateTime("2026-08-01", EASTERN)).toBe("August 1, 2026")
+  })
+})
+
+describe("formatTime", () => {
+  it("formats a UTC instant's time-of-day in the given timezone", () => {
+    expect(formatTime("2026-08-01T23:00:00Z", EASTERN)).toBe("7:00 PM")
+  })
+
+  it("returns null for a bare date with no time component", () => {
+    expect(formatTime("2026-08-01", EASTERN)).toBe(null)
+  })
+})
 
 describe("dateRangeToApiParams", () => {
   // Timezone passed explicitly rather than relying on the runner's own
