@@ -17,7 +17,16 @@
 //! attraction's upcoming shows, fully paginated) — plus `fetch_events_near`,
 //! a non-streaming, non-windowed entry point used by
 //! `services::playlist_builder` to find nearby artists without paying for
-//! the map's full windowed pagination on every playlist build/update.
+//! the map's full windowed pagination on every playlist build/update
+//! (deliberately Ticketmaster-only — see `get_concerts_tm_stream` for why
+//! PredictHQ isn't part of this path).
+//!
+//! `get_concerts_tm_stream` also reconciles PredictHQ against Ticketmaster:
+//! Ticketmaster streams progressively exactly as it always has, and once
+//! both fetches complete, PredictHQ-sourced enrichment
+//! (`rank`/`predicted_attendance` on a matching Ticketmaster event) and
+//! genuinely new PredictHQ-only events are emitted as a second wave. See
+//! `crate::events::reconcile_predicthq_events` for the matching itself.
 
 mod client;
 mod dates;
@@ -30,7 +39,7 @@ pub(crate) use normalize::normalize_event;
 
 use crate::error::AppError;
 use crate::events::types::EventResponse;
-use crate::events::{apply_personalization, dedupe_key};
+use crate::events::{apply_personalization, dedupe_key, reconcile_predicthq_events};
 use crate::spotify::spotify_handlers::resolve_account_from_cookie_lenient;
 use crate::state::AppState;
 use axum::{
@@ -93,8 +102,31 @@ pub async fn get_concerts_tm_stream(
     let api_key = state.ticketmaster_key.clone();
     let radius = params.radius;
 
+    // Kicked off now so it runs concurrently with the Ticketmaster windowed
+    // fetch below rather than adding its own round-trip afterward. Absent
+    // entirely (no task spawned) when PREDICTHQ_API_KEY isn't configured —
+    // this whole feature is best-effort and must never hold up or break
+    // Ticketmaster's own results.
+    let predicthq_handle = state.predicthq_api_key.clone().map(|predicthq_key| {
+        let client = state.client.clone();
+        let within = format!("{radius}mi@{},{}", params.latitude, params.longitude);
+        let start_gte = params.start.clone();
+        let start_lte = params.end.clone();
+        tokio::spawn(async move {
+            crate::predicthq::search_concerts(
+                &client,
+                &predicthq_key,
+                &within,
+                &start_gte,
+                &start_lte,
+            )
+            .await
+        })
+    });
+
     let stream: BoxStream<'static, Result<Bytes, AppError>> = async_stream::try_stream! {
         let mut seen = HashSet::<String>::new();
+        let mut ticketmaster_events = Vec::<EventResponse>::new();
 
         for (start, end) in windows {
             let mut page = 0_u32;
@@ -139,6 +171,7 @@ pub async fn get_concerts_tm_stream(
                             .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
                         line.push(b'\n');
                         yield Bytes::from(line);
+                        ticketmaster_events.push(event);
                     }
                 }
 
@@ -151,6 +184,48 @@ pub async fn get_concerts_tm_stream(
                 }
 
                 page += 1;
+            }
+        }
+
+        // Second wave: reconcile PredictHQ against everything Ticketmaster
+        // just streamed. A failed/absent fetch degrades to "no PredictHQ
+        // data this request" rather than an error — this feature is
+        // additive and must never take down event browsing.
+        let predicthq_events = match predicthq_handle {
+            Some(handle) => match handle.await {
+                Ok(Ok(raw_events)) => raw_events
+                    .into_iter()
+                    .map(crate::predicthq::normalize_predicthq_event)
+                    .collect(),
+                Ok(Err(err)) => {
+                    tracing::warn!(error = %err, "failed to fetch PredictHQ events, skipping");
+                    Vec::new()
+                }
+                Err(join_err) => {
+                    tracing::warn!(error = %join_err, "PredictHQ fetch task failed, skipping");
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
+
+        if !predicthq_events.is_empty() {
+            let (enrichments, new_events) =
+                reconcile_predicthq_events(&ticketmaster_events, predicthq_events);
+
+            for event in enrichments {
+                let mut line = serde_json::to_vec(&event)
+                    .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
+                line.push(b'\n');
+                yield Bytes::from(line);
+            }
+
+            for mut event in new_events {
+                apply_personalization(&mut event, &personalization_matches);
+                let mut line = serde_json::to_vec(&event)
+                    .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
+                line.push(b'\n');
+                yield Bytes::from(line);
             }
         }
     }
