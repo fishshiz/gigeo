@@ -10,7 +10,6 @@ mod mapbox_handlers;
 mod services;
 mod spotify;
 mod state;
-mod ticketmaster_handlers;
 mod ticketmaster_stream;
 mod token_cache;
 use std::sync::Arc;
@@ -143,7 +142,7 @@ pub async fn build_app() -> Result<Router> {
         )
         .route(
             "/future-events",
-            axum::routing::get(ticketmaster_handlers::get_events_by_attraction),
+            axum::routing::get(ticketmaster_stream::get_events_by_attraction),
         )
         .route(
             "/artists",
