@@ -2,6 +2,7 @@ import { EventCard, GroupedEventCard } from "../EventCard"
 import { DateSlider } from "../DateSlider"
 
 import { useEventsContext } from "../providers/eventsProvider"
+import { useSearchProvider } from "@/providers/searchProvider"
 import type { Ref } from "react"
 import { formatDate, formatDateTime } from "../lib/dates"
 import { EventFilter } from "../EventFilter"
@@ -49,7 +50,9 @@ export const EventsDrawer = ({
                           event={primary}
                           date={
                             <span className="text-gray-600 dark:text-gray-400">
-                              {primary.dates ? formatDateTime(primary.dates) : null}
+                              {primary.dates
+                                ? formatDateTime(primary.dates)
+                                : null}
                             </span>
                           }
                         />
@@ -82,19 +85,24 @@ export const EventsDrawerHeader = ({
   onSelect: (date: string) => void
 }) => {
   const { eventsByDate, searchRadius, radiusExpanded } = useEventsContext()
+  const { selectedLocation } = useSearchProvider()
   const entries = Object.entries(eventsByDate).sort()
 
   return (
     <>
       <div className="mb-2 flex w-full items-center justify-between">
-        <h2 className="text-xl font-bold">Events</h2>
+        <h2 className="text-xl font-bold">
+          {selectedLocation?.cityName
+            ? `Events in ${selectedLocation.cityName}`
+            : "Events"}
+        </h2>
         {radiusExpanded && searchRadius && (
           <span className="text-xs text-gray-500">
             Showing events within {searchRadius}mi
           </span>
         )}
+        <EventFilter />
       </div>
-      <EventFilter />
       <DateSlider
         dates={entries.map(([key]) => key)}
         activeDateId={topMostId}

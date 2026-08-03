@@ -5,6 +5,7 @@ import { DateRangePicker } from "@workspace/ui/components/ui/DateRangePicker"
 import { useSearchProvider } from "./providers/searchProvider"
 import { useDrawerProvider } from "./providers/drawerProvider"
 import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
+import { locationFromFeature } from "./lib/mapbox"
 
 const useDebounce = (value: string, delayTime: number) => {
   const [debounceValue, setDebounceValue] = useState(value)
@@ -49,7 +50,7 @@ const Search = () => {
   }, [debounceValue])
 
   const updateSearchTerm = (e: string) => {
-    if (selectedLocation?.length) {
+    if (selectedLocation?.fullAddress.length) {
       setSelectedLocation(undefined)
     }
     setSearchTerm(e)
@@ -59,11 +60,9 @@ const Search = () => {
   const selectPlace = (place: GeoJSONFeature) => {
     if (place.geometry.type === "GeometryCollection") return
     const coordinates = place.geometry.coordinates as [number, number]
+    const location = locationFromFeature(place)
     setPlaces([place])
-    navigateToLocation(
-      [coordinates[0], coordinates[1]],
-      place.properties?.full_address
-    )
+    navigateToLocation([coordinates[0], coordinates[1]], location)
     setIsDrawerOpen(true)
   }
 
@@ -77,7 +76,7 @@ const Search = () => {
           autoComplete="off"
           aria-label="Search for a city"
           name="search"
-          value={selectedLocation ? selectedLocation : searchTerm}
+          value={selectedLocation ? selectedLocation.fullAddress : searchTerm}
           placeholder="Search for a city"
           className="block w-full grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
           onChange={(e) => updateSearchTerm(e)}

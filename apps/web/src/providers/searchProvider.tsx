@@ -6,6 +6,7 @@ import {
   getLocalTimeZone,
 } from "@internationalized/date"
 import { type RangeValue } from "react-aria"
+import type { Location } from "../lib/types"
 
 // Geographic center of the contiguous US — used only when there's no
 // remembered location and geolocation permission hasn't already been
@@ -35,17 +36,19 @@ function readStoredCoordinates(): [number, number] | undefined {
   return undefined
 }
 
-function readStoredLocation(): string | undefined {
+function readStoredLocation(): Location | undefined {
   try {
-    return localStorage.getItem(LOCATION_STORAGE_KEY) ?? undefined
+    const raw = localStorage.getItem(LOCATION_STORAGE_KEY)
+    if (!raw) return undefined
+    return JSON.parse(raw)
   } catch {
     return undefined
   }
 }
 
 type SearchProviderState = {
-  selectedLocation: string | undefined
-  setSelectedLocation: (location: string | undefined) => void
+  selectedLocation: Location | undefined
+  setSelectedLocation: (location: Location | undefined) => void
   selectedCoordinates: [number, number]
   setSelectedCoordinates: (coordinates: [number, number]) => void
   dateRange: RangeValue<CalendarDate>
@@ -64,7 +67,7 @@ export const SearchProviderContext = React.createContext<
 
 export function SearchProvider({ children }: SearchProviderProps) {
   const [selectedLocation, setSelectedLocation] = React.useState<
-    string | undefined
+    Location | undefined
   >(readStoredLocation)
   const [selectedCoordinates, setSelectedCoordinates] = React.useState<
     [number, number]
@@ -91,7 +94,10 @@ export function SearchProvider({ children }: SearchProviderProps) {
   React.useEffect(() => {
     try {
       if (selectedLocation) {
-        localStorage.setItem(LOCATION_STORAGE_KEY, selectedLocation)
+        localStorage.setItem(
+          LOCATION_STORAGE_KEY,
+          JSON.stringify(selectedLocation)
+        )
       } else {
         localStorage.removeItem(LOCATION_STORAGE_KEY)
       }

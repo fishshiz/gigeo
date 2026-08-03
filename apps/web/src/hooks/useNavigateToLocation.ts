@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { useSearchProvider } from "@/providers/searchProvider"
 import { useEventsContext } from "@/providers/eventsProvider"
+import type { Location } from "@/lib/types"
 
 /**
  * Changes the selected coordinates (and optionally the location label)
@@ -18,7 +19,7 @@ export function useNavigateToLocation() {
   const { resetEvents } = useEventsContext()
 
   return useCallback(
-    (coordinates: [number, number], location?: string) => {
+    (coordinates: [number, number], location?: Location) => {
       resetEvents()
       setSelectedCoordinates(coordinates)
       if (location !== undefined) {

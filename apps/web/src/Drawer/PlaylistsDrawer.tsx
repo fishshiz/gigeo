@@ -379,9 +379,7 @@ export const CreatePlaylistForm = () => {
   const { createPlaylist } = useSpotifyAuth()
 
   const emptyLocationString = "Search a location to start"
-  const placeholder = getRandomPlaylistName(
-    selectedLocation?.split(",")[0] || ""
-  )
+  const placeholder = getRandomPlaylistName(selectedLocation?.cityName || "")
   const [isPrivate, setIsPrivate] = useState(false)
   const [selectedFrequency, setSelectedFrequency] = useState("weekly")
   const [selectedBehavior, setSelectedBehavior] = useState("destructive")
@@ -409,7 +407,11 @@ export const CreatePlaylistForm = () => {
           }
         }}
       >
-        <input type="hidden" name="location" value={selectedLocation ?? ""} />
+        <input
+          type="hidden"
+          name="location"
+          value={selectedLocation?.fullAddress ?? ""}
+        />
         <input
           type="hidden"
           name="privacy"
@@ -427,7 +429,7 @@ export const CreatePlaylistForm = () => {
             className="lucide lucide-map-pin pointer-events-none text-muted-foreground"
             size={15}
           />
-          {selectedLocation || emptyLocationString}
+          {selectedLocation?.fullAddress || emptyLocationString}
         </Button>
         <TextField
           label="Playlist Name"

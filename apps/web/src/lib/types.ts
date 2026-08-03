@@ -31,6 +31,14 @@ type Image = {
   fallback: boolean
 }
 
+type Location = {
+  fullAddress: string
+  cityName: string
+  stateCode: string
+  countryCode: string
+  coordinates: [number, number]
+}
+
 type AmArtwork = {
   url: string
   width: number
@@ -50,4 +58,10 @@ interface AmArtistFull extends AmArtist {
   similar_artists: AmArtist[]
 }
 
-export type { Attraction, Classification, AmArtistFull, ClassificationSegment }
+export type {
+  Attraction,
+  Classification,
+  AmArtistFull,
+  ClassificationSegment,
+  Location,
+}

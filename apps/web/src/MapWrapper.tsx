@@ -7,6 +7,7 @@ import mapboxgl, {
 import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
+import { locationFromFeature } from "./lib/mapbox"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { useIsMobile } from "./providers/Breakpoint"
 import { boundsForRadius } from "./lib/geo"
@@ -138,9 +139,10 @@ const MapWrapper = () => {
         )
           .then((res) => res.json())
           .then((data: { features?: GeoJSONFeature[] }) => {
-            const placeName = data.features?.[0]?.properties?.full_address
-            if (placeName) {
-              setSelectedLocation(placeName)
+            const feature = data.features?.[0]
+            const location = feature && locationFromFeature(feature)
+            if (location) {
+              setSelectedLocation(location)
             }
           })
           .catch((err) => {
