@@ -5,6 +5,7 @@ mod config;
 mod cookie;
 mod db;
 mod error;
+mod events;
 mod http_utils;
 mod mapbox_handlers;
 mod services;

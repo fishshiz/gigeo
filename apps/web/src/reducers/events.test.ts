@@ -42,20 +42,20 @@ describe("sameEvent", () => {
     expect(sameEvent(a, b)).toBe(true)
   })
 
-  it("is true for different ids with matching date, venue, and attraction", () => {
+  it("is true for different ids with matching date, venue, and performer", () => {
     // Ticketmaster returns the same show under different ids across
     // overlapping date windows; this is the whole point of sameEvent.
     const a = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
       venue: { name: "The Venue" },
-      attractions: [{ id: "artist-1" }],
+      performers: [{ id: "artist-1" }],
     })
     const b = makeEvent({
       id: "tm-2",
       dates: "2026-08-01T20:00:00Z",
       venue: { name: "The Venue" },
-      attractions: [{ id: "artist-1" }],
+      performers: [{ id: "artist-1" }],
     })
     expect(sameEvent(a, b)).toBe(true)
   })

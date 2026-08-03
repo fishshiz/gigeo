@@ -1,4 +1,4 @@
-import type { Event, Attraction, AmArtistFull } from "./lib/types"
+import type { Attraction, AmArtistFull } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { useEffect, useState, useRef } from "react"
@@ -28,9 +28,11 @@ const EventDetails = ({
    * excluding eventData itself. */
   otherShowtimes?: EventResponse[]
 }) => {
-  const { attractions } = eventData
+  const { performers } = eventData
   const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
-  const [futureEvents, setFutureEvents] = useState<Record<string, Event[]>>({})
+  const [futureEvents, setFutureEvents] = useState<
+    Record<string, EventResponse[]>
+  >({})
   const [showStickyHeader, setShowStickyHeader] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const { selectEvents } = useEventsContext()
@@ -47,8 +49,8 @@ const EventDetails = ({
     async function fetchData() {
       try {
         const artistInfoQuery = eventData
-          .attractions!.map(
-            (attraction) => `name=${encodeURIComponent(attraction.name || "")}`
+          .performers!.map(
+            (performer) => `name=${encodeURIComponent(performer.name || "")}`
           )
           .join("&")
         const res = await fetch(`/api/apple/artist?${artistInfoQuery}`)
@@ -74,9 +76,9 @@ const EventDetails = ({
     if (segment === "Music") {
       fetchData()
     }
-    eventData.attractions?.forEach((attraction) => {
-      if (attraction.id) {
-        fetchFutureEvents(attraction.id)
+    eventData.performers?.forEach((performer) => {
+      if (performer.id) {
+        fetchFutureEvents(performer.id)
       }
     })
 
@@ -230,12 +232,12 @@ const EventDetails = ({
               />
             </>
           ))
-        : attractions?.map((attraction) => {
-            if (!attraction.id) return null
-            const id = attraction.id
+        : performers?.map((performer) => {
+            if (!performer.id) return null
+            const id = performer.id
             return (
               <div key={id}>
-                <h4 className="text-lg font-semibold">{attraction.name}</h4>
+                <h4 className="text-lg font-semibold">{performer.name}</h4>
                 <UpcomingEvents events={futureEvents[id] ?? []} />
               </div>
             )
@@ -254,7 +256,7 @@ type ArtistCardProps = {
   similarArtists?: SimilarArtist[]
   artworkSize?: number
   attraction?: Attraction
-  futureEvents?: Event[]
+  futureEvents?: EventResponse[]
 }
 
 export const ArtistCard: React.FC<ArtistCardProps> = ({
@@ -374,7 +376,7 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
   )
 }
 
-const UpcomingEvents = ({ events }: { events: Event[] }) => {
+const UpcomingEvents = ({ events }: { events: EventResponse[] }) => {
   return (
     <div className="mt-4">
       <h3 className="text-xs tracking-wide text-slate-400 uppercase">

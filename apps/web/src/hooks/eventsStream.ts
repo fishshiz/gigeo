@@ -23,7 +23,7 @@ export type EventResponse = {
   dates?: string | null
   datesPretty?: string | null
   classifications?: Classification[] | null
-  attractions?: Array<{
+  performers?: Array<{
     id?: string
     name?: string
   }> | null

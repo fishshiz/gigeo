@@ -31,13 +31,13 @@ function sameEvent(a: EventResponse, b: EventResponse): boolean {
 
   const aVenue = a.venue?.name ?? ""
   const bVenue = b.venue?.name ?? ""
-  const aAttraction = a.attractions?.[0]?.id ?? ""
-  const bAttraction = b.attractions?.[0]?.id ?? ""
+  const aPerformer = a.performers?.[0]?.id ?? ""
+  const bPerformer = b.performers?.[0]?.id ?? ""
 
   return (
     (a.dates ?? "") === (b.dates ?? "") &&
     aVenue === bVenue &&
-    aAttraction === bAttraction
+    aPerformer === bPerformer
   )
 }
 
