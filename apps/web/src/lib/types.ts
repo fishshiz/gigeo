@@ -1,22 +1,3 @@
-interface TmEvent {
-  id: string
-  name: string
-  venue?: Venue
-  url?: string
-  priceRanges?: {
-    currency: string
-    max: number
-    min: number
-  }[]
-  images: Image[]
-  dates: string
-  datesPretty: string
-  classifications?: Classification[]
-  attractions: Attraction[]
-}
-
-type Event = TmEvent
-
 type Attraction = {
   name: string
   id: string
@@ -50,17 +31,6 @@ type Image = {
   fallback: boolean
 }
 
-type Venue = {
-  name: string
-  location: Location
-  city: string
-}
-
-type Location = {
-  latitude: string
-  longitude: string
-}
-
 type AmArtwork = {
   url: string
   width: number
@@ -80,11 +50,4 @@ interface AmArtistFull extends AmArtist {
   similar_artists: AmArtist[]
 }
 
-export type {
-  TmEvent,
-  Event,
-  Attraction,
-  Classification,
-  AmArtistFull,
-  ClassificationSegment,
-}
+export type { Attraction, Classification, AmArtistFull, ClassificationSegment }

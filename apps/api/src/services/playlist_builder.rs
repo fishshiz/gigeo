@@ -93,7 +93,7 @@ pub async fn find_artist_names_near(
 
     Ok(events
         .iter()
-        .flat_map(|e| e.attractions.as_ref().into_iter().flatten())
+        .flat_map(|e| e.performers.as_ref().into_iter().flatten())
         .filter_map(|a| a.name.clone())
         .collect::<HashSet<_>>()
         .into_iter()

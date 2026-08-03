@@ -1,12 +1,15 @@
 //! All access to the Ticketmaster Discovery API, split by concern:
-//! - `types`: raw Ticketmaster response shapes, this service's normalized
-//!   response shapes, and `PageLimit` (how far a caller pages through
-//!   results)
+//! - `types`: raw Ticketmaster response shapes and `PageLimit` (how far a
+//!   caller pages through results) — the normalized `EventResponse` shape
+//!   lives in `crate::events::types` instead, since it isn't
+//!   Ticketmaster-specific
 //! - `dates`: splitting a datetime range into per-calendar-day windows
 //! - `client`: fetching a single page from the Ticketmaster API, and the
 //!   `should_fetch_next` pagination decision
-//! - `normalize`: converting raw events into the normalized shape and
-//!   deriving a dedupe key
+//! - `normalize`: converting a raw `TmEvent` into an `EventResponse` — the
+//!   one place in this module that still needs to know Ticketmaster's raw
+//!   shape; `apply_personalization`/`dedupe_key` live in `crate::events`
+//!   since they only ever touch the normalized shape
 //!
 //! This file wires those pieces together into two HTTP handlers —
 //! `get_concerts_tm_stream` (incremental ndjson for the map, windowed and
@@ -23,9 +26,11 @@ mod types;
 
 pub use types::*;
 
-pub(crate) use normalize::{apply_personalization, dedupe_key, normalize_event};
+pub(crate) use normalize::normalize_event;
 
 use crate::error::AppError;
+use crate::events::types::EventResponse;
+use crate::events::{apply_personalization, dedupe_key};
 use crate::spotify::spotify_handlers::resolve_account_from_cookie_lenient;
 use crate::state::AppState;
 use axum::{
