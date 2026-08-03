@@ -105,7 +105,9 @@ const Search = () => {
       case "ArrowUp":
         e.preventDefault()
         setActiveIndex((i) =>
-          i === null ? places.length - 1 : (i - 1 + places.length) % places.length
+          i === null
+            ? places.length - 1
+            : (i - 1 + places.length) % places.length
         )
         break
       case "Enter":
