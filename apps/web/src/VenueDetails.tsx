@@ -1,11 +1,14 @@
 import { type EventResponse } from "./hooks/eventsStream"
-import { EventCard } from "./EventCard"
+import { EventCard, GroupedEventCard } from "./EventCard"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { ArrowLeftIcon } from "lucide-react"
 import { useEventsContext } from "./providers/eventsProvider"
+import { groupEvents } from "./lib/groupEvents"
+import { formatDateTime } from "./lib/dates"
 const VenueDetails = ({ events }: { events: EventResponse[] }) => {
   const { selectEvents } = useEventsContext()
   const venue = events[0].venue
+  const groups = groupEvents(events)
   return (
     <div className="p-3">
       <Button
@@ -17,21 +20,28 @@ const VenueDetails = ({ events }: { events: EventResponse[] }) => {
         <ArrowLeftIcon aria-hidden className="h-4 w-4" />
       </Button>
       <h2 className="mt-3 leading-none font-semibold text-black dark:text-(--color-primary-dark-900)">
-        {events.length} Events at {venue?.name}
+        {groups.length} Events at {venue?.name}
       </h2>
       <ul className="flex w-full flex-col justify-between gap-2.5 pt-4">
-        {events.map((event) => (
-          <li className="relative" key={event.id}>
-            <EventCard
-              event={event}
-              date={
-                <span className="text-gray-600 dark:text-gray-400">
-                  {event.dates}
-                </span>
-              }
-            />
-          </li>
-        ))}
+        {groups.map((group) => {
+          const primary = group.events[0]
+          return (
+            <li className="relative" key={primary.id}>
+              {group.events.length > 1 ? (
+                <GroupedEventCard group={group} />
+              ) : (
+                <EventCard
+                  event={primary}
+                  date={
+                    <span className="text-gray-600 dark:text-gray-400">
+                      {primary.dates ? formatDateTime(primary.dates) : null}
+                    </span>
+                  }
+                />
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

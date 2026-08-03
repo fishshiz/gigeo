@@ -37,8 +37,6 @@ type EventsContextValue = EventsState & {
   cancelStream: () => void
   selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
-  selectedEvent: EventResponse | undefined
-  setSelectedEvent: (event: EventResponse | undefined) => void
   /** The radius (miles) the current/last search actually used. */
   searchRadius: number | null
   /** Whether searchRadius went beyond the base tier to find results. */
@@ -186,9 +184,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     },
     [runStream]
   )
-  const [selectedEvent, setSelectedEvent] = React.useState<
-    EventResponse | undefined
-  >(undefined)
 
   const radiusExpanded = searchRadius !== null && searchRadius > BASE_RADIUS
 
@@ -199,8 +194,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       cancelStream,
       resetEvents,
       selectEvents,
-      selectedEvent,
-      setSelectedEvent,
       searchRadius,
       radiusExpanded,
     }),
@@ -210,7 +203,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       cancelStream,
       resetEvents,
       selectEvents,
-      selectedEvent,
       searchRadius,
       radiusExpanded,
     ]

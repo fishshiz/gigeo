@@ -1,4 +1,4 @@
-import type { GroupedEvents } from "./lib/types"
+import type { EventGroup } from "./lib/groupEvents"
 import {
   parseAbsolute,
   DateFormatter,
@@ -8,28 +8,34 @@ import { HouseIcon } from "lucide-react"
 import { useEventsContext } from "./providers/eventsProvider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import { ForYouTag } from "./ForYouTag"
+import { formatDate } from "./lib/dates"
 
 import { type ReactElement } from "react"
 import type { EventResponse } from "./hooks/eventsStream"
 const EventCard = ({
   event,
   date,
+  onSelect,
 }: {
   event: EventResponse
   date: ReactElement
+  /** Overrides the default "select just this event" click behavior — used
+   * by GroupedEventCard to select the whole group of showtimes instead. */
+  onSelect?: () => void
 }) => {
   const { selectEvents } = useEventsContext()
+  const handleSelect = onSelect ?? (() => selectEvents([event]))
 
   return (
     <div
       role="button"
       tabIndex={0}
       className="relative flex cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:border-slate-200 hover:shadow-md active:scale-[0.99] dark:border-(--color-surface-dark-200) dark:bg-(--color-surface-dark-400) dark:hover:border-(--color-surface-dark-300)"
-      onClick={() => selectEvents([event])}
+      onClick={handleSelect}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault()
-          selectEvents([event])
+          handleSelect()
         }
       }}
     >
@@ -69,26 +75,38 @@ const EventCard = ({
   )
 }
 
-const GroupedEventCard = ({ events }: { events: GroupedEvents }) => {
-  const startDate = parseAbsolute(events.dateRange.start, "UTC")
-  const endDate = parseAbsolute(events.dateRange.end, "UTC")
+const GroupedEventCard = ({ group }: { group: EventGroup }) => {
+  const { selectEvents } = useEventsContext()
+  const primary = group.events[0]
+  const count = group.events.length
+
   const dateFormatter = new DateFormatter("en-US", {
-    month: "long",
+    month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: getLocalTimeZone(), // or a specific IANA tz
+    timeZone: getLocalTimeZone(),
   })
-  const dateString = `${dateFormatter.format(startDate.toDate())} - ${dateFormatter.format(endDate.toDate())}`
+  // Events without a specific start time come through as a bare "YYYY-MM-DD"
+  // (no "T"), which parseAbsolute rejects as invalid.
+  const dateLabel = primary.dates
+    ? primary.dates.includes("T")
+      ? dateFormatter.format(parseAbsolute(primary.dates, "UTC").toDate())
+      : formatDate(primary.dates)
+    : null
+
   return (
     <>
       <span className="absolute top-[-8px] right-[-8px] m-auto flex h-9 w-12 items-center justify-center rounded-4xl bg-red-600 p-3 text-center text-xs font-thin outline outline-rose-500 dark:bg-[#FF5D73]">
-        {events.events.length} events
+        {count} showtimes
       </span>
       <EventCard
-        event={events.events[0]}
-        date={<span className="text-xs text-[#7C7A7A]">{dateString}</span>}
+        event={primary}
+        date={
+          <span className="text-xs text-[#7C7A7A]">
+            {dateLabel ? `${dateLabel} · ` : ""}
+            {count} showtimes
+          </span>
+        }
+        onSelect={() => selectEvents(group.events)}
       />
     </>
   )

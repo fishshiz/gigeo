@@ -1,11 +1,12 @@
-import { EventCard } from "../EventCard"
+import { EventCard, GroupedEventCard } from "../EventCard"
 import { DateSlider } from "../DateSlider"
 
 import { useEventsContext } from "../providers/eventsProvider"
 import type { Ref } from "react"
-import { formatDate } from "../lib/dates"
+import { formatDate, formatDateTime } from "../lib/dates"
 import { EventFilter } from "../EventFilter"
 import { ForYouConnectNudge } from "../ForYouConnectNudge"
+import { groupEvents } from "../lib/groupEvents"
 
 type RegisterItem = (id: string) => Ref<HTMLDivElement>
 
@@ -37,19 +38,25 @@ export const EventsDrawer = ({
             <div key={date}>
               <DateAnchor date={date} ref={registerItem(date)} />
               <ul className="flex w-full flex-col justify-between gap-2.5 pt-2.5">
-                {events.map((event) => (
-                  <li className="relative" key={event.id}>
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      date={
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {event.dates}
-                        </span>
-                      }
-                    />
-                  </li>
-                ))}
+                {groupEvents(events).map((group) => {
+                  const primary = group.events[0]
+                  return (
+                    <li className="relative" key={primary.id}>
+                      {group.events.length > 1 ? (
+                        <GroupedEventCard group={group} />
+                      ) : (
+                        <EventCard
+                          event={primary}
+                          date={
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {primary.dates ? formatDateTime(primary.dates) : null}
+                            </span>
+                          }
+                        />
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}

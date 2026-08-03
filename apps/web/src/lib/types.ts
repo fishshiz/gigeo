@@ -42,18 +42,6 @@ type Classification = {
 
 type ClassificationSegment = { id: string; name: string }
 
-interface GroupedEvents {
-  name: string
-  grouped: boolean
-  venue: string
-  dateRange: {
-    start: string
-    end: string
-  }
-  attractions: Attraction[]
-  events: Event[]
-}
-
 type Image = {
   ratio: string
   url: string
@@ -95,7 +83,6 @@ interface AmArtistFull extends AmArtist {
 export type {
   TmEvent,
   Event,
-  GroupedEvents,
   Attraction,
   Classification,
   AmArtistFull,
