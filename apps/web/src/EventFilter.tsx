@@ -44,7 +44,7 @@ const EventFilter = () => {
           <Button
             aria-label="Filters"
             variant="secondary"
-            className="relative !h-9 !w-9 shrink-0"
+            className="relative !h-9 !w-9 shrink-0 max-md:before:absolute max-md:before:-inset-1 max-md:before:content-['']"
           >
             <FilterIcon aria-hidden className="block h-5 w-5 shrink-0" />
             {selected.size > 0 && (

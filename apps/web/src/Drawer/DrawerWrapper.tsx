@@ -1,6 +1,6 @@
 import { EventDetails } from "../EventDetails"
 import { XIcon } from "lucide-react"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import {
   DrawerBody,
   DrawerContent,
@@ -78,6 +78,7 @@ const DestinationIcon = ({
 const DrawerWrapper = () => {
   const { eventsByDate, selectedEvents } = useEventsContext()
   const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
+  const shouldReduceMotion = useReducedMotion()
 
   const [activeTab, setActiveTab] = useState<Key>("explore")
   // FIXME: eventListRef is never attached to a DOM node, so the effect below
@@ -157,7 +158,7 @@ const DrawerWrapper = () => {
     >
       <DrawerClose
         aria-label="Close drawer"
-        className="absolute top-3 right-3 z-20"
+        className="absolute top-3 right-3 z-20 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
         variant="quiet"
         onClick={() => setIsDrawerOpen(false)}
       >
@@ -170,7 +171,7 @@ const DrawerWrapper = () => {
           className="flex shrink-0 items-center justify-center gap-1.5 border-b border-black/10 px-3 pt-1 pr-14 pb-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
-            <Tab key={id} id={id} className="gap-1.5 px-3">
+            <Tab key={id} id={id} className="gap-1.5 px-3 py-3.5">
               <DestinationIcon id={id} size={16} />
               <span className="text-xs font-medium">{label}</span>
             </Tab>
@@ -253,7 +254,7 @@ const DrawerWrapper = () => {
           className="h-full shrink-0 overflow-hidden"
           initial={false}
           animate={{ width: isDrawerOpen ? desktopDrawerWidth : "0rem" }}
-          transition={DRAWER_TRANSITION}
+          transition={shouldReduceMotion ? { duration: 0 } : DRAWER_TRANSITION}
         >
           {drawerContent}
         </motion.div>

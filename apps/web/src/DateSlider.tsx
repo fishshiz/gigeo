@@ -56,7 +56,7 @@ const DateSlider = ({
                     type="button"
                     aria-current={isActive ? "date" : undefined}
                     className={
-                      "box-border min-w-14 cursor-pointer rounded-xl p-2 text-center text-xs leading-none transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-(--color-ivory-600) focus-visible:ring-offset-1 " +
+                      "box-border min-w-14 cursor-pointer rounded-xl p-2 max-md:py-2.5! text-center text-xs leading-none transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-(--color-ivory-600) focus-visible:ring-offset-1 " +
                       (isActive
                         ? "bg-(--color-ivory-600)"
                         : "bg-slate-400 hover:bg-slate-500 dark:bg-(--color-surface-dark-400) dark:hover:bg-(--color-surface-dark-300)")

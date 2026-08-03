@@ -48,6 +48,12 @@ export function DateRangePicker<T extends DateValue>({
 
   const start = props.value?.start
   const end = props.value?.end
+  const triggerLabel =
+    start && end
+      ? isSameDay(start, end)
+        ? monthDayFormat.format(start.toDate(getLocalTimeZone()))
+        : `${monthDayFormat.format(start.toDate(getLocalTimeZone()))} to ${monthDayFormat.format(end.toDate(getLocalTimeZone()))}`
+      : "Select dates"
   return (
     <AriaDateRangePicker
       {...props}
@@ -57,8 +63,11 @@ export function DateRangePicker<T extends DateValue>({
       )}
     >
       {label && <Label>{label}</Label>}
-      <FieldGroup className="disabled:cursor-default">
-        <FieldButton className="mr-1 w-full cursor-pointer outline-offset-0">
+      <FieldGroup className="disabled:cursor-default max-md:h-11! max-md:items-stretch!">
+        <FieldButton
+          aria-label={triggerLabel}
+          className="mr-1 w-full cursor-pointer outline-offset-0"
+        >
           <div className="flex w-fit flex-1 items-center overflow-x-auto overflow-y-clip [scrollbar-width:none]">
             {start && (
               <span className="w-max ps-3 pe-2 text-sm">
