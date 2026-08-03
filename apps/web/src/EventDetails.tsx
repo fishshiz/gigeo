@@ -396,7 +396,7 @@ const UpcomingEvents = ({ events }: { events: EventResponse[] }) => {
               </span>
             </div>
             <Link
-              href={e.url}
+              href={e.url ?? undefined}
               target="_blank"
               className="ml-auto text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
             >
