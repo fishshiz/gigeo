@@ -51,7 +51,7 @@ const EventCard = ({
           alt={event.name}
         />
       </div>
-      <div className="flex h-auto flex-3 flex-col justify-between gap-2 p-3">
+      <div className="flex h-auto min-w-0 flex-3 flex-col justify-between gap-2 p-3">
         <div className="flex flex-col items-start gap-1">
           <h3 className="leading-tight font-semibold text-black dark:text-(--color-primary-dark-900)">
             {event.name}

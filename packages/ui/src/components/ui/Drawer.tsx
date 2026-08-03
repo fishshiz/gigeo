@@ -1,6 +1,11 @@
 "use client"
 
-import { AnimatePresence, motion, useDragControls } from "motion/react"
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  useReducedMotion,
+} from "motion/react"
 import { use, Children, cloneElement } from "react"
 import type { Ref } from "react"
 import type {
@@ -59,6 +64,11 @@ const DrawerContent = ({
 }: DrawerContentProps) => {
   const state = use(OverlayTriggerStateContext)!
   const dragControls = useDragControls()
+  const shouldReduceMotion = useReducedMotion()
+  const offscreen = {
+    x: side === "left" ? "-100%" : side === "right" ? "100%" : 0,
+    y: side === "top" ? "-100%" : side === "bottom" ? "100%" : 0,
+  }
   return (
     <AnimatePresence>
       {(props?.isOpen || state?.isOpen) && (
@@ -91,15 +101,9 @@ const DrawerContent = ({
               ].join(" "),
             className
           )}
-          animate={{ x: 0, y: 0 }}
-          initial={{
-            x: side === "left" ? "-100%" : side === "right" ? "100%" : 0,
-            y: side === "top" ? "-100%" : side === "bottom" ? "100%" : 0,
-          }}
-          exit={{
-            x: side === "left" ? "-100%" : side === "right" ? "100%" : 0,
-            y: side === "top" ? "-100%" : side === "bottom" ? "100%" : 0,
-          }}
+          animate={{ x: 0, y: 0, opacity: 1 }}
+          initial={shouldReduceMotion ? { opacity: 0 } : { ...offscreen, opacity: 1 }}
+          exit={shouldReduceMotion ? { opacity: 0 } : { ...offscreen, opacity: 1 }}
           drag={side === "left" || side === "right" ? "x" : "y"}
           whileDrag={{ cursor: "grabbing" }}
           dragConstraints={{
