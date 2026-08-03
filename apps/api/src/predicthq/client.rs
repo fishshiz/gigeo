@@ -61,6 +61,10 @@ pub(crate) struct PredictHqGeometry {
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct PredictHqAddress {
     pub(crate) locality: Option<String>,
+    /// Full street address, e.g. "Fore River Parkway, Portland, ME 04102,
+    /// United States of America" — used as a venue-name fallback for the
+    /// ~28% of events (confirmed live) with no `venue`-type entity at all.
+    pub(crate) formatted_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -206,6 +210,19 @@ mod tests {
         assert!(
             normalized.iter().all(|e| e.id.starts_with("phq:")),
             "every normalized event should have a source-prefixed id"
+        );
+        // The fix this test dataset was chosen to exercise: real events
+        // with no `venue`-type entity (~28% of this market/window,
+        // confirmed live) should still get a usable venue name via
+        // `geo.address.formatted_address`, rather than rendering no venue
+        // at all.
+        assert!(
+            normalized.iter().any(|e| e
+                .venue
+                .as_ref()
+                .is_some_and(|v| v.name.as_deref().is_some_and(|n| n.contains(",")))),
+            "expected at least one real event whose venue name came from a \
+             formatted address fallback (contains a comma), not a venue entity"
         );
     }
 }
