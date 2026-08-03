@@ -4,6 +4,7 @@ use crate::auth::{ClientCredentialsManager, UserTokenManager};
 use crate::db::AppDatabase;
 use crate::spotify::client::SpotifyClient;
 
+use crate::apple_music::artwork_cache::ArtworkCache;
 use crate::apple_music::auth::{DeveloperTokenManager, MusicUserTokenStore};
 use crate::apple_music::client::AppleMusicClient;
 use axum_extra::extract::cookie::Key;
@@ -32,6 +33,11 @@ pub struct AppStateInner {
     pub apple_music_client: Option<AppleMusicClient>,
     pub apple_dev_token: Option<Arc<DeveloperTokenManager>>,
     pub apple_user_token: Option<Arc<MusicUserTokenStore>>,
+    /// Shared regardless of whether Apple Music is configured — cheap to
+    /// hold, and only ever consulted when `apple_music_client`/
+    /// `apple_dev_token` are also present (see
+    /// `crate::predicthq::backfill_artwork`).
+    pub apple_artwork_cache: Arc<ArtworkCache>,
 
     /// `None` when `PREDICTHQ_API_KEY` isn't set — PredictHQ isn't wired
     /// into any live route yet (see `crate::predicthq`), so this is
