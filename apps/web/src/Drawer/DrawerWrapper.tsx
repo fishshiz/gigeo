@@ -148,7 +148,7 @@ const DrawerWrapper = () => {
     <DrawerContent
       isOpen={isDrawerOpen}
       closeDrawer={() => setIsDrawerOpen(false)}
-      notch={isDesktop ? false : true}
+      notch={false}
       side={isDesktop ? "left" : "bottom"}
       className={
         isDesktop
@@ -156,14 +156,16 @@ const DrawerWrapper = () => {
           : "z-10 flex h-full w-full flex-col overflow-hidden"
       }
     >
-      <DrawerClose
-        aria-label="Close drawer"
-        className="absolute top-3 right-3 z-20 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
-        variant="quiet"
-        onClick={() => setIsDrawerOpen(false)}
-      >
-        <XIcon />
-      </DrawerClose>
+      {isDesktop && (
+        <DrawerClose
+          aria-label="Close drawer"
+          className="absolute top-3 right-3 z-20 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+          variant="quiet"
+          onClick={() => setIsDrawerOpen(false)}
+        >
+          <XIcon />
+        </DrawerClose>
+      )}
 
       {!isDesktop && (
         <TabList
@@ -183,7 +185,10 @@ const DrawerWrapper = () => {
         <TabPanel id="explore" className="p-0">
           {!selectedEvents.length && entries.length > 0 && (
             <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
-              <EventsDrawerHeader topMostId={topMostId} onSelect={scrollToDate} />
+              <EventsDrawerHeader
+                topMostId={topMostId}
+                onSelect={scrollToDate}
+              />
             </DrawerHeader>
           )}
           <DrawerBody
@@ -224,7 +229,7 @@ const DrawerWrapper = () => {
   return (
     <Tabs
       orientation={isDesktop ? "vertical" : "horizontal"}
-      className="h-[40vh] shrink-0 md:h-full"
+      className="h-[60vh] shrink-0 md:h-full"
       selectedKey={activeTab}
       onSelectionChange={(t) => handleDestinationTab(t)}
     >
