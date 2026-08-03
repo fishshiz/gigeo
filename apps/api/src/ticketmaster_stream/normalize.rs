@@ -4,7 +4,7 @@
 //! of it, which doesn't).
 
 use super::types::TmEvent;
-use crate::events::types::{EventResponse, LocationResponse, VenueResponse};
+use crate::events::types::{EventResponse, LocationResponse, Source, VenueResponse};
 use chrono::{DateTime, Local};
 
 pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
@@ -55,6 +55,9 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
         price_ranges: e.price_ranges,
         matched_artist: None,
         matched_via: None,
+        source: Source::Ticketmaster,
+        rank: None,
+        predicted_attendance: None,
     }
 }
 

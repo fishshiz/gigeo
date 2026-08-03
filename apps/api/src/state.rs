@@ -32,6 +32,11 @@ pub struct AppStateInner {
     pub apple_music_client: Option<AppleMusicClient>,
     pub apple_dev_token: Option<Arc<DeveloperTokenManager>>,
     pub apple_user_token: Option<Arc<MusicUserTokenStore>>,
+
+    /// `None` when `PREDICTHQ_API_KEY` isn't set — PredictHQ isn't wired
+    /// into any live route yet (see `crate::predicthq`), so this is
+    /// deliberately optional rather than a boot-time requirement.
+    pub predicthq_api_key: Option<String>,
 }
 
 impl Deref for AppState {

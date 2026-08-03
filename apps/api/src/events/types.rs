@@ -1,12 +1,22 @@
 //! The normalized `Event` shape this service returns to clients, and its
-//! constituent types — source-agnostic today by convention only (there's
-//! still exactly one source, Ticketmaster), not yet behind a real adapter
-//! boundary. That boundary (a `source`/`external_id`/`raw_payload` wrapper
-//! and a trait per source) is deliberately deferred until a second source
-//! actually exists to design it against — see `ticketmaster_stream::normalize`
-//! for the one place that still knows about Ticketmaster's raw shape.
+//! constituent types. Two sources feed it now (`ticketmaster_stream` and
+//! `predicthq`, each owning the one function that knows its provider's raw
+//! shape); `source`/`rank`/`predicted_attendance` below are the fields that
+//! became real once a second source did.
 
 use serde::{Deserialize, Serialize};
+
+/// Which provider an event's identity comes from. An event matched across
+/// both providers (see the cross-source dedup in `ticketmaster_stream`)
+/// keeps `Ticketmaster` as its source — Ticketmaster is the identity,
+/// PredictHQ just contributes `rank`/`predicted_attendance` on top of it.
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Source {
+    Ticketmaster,
+    #[serde(rename = "predicthq")]
+    PredictHq,
+}
 
 #[derive(Debug, Serialize, Clone)]
 pub struct EventResponse {
@@ -34,9 +44,18 @@ pub struct EventResponse {
     /// caller directly listens to `matched_artist`.
     #[serde(rename = "matchedVia")]
     pub matched_via: Option<String>,
+    pub source: Source,
+    /// PredictHQ's 0-100 rank, when available (native PredictHQ events, or a
+    /// Ticketmaster event enriched via cross-source dedup). `None` for a
+    /// Ticketmaster event with no PredictHQ match.
+    pub rank: Option<u8>,
+    /// PredictHQ's predicted attendance figure, under the same availability
+    /// rule as `rank`.
+    #[serde(rename = "predictedAttendance")]
+    pub predicted_attendance: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Performer {
     pub name: Option<String>,
     pub id: Option<String>,
@@ -46,60 +65,63 @@ pub struct Performer {
     pub images: Option<Vec<Images>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ExternalLinks {
-    wiki: Option<Vec<ExternalLink>>,
-    homepage: Option<Vec<ExternalLink>>,
-    instagram: Option<Vec<ExternalLink>>,
+    pub wiki: Option<Vec<ExternalLink>>,
+    pub homepage: Option<Vec<ExternalLink>>,
+    pub instagram: Option<Vec<ExternalLink>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ExternalLink {
-    url: Option<String>,
+    pub url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// A single genre/segment tag. Ticketmaster events can carry several
+/// (marking one `primary`); PredictHQ's weighted `phq_labels` map onto the
+/// same shape, one `Classification` per label (see `predicthq::normalize`).
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Classification {
-    primary: Option<bool>,
-    segment: Option<Segment>,
-    genre: Option<Segment>,
+    pub primary: Option<bool>,
+    pub segment: Option<Segment>,
+    pub genre: Option<Segment>,
     #[serde(rename = "subGenre")]
-    sub_genre: Option<Segment>,
+    pub sub_genre: Option<Segment>,
     #[serde(rename = "subType")]
-    sub_type: Option<Segment>,
-    family: Option<bool>,
+    pub sub_type: Option<Segment>,
+    pub family: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Segment {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PriceRange {
-    currency: String,
-    min: f32,
-    max: f32,
+    pub currency: String,
+    pub min: f32,
+    pub max: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Images {
-    ratio: Option<String>,
-    url: String,
-    width: Option<i32>,
-    height: Option<i32>,
-    fallback: Option<bool>,
+    pub ratio: Option<String>,
+    pub url: String,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub fallback: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct VenueResponse {
     pub name: Option<String>,
     pub location: Option<LocationResponse>,
     pub city: Option<String>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct LocationResponse {
     pub latitude: Option<String>,
     pub longitude: Option<String>,

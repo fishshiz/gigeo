@@ -70,7 +70,7 @@ pub(crate) fn dedupe_key(event: &EventResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use types::VenueResponse;
+    use types::{Source, VenueResponse};
 
     fn event_with_performer(name: &str) -> EventResponse {
         EventResponse {
@@ -92,6 +92,9 @@ mod tests {
             price_ranges: None,
             matched_artist: None,
             matched_via: None,
+            source: Source::Ticketmaster,
+            rank: None,
+            predicted_attendance: None,
         }
     }
 
@@ -210,6 +213,9 @@ mod tests {
             price_ranges: None,
             matched_artist: None,
             matched_via: None,
+            source: Source::Ticketmaster,
+            rank: None,
+            predicted_attendance: None,
         };
 
         // Same date/venue/performer but a different Ticketmaster event id
@@ -238,6 +244,9 @@ mod tests {
             price_ranges: None,
             matched_artist: None,
             matched_via: None,
+            source: Source::Ticketmaster,
+            rank: None,
+            predicted_attendance: None,
         };
         let mut other = EventResponse {
             venue: Some(VenueResponse {

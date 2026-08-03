@@ -8,6 +8,7 @@ mod error;
 mod events;
 mod http_utils;
 mod mapbox_handlers;
+mod predicthq;
 mod services;
 mod spotify;
 mod state;
@@ -90,6 +91,11 @@ pub async fn build_app() -> Result<Router> {
 
     let client = Client::new();
 
+    let predicthq_api_key = std::env::var("PREDICTHQ_API_KEY").ok();
+    if predicthq_api_key.is_none() {
+        tracing::info!("PREDICTHQ_API_KEY not set — PredictHQ integration inactive");
+    }
+
     // Apple Music optional setup
     let (apple_client, apple_dev, apple_user) = if std::env::var("APPLE_MUSIC_TEAM_ID").is_ok() {
         let creds = AppleMusicCredentials::from_env();
@@ -118,6 +124,7 @@ pub async fn build_app() -> Result<Router> {
         apple_music_client: apple_client,
         apple_dev_token: apple_dev,
         apple_user_token: apple_user,
+        predicthq_api_key,
         cookie_domain: config.cookie_domain.clone(),
         cookie_secure: config.cookie_secure,
         cookie_key: Key::from(config.cookie_key.as_bytes()),
