@@ -13,6 +13,9 @@ pub enum AppError {
     #[error("Ticketmaster API error ({status}): {message}")]
     TicketmasterApi { status: StatusCode, message: String },
 
+    #[error("PredictHQ API error ({status}): {message}")]
+    PredictHqApi { status: StatusCode, message: String },
+
     #[error("Unauthorized API error ({status}): {message}")]
     Unauthorized { status: StatusCode, message: String },
 
@@ -66,6 +69,10 @@ impl IntoResponse for AppError {
                 (code, message.clone())
             }
             AppError::TicketmasterApi { status, message } => {
+                let code = *status;
+                (code, message.clone())
+            }
+            AppError::PredictHqApi { status, message } => {
                 let code = *status;
                 (code, message.clone())
             }
