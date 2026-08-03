@@ -15,6 +15,7 @@ function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
     name: "Test Event",
     images: [],
     dates: "2026-08-01T20:00:00Z",
+    source: "ticketmaster",
     ...overrides,
   }
 }
@@ -152,7 +153,7 @@ describe("eventsReducer", () => {
     expect(next.eventsByDate["2026-08-01"]).toEqual([event])
   })
 
-  it("UPSERT_STREAMED_EVENT does not insert a duplicate of the same event", () => {
+  it("UPSERT_STREAMED_EVENT collapses a duplicate of the same event into one entry, not two", () => {
     const event = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
@@ -174,7 +175,37 @@ describe("eventsReducer", () => {
     })
 
     expect(afterSecond.eventsByDate["2026-08-01"]).toHaveLength(1)
-    expect(afterSecond).toBe(afterFirst)
+  })
+
+  it("UPSERT_STREAMED_EVENT replaces a matching event with the later payload rather than discarding it", () => {
+    // This is what makes cross-source enrichment work: the backend re-emits
+    // the same Ticketmaster event id with rank/predictedAttendance attached
+    // once PredictHQ reconciliation completes, and that update must actually
+    // reach the UI instead of being silently dropped as "already exists".
+    const original = makeEvent({
+      id: "tm-1",
+      dates: "2026-08-01T20:00:00Z",
+      venue: { name: "The Venue" },
+    })
+    const enriched = makeEvent({
+      id: "tm-1",
+      dates: "2026-08-01T20:00:00Z",
+      venue: { name: "The Venue" },
+      rank: 62,
+      predictedAttendance: 900,
+    })
+
+    const afterFirst = eventsReducer(initialEventsState, {
+      type: "UPSERT_STREAMED_EVENT",
+      payload: original,
+    })
+    const afterSecond = eventsReducer(afterFirst, {
+      type: "UPSERT_STREAMED_EVENT",
+      payload: enriched,
+    })
+
+    expect(afterSecond.eventsByDate["2026-08-01"]).toHaveLength(1)
+    expect(afterSecond.eventsByDate["2026-08-01"][0]).toEqual(enriched)
   })
 
   it("SELECT_EVENTS replaces selectedEvents", () => {

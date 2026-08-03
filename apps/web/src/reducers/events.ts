@@ -79,15 +79,23 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
       const dateKey = eventDateKey(event)
       const existingBucket = state.eventsByDate[dateKey] ?? []
 
-      const alreadyExists = existingBucket.some((existing) =>
+      const existingIndex = existingBucket.findIndex((existing) =>
         sameEvent(existing, event)
       )
 
-      if (alreadyExists) {
-        return state
-      }
-
-      const nextBucket = sortEvents([...existingBucket, event])
+      // A later emission for the same event (by sameEvent's identity) always
+      // carries at least as much information as an earlier one — e.g. the
+      // cross-source reconciliation pass re-emitting a Ticketmaster event
+      // with rank/predictedAttendance attached — so replace rather than
+      // discard on a match.
+      const nextBucket =
+        existingIndex === -1
+          ? sortEvents([...existingBucket, event])
+          : sortEvents(
+              existingBucket.map((existing, i) =>
+                i === existingIndex ? event : existing
+              )
+            )
 
       return {
         ...state,

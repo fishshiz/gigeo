@@ -40,5 +40,10 @@ export type EventResponse = {
    * expansion rather than being one of the caller's own top artists — names
    * the top artist that produced the match. */
   matchedVia?: string | null
+  source: "ticketmaster" | "predicthq"
+  /** PredictHQ's 0-100 rank, when available (native PredictHQ events, or a
+   * Ticketmaster event enriched via cross-source dedup). */
+  rank?: number | null
+  predictedAttendance?: number | null
 }
 

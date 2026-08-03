@@ -5,6 +5,10 @@
 
 pub mod types;
 
+mod reconcile;
+
+pub(crate) use reconcile::reconcile_predicthq_events;
+
 use std::collections::HashMap;
 
 use crate::spotify::client::normalize_artist_name;
