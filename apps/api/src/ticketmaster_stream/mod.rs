@@ -210,7 +210,7 @@ pub async fn get_concerts_tm_stream(
         };
 
         if !predicthq_events.is_empty() {
-            let (enrichments, new_events) =
+            let (enrichments, mut new_events) =
                 reconcile_predicthq_events(&ticketmaster_events, predicthq_events);
 
             for event in enrichments {
@@ -218,6 +218,34 @@ pub async fn get_concerts_tm_stream(
                     .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
                 line.push(b'\n');
                 yield Bytes::from(line);
+            }
+
+            // Best-effort image/link backfill for the PredictHQ-only cards
+            // (a matched event above is already a Ticketmaster clone with
+            // its own real photo/ticket URL, so it's excluded from this).
+            // Absent entirely when Apple Music isn't configured or its
+            // developer token can't be fetched right now — same
+            // never-block-the-feed posture as the PredictHQ fetch itself.
+            if let (Some(am), Some(dev_token_mgr)) =
+                (&state.apple_music_client, &state.apple_dev_token)
+            {
+                match dev_token_mgr.get_token().await {
+                    Ok(token) => {
+                        crate::predicthq::backfill_artwork(
+                            &mut new_events,
+                            am,
+                            &token,
+                            &state.apple_artwork_cache,
+                        )
+                        .await;
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            error = %err,
+                            "failed to fetch Apple Music developer token, skipping PredictHQ image/link backfill"
+                        );
+                    }
+                }
             }
 
             for mut event in new_events {

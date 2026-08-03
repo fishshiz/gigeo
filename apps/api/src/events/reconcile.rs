@@ -53,20 +53,88 @@ fn find_matching_ticketmaster_event<'a>(
 }
 
 fn venue_and_date_match(a: &EventResponse, b: &EventResponse) -> bool {
-    let a_venue = venue_key(a);
-    let b_venue = venue_key(b);
-    if a_venue.is_none() || a_venue != b_venue {
+    let a_day = calendar_day(a);
+    let b_day = calendar_day(b);
+    if a_day.is_none() || a_day != b_day {
         return false;
     }
 
-    let a_day = calendar_day(a);
-    let b_day = calendar_day(b);
-    a_day.is_some() && a_day == b_day
+    venues_match(a, b)
+}
+
+/// Venues match on an exact normalized name, e.g. both sources spelling
+/// "Thompson's Point" the same way once case/punctuation is stripped.
+///
+/// Real sources don't always agree on *which* name to use for the same
+/// physical venue, though — observed in Portland, ME testing: PredictHQ
+/// attached a show to a named room/stage ("The Rink at Thompson's Point")
+/// while Ticketmaster used the parent venue's own name ("Thompson's
+/// Point") for the identical show. Neither normalized string matches the
+/// other, but they sit ~0.15 miles apart. So we also accept a close geo
+/// match — but only when it's confirmed by an actual performer-name
+/// overlap (not the "absent = pass" leniency `performer_confirms_or_absent`
+/// allows for the exact-name path). Proximity alone is too weak a signal:
+/// two genuinely different real venues in this same test market (State
+/// Theatre and Aura) sit only ~0.28 miles apart — well within a naive
+/// "same complex" radius.
+fn venues_match(a: &EventResponse, b: &EventResponse) -> bool {
+    let a_venue = venue_key(a);
+    let b_venue = venue_key(b);
+    if a_venue.is_some() && a_venue == b_venue {
+        return true;
+    }
+
+    match (venue_coords(a), venue_coords(b)) {
+        (Some(a_coords), Some(b_coords)) => {
+            distance_miles(a_coords, b_coords) <= VENUE_PROXIMITY_MILES_THRESHOLD
+                && performer_names_overlap(a, b)
+        }
+        _ => false,
+    }
 }
 
 fn venue_key(event: &EventResponse) -> Option<String> {
     let name = event.venue.as_ref()?.name.as_deref()?;
     Some(normalize_artist_name(name))
+}
+
+/// Miles within which two differently-named venues are treated as the same
+/// physical complex, provided performer names also confirm the match. Wide
+/// enough to cover a named sub-venue (a room, stage, or rink) within a
+/// larger complex; tighter than the ~0.28mi gap observed between two
+/// genuinely distinct downtown venues in the same test market.
+const VENUE_PROXIMITY_MILES_THRESHOLD: f64 = 0.2;
+
+fn venue_coords(event: &EventResponse) -> Option<(f64, f64)> {
+    let location = event.venue.as_ref()?.location.as_ref()?;
+    let lat: f64 = location.latitude.as_deref()?.parse().ok()?;
+    let lng: f64 = location.longitude.as_deref()?.parse().ok()?;
+    Some((lat, lng))
+}
+
+/// Approximate great-circle distance in miles between two lat/lng points
+/// (equirectangular approximation — accurate enough at sub-mile scale
+/// without pulling in a geodesy dependency for what's just a "same venue
+/// complex?" sanity check).
+fn distance_miles(a: (f64, f64), b: (f64, f64)) -> f64 {
+    const EARTH_RADIUS_MILES: f64 = 3958.8;
+    let (lat1, lng1) = a;
+    let (lat2, lng2) = b;
+    let avg_lat_rad = ((lat1 + lat2) / 2.0).to_radians();
+    let dx = (lng2 - lng1).to_radians() * avg_lat_rad.cos();
+    let dy = (lat2 - lat1).to_radians();
+    EARTH_RADIUS_MILES * (dx * dx + dy * dy).sqrt()
+}
+
+/// Strict performer-name overlap — unlike `performer_confirms_or_absent`,
+/// missing performer data on either side does NOT pass. Used to gate the
+/// geo-proximity venue fallback, where positive confirmation is required
+/// because proximity alone isn't a strong enough signal.
+fn performer_names_overlap(a: &EventResponse, b: &EventResponse) -> bool {
+    match (performer_names(a), performer_names(b)) {
+        (Some(a_names), Some(b_names)) => a_names.intersection(&b_names).next().is_some(),
+        _ => false,
+    }
 }
 
 /// The calendar-day portion of `event.dates` (both sources' dates are UTC
@@ -132,6 +200,14 @@ mod tests {
             rank: None,
             predicted_attendance: None,
         }
+    }
+
+    fn with_location(mut e: EventResponse, lat: &str, lng: &str) -> EventResponse {
+        e.venue.as_mut().unwrap().location = Some(crate::events::types::LocationResponse {
+            latitude: Some(lat.to_string()),
+            longitude: Some(lng.to_string()),
+        });
+        e
     }
 
     fn with_performers(mut e: EventResponse, names: &[&str]) -> EventResponse {
@@ -297,6 +373,94 @@ mod tests {
         let (enrichments, _) = reconcile_predicthq_events(&tm, phq);
 
         assert_eq!(enrichments.len(), 1);
+    }
+
+    #[test]
+    fn matches_via_geo_proximity_when_venue_names_differ_but_performer_confirms() {
+        // The real Portland, ME case: Ticketmaster's "Role Model Presents:
+        // Chuck Comes Home" at "Thompson's Point" vs. PredictHQ's "Role
+        // Model" at "The Rink at Thompson's Point" -- same show, same day,
+        // ~0.15 miles apart, names don't normalize to the same string.
+        let tm = vec![with_location(
+            with_performers(
+                event("tm-1", "Thompson's Point", "2026-08-07T23:00:00Z"),
+                &["Role Model"],
+            ),
+            "43.648693",
+            "-70.289493",
+        )];
+        let phq = vec![with_location(
+            with_performers(
+                phq_event(
+                    "phq-1",
+                    "The Rink at Thompson's Point",
+                    "2026-08-07T23:00:00Z",
+                    60,
+                ),
+                &["Role Model"],
+            ),
+            "43.649943",
+            "-70.291827",
+        )];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert_eq!(enrichments.len(), 1);
+        assert_eq!(enrichments[0].id, "tm-1");
+        assert!(new_events.is_empty());
+    }
+
+    #[test]
+    fn geo_proximity_alone_without_performer_confirmation_does_not_match() {
+        // Two genuinely different venues in the same test market sitting
+        // close together (State Theatre / Aura, ~0.28mi apart) must not
+        // merge just because they're near each other and neither side
+        // happens to carry performer data.
+        let tm = vec![with_location(
+            event("tm-1", "State Theatre", "2026-08-09T23:00:00Z"),
+            "43.65397160",
+            "-70.26329240",
+        )];
+        let phq = vec![with_location(
+            phq_event("phq-1", "Aura", "2026-08-09T23:00:00Z", 50),
+            "43.65655100",
+            "-70.25894300",
+        )];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert!(enrichments.is_empty());
+        assert_eq!(new_events.len(), 1);
+    }
+
+    #[test]
+    fn geo_proximity_with_conflicting_performers_does_not_match() {
+        let tm = vec![with_location(
+            with_performers(
+                event("tm-1", "Thompson's Point", "2026-08-07T23:00:00Z"),
+                &["Role Model"],
+            ),
+            "43.648693",
+            "-70.289493",
+        )];
+        let phq = vec![with_location(
+            with_performers(
+                phq_event(
+                    "phq-1",
+                    "The Rink at Thompson's Point",
+                    "2026-08-07T23:00:00Z",
+                    60,
+                ),
+                &["Some Other Act"],
+            ),
+            "43.649943",
+            "-70.291827",
+        )];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert!(enrichments.is_empty());
+        assert_eq!(new_events.len(), 1);
     }
 
     #[test]

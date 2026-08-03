@@ -19,6 +19,13 @@ import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatTime } from "./lib/dates"
 
+/** PredictHQ never provides a ticket purchase link -- when `url` is set on
+ * a PredictHQ-sourced event, it's the backend's Apple Music artist-page
+ * backfill instead (see `predicthq::artwork::backfill_artwork`). Labeling
+ * that link "Tickets" would wrongly suggest it's a place to buy tickets. */
+const eventLinkLabel = (event: Pick<EventResponse, "source">) =>
+  event.source === "predicthq" ? "Listen" : "Tickets"
+
 const EventDetails = ({
   eventData,
   otherShowtimes = [],
@@ -133,7 +140,7 @@ const EventDetails = ({
               variant="button"
               className="ml-2 shrink-0 rounded-full bg-(--color-toasted-almond-600) px-2 py-1 text-[11px] font-medium text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
             >
-              Tickets
+              {eventLinkLabel(eventData)}
             </Link>
           )}
         </div>
@@ -156,7 +163,7 @@ const EventDetails = ({
           href={eventData.url}
           target="_blank"
         >
-          Tickets
+          {eventLinkLabel(eventData)}
         </Link>
       )}
 
@@ -211,7 +218,7 @@ const EventDetails = ({
                     target="_blank"
                     className="text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
                   >
-                    Tickets
+                    {eventLinkLabel(showtime)}
                   </Link>
                 )}
               </li>
@@ -400,7 +407,7 @@ const UpcomingEvents = ({ events }: { events: EventResponse[] }) => {
               target="_blank"
               className="ml-auto text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
             >
-              Tickets
+              {eventLinkLabel(e)}
             </Link>
           </li>
         ))}

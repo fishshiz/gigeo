@@ -28,6 +28,7 @@ use sqlx::migrate;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
+use apple_music::artwork_cache::ArtworkCache;
 use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager, MusicUserTokenStore};
 use apple_music::client::AppleMusicClient;
 use auth::{ClientCredentialsManager, SpotifyCredentials, UserTokenManager};
@@ -124,6 +125,7 @@ pub async fn build_app() -> Result<Router> {
         apple_music_client: apple_client,
         apple_dev_token: apple_dev,
         apple_user_token: apple_user,
+        apple_artwork_cache: Arc::new(ArtworkCache::new()),
         predicthq_api_key,
         cookie_domain: config.cookie_domain.clone(),
         cookie_secure: config.cookie_secure,
