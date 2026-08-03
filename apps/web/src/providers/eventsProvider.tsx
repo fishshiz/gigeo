@@ -3,9 +3,11 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react"
 
 import {
@@ -14,6 +16,8 @@ import {
   initialEventsState,
 } from "../reducers/events"
 import { type EventResponse } from "@/hooks/eventsStream"
+import { useSearchProvider } from "./searchProvider"
+import { dateRangeToApiParams } from "../lib/dates"
 
 // Search radii (miles) tried in order until one returns events. Lets
 // sparsely-served (e.g. rural) locations still find something instead of
@@ -186,6 +190,44 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   )
 
   const radiusExpanded = searchRadius !== null && searchRadius > BASE_RADIUS
+
+  // Reactively (re-)runs the search whenever the selected location or date
+  // range changes. Lives here rather than in MapWrapper: neither
+  // searchProvider's state nor streamEvents/cancelStream are map-specific --
+  // this is just the two providers' own concerns meeting, and previously
+  // only met inside MapWrapper because that's where the effect was first
+  // written, not because the map needed to own it.
+  const { selectedCoordinates, dateRange } = useSearchProvider()
+  const [rendered, setRendered] = useState(false)
+  useEffect(() => {
+    // Marks first-mount completion so the search effect below skips its
+    // initial run; intentional, not a cascading-render risk here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRendered(true)
+  }, [])
+
+  const { latitude, longitude, start, end } = {
+    latitude: selectedCoordinates[1],
+    longitude: selectedCoordinates[0],
+    ...dateRangeToApiParams(dateRange.start, dateRange.end),
+  }
+  useEffect(() => {
+    if (!rendered) return
+    // streamEvents dispatches synchronously (RESET_EVENTS/STREAM_STATUS)
+    // before its first await -- long-standing, intentional behavior
+    // (immediately marking the stream in-flight and clearing prior
+    // results), not something introduced by relocating this effect here.
+    // The lint rule can only see it now that the call site shares a file
+    // with streamEvents' own definition; it was equally true when this
+    // effect lived in MapWrapper, just invisible to static analysis
+    // across the context-consumer boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void streamEvents({ latitude, longitude, start, end })
+
+    return () => {
+      cancelStream()
+    }
+  }, [latitude, longitude, start, end, streamEvents, cancelStream, rendered])
 
   const value = useMemo(
     () => ({
