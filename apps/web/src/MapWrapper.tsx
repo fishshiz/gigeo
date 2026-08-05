@@ -5,6 +5,7 @@ import { useSearchProvider } from "./providers/searchProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 import { useMapInstance } from "./hooks/useMapInstance"
+import { useMapViewSync } from "./hooks/useMapViewSync"
 import { useResizeFix } from "./hooks/useResizeFix"
 import { useMapCamera } from "./hooks/useMapCamera"
 import { useEventLayer } from "./hooks/useEventLayer"
@@ -77,6 +78,7 @@ const MapWrapper = () => {
     handleGeolocate
   )
   useResizeFix(mapRef, mapContainer)
+  useMapViewSync(mapRef)
   const camera = useMapCamera(mapRef)
   useEventLayer(mapRef, eventsByDate, selectedEvents, selectEvents)
   useClusterSelection(mapRef, eventsByDate, selectEvents)

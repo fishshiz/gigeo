@@ -11,7 +11,8 @@ import type { Location } from "../lib/types"
 // Geographic center of the contiguous US — used only when there's no
 // remembered location and geolocation permission hasn't already been
 // granted. Previously this defaulted to the middle of the Atlantic.
-const DEFAULT_CENTER: [number, number] = [-98.5795, 39.8283]
+// Exported so mapViewProvider can fall back to the same point.
+export const DEFAULT_CENTER: [number, number] = [-98.5795, 39.8283]
 
 const COORDINATES_STORAGE_KEY = "gigeo:lastCoordinates"
 const LOCATION_STORAGE_KEY = "gigeo:lastLocation"

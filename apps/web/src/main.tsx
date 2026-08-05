@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { EventsProvider } from "./providers/eventsProvider"
 import { PlaylistProvider } from "./providers/playlistsProvider.tsx"
 import { SearchProvider } from "./providers/searchProvider.tsx"
+import { MapViewProvider } from "./providers/mapViewProvider.tsx"
 import { DrawerProvider } from "./providers/drawerProvider.tsx"
 
 createRoot(document.getElementById("root")!).render(
@@ -15,11 +16,13 @@ createRoot(document.getElementById("root")!).render(
       <BreakpointProvider>
         <DrawerProvider>
           <SearchProvider>
-            <EventsProvider>
-              <PlaylistProvider>
-                <App />
-              </PlaylistProvider>
-            </EventsProvider>
+            <MapViewProvider>
+              <EventsProvider>
+                <PlaylistProvider>
+                  <App />
+                </PlaylistProvider>
+              </EventsProvider>
+            </MapViewProvider>
           </SearchProvider>
         </DrawerProvider>
       </BreakpointProvider>
