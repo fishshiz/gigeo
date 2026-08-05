@@ -41,7 +41,9 @@ describe("eventDateKey", () => {
   })
 
   it("returns 'unknown' when dates is missing", () => {
-    expect(eventDateKey(makeEvent({ dates: null }), EASTERN)).toBe("unknown")
+    expect(eventDateKey(makeEvent({ dates: undefined }), EASTERN)).toBe(
+      "unknown"
+    )
   })
 
   it("returns 'unknown' when dates is not a parseable date", () => {

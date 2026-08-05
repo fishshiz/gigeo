@@ -86,7 +86,7 @@ describe("sortEvents", () => {
       name: "Dated",
       dates: "2026-08-01T00:00:00Z",
     })
-    const undated = makeEvent({ id: "2", name: "Undated", dates: null })
+    const undated = makeEvent({ id: "2", name: "Undated", dates: undefined })
     expect(sortEvents([undated, dated])).toEqual([dated, undated])
   })
 

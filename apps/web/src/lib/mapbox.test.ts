@@ -58,7 +58,7 @@ describe("buildEventFeatureCollection", () => {
   })
 
   it("skips events with no venue", () => {
-    const event = makeEvent({ venue: null })
+    const event = makeEvent({ venue: undefined })
     expect(buildEventFeatureCollection({ "2026-08-01": [event] })).toEqual({
       type: "FeatureCollection",
       features: [],

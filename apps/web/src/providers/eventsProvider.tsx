@@ -15,9 +15,39 @@ import {
   eventsReducer,
   initialEventsState,
 } from "../reducers/events"
-import { type EventResponse } from "@/hooks/eventsStream"
+import {
+  eventResponseSchema,
+  type EventResponse,
+} from "@/hooks/eventsStreamSchema"
 import { useSearchProvider } from "./searchProvider"
 import { dateRangeToApiParams } from "../lib/dates"
+
+/** Parses one ndjson line against `eventResponseSchema` rather than a bare
+ * `JSON.parse(...) as EventResponse` -- a shape mismatch (backend/frontend
+ * drift, or genuinely malformed JSON) is logged loudly and the one event
+ * is skipped, instead of either silently mis-typing bad data or crashing
+ * the whole stream over a single record. */
+function parseStreamedEvent(raw: string) {
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch (err) {
+    console.error("Failed to parse a streamed event as JSON", err, raw)
+    return null
+  }
+
+  const result = eventResponseSchema.safeParse(json)
+  if (!result.success) {
+    console.error(
+      "Streamed event didn't match the expected schema -- backend/frontend drift?",
+      result.error,
+      json
+    )
+    return null
+  }
+
+  return result.data
+}
 
 // Search radii (miles) tried in order until one returns events. Lets
 // sparsely-served (e.g. rural) locations still find something instead of
@@ -120,7 +150,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
             const trimmed = line.trim()
             if (!trimmed) continue
 
-            const event = JSON.parse(trimmed) as EventResponse
+            const event = parseStreamedEvent(trimmed)
+            if (!event) continue
             dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
             count++
           }
@@ -130,9 +161,11 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
         const trailing = buffer.trim()
         if (trailing) {
-          const event = JSON.parse(trailing) as EventResponse
-          dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
-          count++
+          const event = parseStreamedEvent(trailing)
+          if (event) {
+            dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
+            count++
+          }
         }
       } finally {
         reader.releaseLock()

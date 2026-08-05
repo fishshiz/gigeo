@@ -24,8 +24,8 @@ const EventFilter = () => {
         acc: Record<string, { name: string; id: string; count: number }>,
         curr: Classification
       ) => {
-        const { name, id } = curr.segment
-        if (curr.primary && name) {
+        const { name, id } = curr.segment ?? {}
+        if (curr.primary && name && id) {
           if (!acc[name]) {
             acc[name] = { name, id, count: 1 }
           } else {
