@@ -1,4 +1,4 @@
-import { type Classification } from "../lib/types"
+import { type Classification, type ExternalLinks } from "../lib/types"
 
 export type EventsByDate = Record<string, EventResponse[]>
 
@@ -26,6 +26,7 @@ export type EventResponse = {
   performers?: Array<{
     id?: string
     name?: string
+    externalLinks?: ExternalLinks | null
   }> | null
   url?: string | null
   priceRanges?: Array<{

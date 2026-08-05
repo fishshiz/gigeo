@@ -1,16 +1,16 @@
-type Attraction = {
-  name: string
-  id: string
-  externalLinks?: {
-    homepage?: Link[]
-    instagram?: Link[]
-    wiki?: Link[]
-  }
-  images?: Image[]
-  classifications: Classification[]
-}
+/** A single Ticketmaster external-link entry -- `url` is optional to match
+ * the backend's `Option<String>` rather than assuming every entry
+ * Ticketmaster sends is fully populated. */
+type ExternalLink = { url?: string | null }
 
-type Link = { url: string }
+/** A performer's social/wiki/homepage links, as Ticketmaster provides them
+ * -- PredictHQ never populates this (see apps/api/src/predicthq/normalize.rs),
+ * so it's absent for a PredictHQ-sourced event's performers. */
+type ExternalLinks = {
+  homepage?: ExternalLink[] | null
+  instagram?: ExternalLink[] | null
+  wiki?: ExternalLink[] | null
+}
 
 type Classification = {
   family: boolean
@@ -22,14 +22,6 @@ type Classification = {
 }
 
 type ClassificationSegment = { id: string; name: string }
-
-type Image = {
-  ratio: string
-  url: string
-  width: number
-  height: number
-  fallback: boolean
-}
 
 type Location = {
   fullAddress: string
@@ -59,7 +51,7 @@ interface AmArtistFull extends AmArtist {
 }
 
 export type {
-  Attraction,
+  ExternalLinks,
   Classification,
   AmArtistFull,
   ClassificationSegment,

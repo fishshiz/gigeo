@@ -1,4 +1,4 @@
-import type { Attraction, AmArtistFull } from "./lib/types"
+import type { AmArtistFull, ExternalLinks } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { useEffect, useState, useRef } from "react"
@@ -9,6 +9,7 @@ import {
   MapPinIcon,
   DollarSignIcon,
   ClockIcon,
+  MusicIcon,
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
@@ -18,7 +19,7 @@ import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatTime } from "./lib/dates"
-import { ticketmasterAttractionIds } from "./lib/performers"
+import { ticketmasterAttractionIds, externalLinksForArtist } from "./lib/performers"
 
 /** PredictHQ never provides a ticket purchase link -- when `url` is set on
  * a PredictHQ-sourced event, it's the backend's Apple Music artist-page
@@ -226,15 +227,13 @@ const EventDetails = ({
 
       {artistInfo.length
         ? artistInfo.map((artist) => (
-            <>
-              <ArtistCard
-                key={artist.id}
-                artist={artist}
-                similarArtists={artist.similar_artists}
-                attraction={undefined}
-                futureEvents={[]}
-              />
-            </>
+            <ArtistCard
+              key={artist.id}
+              artist={artist}
+              similarArtists={artist.similar_artists}
+              externalLinks={externalLinksForArtist(performers, artist.name)}
+              futureEvents={futureEvents[artist.id] ?? []}
+            />
           ))
         : performers?.map((performer) => {
             if (!performer.id) return null
@@ -259,22 +258,25 @@ type ArtistCardProps = {
   artist: AmArtistFull
   similarArtists?: SimilarArtist[]
   artworkSize?: number
-  attraction?: Attraction
+  externalLinks?: ExternalLinks
   futureEvents?: EventResponse[]
 }
 
 export const ArtistCard: React.FC<ArtistCardProps> = ({
   artist,
   similarArtists = [],
-  attraction = {},
+  externalLinks = {},
   futureEvents = [],
   artworkSize = 200,
 }) => {
-  const { name, genres = [], artwork } = artist
+  const { name, genres = [], artwork, apple_music_url } = artist
 
   const imgUrl = buildArtworkUrl(artwork, artworkSize)
   const bgColor = normalizeBg(artwork.bgColor)
   const primaryGenre = genres[0]
+  const wikiUrl = externalLinks.wiki?.[0]?.url
+  const homepageUrl = externalLinks.homepage?.[0]?.url
+  const instagramUrl = externalLinks.instagram?.[0]?.url
 
   return (
     <div
@@ -310,23 +312,13 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             <p className="mt-1 text-sm text-slate-300">{primaryGenre}</p>
           )}
           <ul className="flex flex-col">
-            {attraction?.externalLinks?.wiki && (
-              <ExternalLink
-                url={attraction?.externalLinks?.wiki[0].url}
-                label="Wikipedia"
-              />
+            {wikiUrl && <ExternalLink url={wikiUrl} label="Wikipedia" />}
+            {homepageUrl && <ExternalLink url={homepageUrl} label="Website" />}
+            {instagramUrl && (
+              <ExternalLink url={instagramUrl} label="Instagram" />
             )}
-            {attraction?.externalLinks?.homepage && (
-              <ExternalLink
-                url={attraction?.externalLinks?.homepage[0].url}
-                label="Website"
-              />
-            )}
-            {attraction?.externalLinks?.instagram && (
-              <ExternalLink
-                url={attraction?.externalLinks?.instagram[0].url}
-                label="Instagram"
-              />
+            {apple_music_url && (
+              <ExternalLink url={apple_music_url} label="Apple Music" />
             )}
           </ul>
         </div>
@@ -370,6 +362,8 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
           <ReactSVG className="h-[24px] w-[24px]" src={WikiLogo} />
         ) : label === "Instagram" ? (
           <ReactSVG className="me-[4px] h-[24px] w-[24px]" src={IgLogo} />
+        ) : label === "Apple Music" ? (
+          <MusicIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
         ) : (
           <GlobeIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
         )}
