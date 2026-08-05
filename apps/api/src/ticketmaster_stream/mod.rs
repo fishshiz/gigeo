@@ -187,6 +187,22 @@ pub async fn get_concerts_tm_stream(
             }
         }
 
+        // Every performer name seen this request, fed to canonical artist
+        // enrichment at the very end (see below) — collected as we go
+        // rather than re-derived later, since `new_events` below is
+        // consumed by value once PredictHQ personalization is applied to
+        // it.
+        let mut artist_candidates: Vec<crate::artists::ArtistCandidate> = ticketmaster_events
+            .iter()
+            .flat_map(|event| event.performers.iter().flatten())
+            .filter_map(|performer| {
+                performer.name.clone().map(|name| crate::artists::ArtistCandidate {
+                    name,
+                    ticketmaster_attraction_id: performer.id.clone(),
+                })
+            })
+            .collect();
+
         // Second wave: reconcile PredictHQ against everything Ticketmaster
         // just streamed. A failed/absent fetch degrades to "no PredictHQ
         // data this request" rather than an error — this feature is
@@ -248,6 +264,19 @@ pub async fn get_concerts_tm_stream(
                 }
             }
 
+            // PredictHQ performer ids are PredictHQ entity ids, not
+            // Ticketmaster attraction ids — a different namespace, so
+            // `ticketmaster_attraction_id` is always `None` here (see
+            // `crate::predicthq::normalize`).
+            artist_candidates.extend(new_events.iter().flat_map(|event| event.performers.iter().flatten()).filter_map(
+                |performer| {
+                    performer.name.clone().map(|name| crate::artists::ArtistCandidate {
+                        name,
+                        ticketmaster_attraction_id: None,
+                    })
+                },
+            ));
+
             for mut event in new_events {
                 apply_personalization(&mut event, &personalization_matches);
                 let mut line = serde_json::to_vec(&event)
@@ -256,6 +285,8 @@ pub async fn get_concerts_tm_stream(
                 yield Bytes::from(line);
             }
         }
+
+        crate::artists::spawn_enrichment(&state, artist_candidates);
     }
     .boxed();
 

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into artists (normalized_name, display_name, ticketmaster_attraction_id, last_attempted_at)\n        values ($1, $2, $3, now())\n        on conflict (normalized_name) do update set\n            ticketmaster_attraction_id = coalesce(excluded.ticketmaster_attraction_id, artists.ticketmaster_attraction_id),\n            last_attempted_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d210bc231495e8421898b7d337f3e14acb9c6a98103dc44cad5155fb3e88201a"
+}

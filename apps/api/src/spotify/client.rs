@@ -53,6 +53,11 @@ pub struct Artist {
     pub images: Vec<Image>,
     #[serde(rename = "type")]
     pub artist_type: Option<String>,
+    /// Absent from search-result items in practice but present on a full
+    /// `GET /artists/{id}` response — defaulted rather than required so
+    /// both shapes deserialize into the same struct.
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

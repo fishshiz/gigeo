@@ -1,5 +1,6 @@
 // src/lib.rs
 mod apple_music;
+mod artists;
 mod auth;
 mod config;
 mod cookie;
@@ -153,10 +154,6 @@ pub async fn build_app() -> Result<Router> {
         .route(
             "/future-events",
             axum::routing::get(ticketmaster_stream::get_events_by_attraction),
-        )
-        .route(
-            "/artists",
-            axum::routing::get(spotify::spotify_handlers::get_artist_info),
         )
         .route(
             "/spotify/playlist",
