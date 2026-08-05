@@ -8,7 +8,7 @@ import { HouseIcon } from "lucide-react"
 import { useEventsContext } from "./providers/eventsProvider"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import { ForYouTag } from "./ForYouTag"
-import { formatDate } from "./lib/dates"
+import { formatDate, formatTime } from "./lib/dates"
 
 import { type ReactElement } from "react"
 import type { EventResponse } from "./hooks/eventsStream"
@@ -78,6 +78,7 @@ const EventCard = ({
 const GroupedEventCard = ({ group }: { group: EventGroup }) => {
   const { selectEvents } = useEventsContext()
   const primary = group.events[0]
+  const final = group.events[group.events.length - 1]
   const count = group.events.length
 
   const dateFormatter = new DateFormatter("en-US", {
@@ -94,21 +95,21 @@ const GroupedEventCard = ({ group }: { group: EventGroup }) => {
     : null
 
   return (
-    <>
-      <span className="absolute top-[-8px] right-[-8px] m-auto flex h-9 w-12 items-center justify-center rounded-4xl bg-red-600 p-3 text-center text-xs font-thin outline outline-rose-500 dark:bg-[#FF5D73]">
-        {count} showtimes
-      </span>
-      <EventCard
-        event={primary}
-        date={
-          <span className="text-xs text-[#7C7A7A]">
-            {dateLabel ? `${dateLabel} · ` : ""}
-            {count} showtimes
-          </span>
-        }
-        onSelect={() => selectEvents(group.events)}
-      />
-    </>
+    <EventCard
+      event={primary}
+      date={
+        <>
+          {primary.dates && final.dates && (
+            <span className="text-xs text-[#7C7A7A]">
+              {dateLabel ? `${dateLabel} · ` : ""}
+              {count} showtimes from {formatTime(primary.dates)} to{" "}
+              {formatTime(final.dates)}
+            </span>
+          )}
+        </>
+      }
+      onSelect={() => selectEvents(group.events)}
+    />
   )
 }
 
