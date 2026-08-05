@@ -165,7 +165,19 @@ const DrawerContent = ({
                 : "h-full"
             )}
           >
-            <div className="relative bottom-0 left-0 z-15 flex h-full min-h-0 flex-col">
+            <div
+              className={twMerge(
+                "relative bottom-0 left-0 z-15 flex h-full min-h-0 flex-col",
+                // The sheet's own background still reaches the true bottom
+                // edge (no change there) — this keeps its *content* clear
+                // of the home indicator / gesture bar on notched phones.
+                // (Set here, not on the <Dialog> above: DrawerRoot clones
+                // Dialog with its own className via cloneElement, which
+                // replaces rather than merges, so anything added there
+                // never reaches the DOM.)
+                side === "bottom" && "pb-[env(safe-area-inset-bottom)]"
+              )}
+            >
               {notch && side === "bottom" && (
                 <div
                   className="notch absolute top-0 left-[50%] z-15 mx-auto my-2 my-2.5 h-1.5 w-10 shrink-0 translate-x-[-50%] touch-pan-y rounded-full bg-gray-400"

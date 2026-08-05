@@ -159,7 +159,7 @@ const DrawerWrapper = () => {
       {isDesktop && (
         <DrawerClose
           aria-label="Close drawer"
-          className="absolute top-3 right-3 z-20 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+          className="absolute top-3 right-3 z-20 touch-manipulation max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
           variant="quiet"
           onClick={() => setIsDrawerOpen(false)}
         >
@@ -170,12 +170,19 @@ const DrawerWrapper = () => {
       {!isDesktop && (
         <TabList
           aria-label="Content sections"
-          className="flex shrink-0 items-center justify-center gap-1.5 border-b border-black/10 px-3 pt-1 pr-14 pb-2 dark:border-white/10"
+          className="flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 pt-1 pr-12 pb-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
-            <Tab key={id} id={id} className="gap-1.5 px-3 py-3.5">
+            <Tab
+              key={id}
+              id={id}
+              aria-label={label}
+              className="touch-manipulation gap-1.5 px-2 py-3.5"
+            >
               <DestinationIcon id={id} size={16} />
-              <span className="text-xs font-medium">{label}</span>
+              <span className="hidden text-xs font-medium min-[375px]:inline">
+                {label}
+              </span>
             </Tab>
           ))}
         </TabList>
@@ -243,7 +250,7 @@ const DrawerWrapper = () => {
               key={id}
               id={id}
               aria-label={label}
-              className="w-16 flex-col gap-1 rounded-lg px-2 py-2"
+              className="w-16 touch-manipulation flex-col gap-1 rounded-lg px-2 py-2"
             >
               <DestinationIcon id={id} size={20} />
               <span className="text-[10px] leading-none font-medium">
