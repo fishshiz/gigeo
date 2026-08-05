@@ -2,7 +2,9 @@
 //! Music catalog artist lookup already powering the on-demand artist
 //! panel (`apple_music::handlers::get_artist_info`) — see
 //! `crate::apple_music::artwork_cache` for the caching/name-verification
-//! rules this relies on.
+//! rules this relies on. Candidate names come from
+//! `super::performer_search_names`, which falls back to the event's own
+//! title when there's no structured performer entity at all.
 //!
 //! Deliberately scoped to *unmatched* PredictHQ events (the `new_events`
 //! half of `reconcile_predicthq_events`'s output): a matched event is a
@@ -59,11 +61,7 @@ pub(crate) async fn backfill_artwork(
             if !event.images.is_empty() && event.url.is_some() {
                 return Vec::new();
             }
-            event
-                .performers
-                .as_ref()
-                .map(|performers| performers.iter().filter_map(|p| p.name.clone()).collect())
-                .unwrap_or_default()
+            super::performer_search_names(event)
         })
         .collect();
 
@@ -145,19 +143,12 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn leaves_events_without_performer_data_untouched() {
-        let mut events = vec![phq_event("phq-1", None)];
-        let am = AppleMusicClient::new(reqwest::Client::new(), "us".to_string());
-        let cache = ArtworkCache::new();
-
-        // No dev token needed -- there's no performer name to look up, so
-        // the network path is never reached.
-        backfill_artwork(&mut events, &am, "unused-token", &cache).await;
-
-        assert!(events[0].images.is_empty());
-        assert!(events[0].url.is_none());
-    }
+    // There used to be a test here asserting that an event with no
+    // performer data is left untouched with the network path never
+    // reached — that stopped being true once candidate names fell back to
+    // the event's title (see `super::performer_search_names`), which is
+    // covered directly, without a network dependency, by
+    // `predicthq::tests::performer_search_names_falls_back_to_event_title_when_no_performers`.
 
     #[tokio::test]
     async fn skips_events_that_already_have_an_image_and_url() {

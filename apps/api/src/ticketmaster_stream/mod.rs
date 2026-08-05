@@ -267,15 +267,18 @@ pub async fn get_concerts_tm_stream(
             // PredictHQ performer ids are PredictHQ entity ids, not
             // Ticketmaster attraction ids — a different namespace, so
             // `ticketmaster_attraction_id` is always `None` here (see
-            // `crate::predicthq::normalize`).
-            artist_candidates.extend(new_events.iter().flat_map(|event| event.performers.iter().flatten()).filter_map(
-                |performer| {
-                    performer.name.clone().map(|name| crate::artists::ArtistCandidate {
+            // `crate::predicthq::normalize`). `performer_search_names`
+            // falls back to the event's own title for the ~28% of
+            // PredictHQ events with no structured performer entity at
+            // all, same as the image backfill above.
+            artist_candidates.extend(new_events.iter().flat_map(|event| {
+                crate::predicthq::performer_search_names(event)
+                    .into_iter()
+                    .map(|name| crate::artists::ArtistCandidate {
                         name,
                         ticketmaster_attraction_id: None,
                     })
-                },
-            ));
+            }));
 
             for mut event in new_events {
                 apply_personalization(&mut event, &personalization_matches);
