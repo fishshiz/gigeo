@@ -18,6 +18,7 @@ import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatTime } from "./lib/dates"
+import { ticketmasterAttractionIds } from "./lib/performers"
 
 /** PredictHQ never provides a ticket purchase link -- when `url` is set on
  * a PredictHQ-sourced event, it's the backend's Apple Music artist-page
@@ -83,11 +84,7 @@ const EventDetails = ({
     if (segment === "Music") {
       fetchData()
     }
-    eventData.performers?.forEach((performer) => {
-      if (performer.id) {
-        fetchFutureEvents(performer.id)
-      }
-    })
+    ticketmasterAttractionIds(eventData).forEach(fetchFutureEvents)
 
     return () => {
       cancelled = true
