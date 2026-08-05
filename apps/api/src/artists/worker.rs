@@ -225,7 +225,10 @@ async fn refresh_dynamic_fields(state: &AppState, normalized_name: &str, row: &d
             let Ok(token) = state.cc_manager.get_token().await else {
                 return;
             };
-            let Ok(artist) = state.spotify.get_artist(&token.access_token, spotify_id).await
+            let Ok(artist) = state
+                .spotify
+                .get_artist(&token.access_token, spotify_id)
+                .await
             else {
                 let _ = db::touch_last_attempted(&state.db.pool, normalized_name).await;
                 return;
@@ -254,7 +257,12 @@ async fn try_apple_music_match(
     let dev_mgr = state.apple_dev_token.as_ref()?;
     let token = dev_mgr.get_token().await.ok()?;
 
-    let candidate = am.search_artists(&token, name, 1).await.ok()?.into_iter().next()?;
+    let candidate = am
+        .search_artists(&token, name, 1)
+        .await
+        .ok()?
+        .into_iter()
+        .next()?;
     let attrs = candidate.attributes?;
     if normalize_artist_name(&attrs.name) != normalized {
         return None;
@@ -265,7 +273,11 @@ async fn try_apple_music_match(
 /// Verified Spotify catalog search, under the same name-match rule as
 /// `try_apple_music_match`. Only called when Apple Music had no verified
 /// match for this name.
-async fn try_spotify_match(state: &AppState, name: &str, normalized: &str) -> Option<SpotifyArtist> {
+async fn try_spotify_match(
+    state: &AppState,
+    name: &str,
+    normalized: &str,
+) -> Option<SpotifyArtist> {
     let token = state.cc_manager.get_token().await.ok()?;
     let candidate = state
         .spotify
@@ -344,7 +356,10 @@ mod tests {
 
         let deduped = dedupe_candidates(candidates);
         assert_eq!(deduped.len(), 1);
-        assert_eq!(deduped[0].ticketmaster_attraction_id.as_deref(), Some("K123"));
+        assert_eq!(
+            deduped[0].ticketmaster_attraction_id.as_deref(),
+            Some("K123")
+        );
     }
 
     #[test]
@@ -361,7 +376,10 @@ mod tests {
         ];
 
         let deduped = dedupe_candidates(candidates);
-        assert_eq!(deduped[0].ticketmaster_attraction_id.as_deref(), Some("K123"));
+        assert_eq!(
+            deduped[0].ticketmaster_attraction_id.as_deref(),
+            Some("K123")
+        );
     }
 
     #[test]

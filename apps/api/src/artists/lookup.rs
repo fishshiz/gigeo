@@ -69,7 +69,10 @@ pub(crate) async fn attach_enrichment(events: &mut [EventResponse], pool: &PgPoo
 
 /// Splits out from `attach_enrichment` so the merge itself (as opposed to
 /// the DB round-trip) is testable without a live database.
-fn merge_enrichment(events: &mut [EventResponse], by_normalized: &HashMap<String, ArtistEnrichment>) {
+fn merge_enrichment(
+    events: &mut [EventResponse],
+    by_normalized: &HashMap<String, ArtistEnrichment>,
+) {
     for event in events.iter_mut() {
         for performer in event.performers.iter_mut().flatten() {
             let Some(name) = &performer.name else {
@@ -243,7 +246,11 @@ mod tests {
 
         merge_enrichment(&mut events, &by_normalized);
 
-        assert!(events[0].performers.as_ref().unwrap()[0].enrichment.is_some());
+        assert!(
+            events[0].performers.as_ref().unwrap()[0]
+                .enrichment
+                .is_some()
+        );
     }
 
     #[test]
@@ -254,7 +261,11 @@ mod tests {
 
         merge_enrichment(&mut events, &by_normalized);
 
-        assert!(events[0].performers.as_ref().unwrap()[0].enrichment.is_none());
+        assert!(
+            events[0].performers.as_ref().unwrap()[0]
+                .enrichment
+                .is_none()
+        );
     }
 
     #[test]
@@ -264,6 +275,10 @@ mod tests {
 
         merge_enrichment(&mut events, &HashMap::new());
 
-        assert!(events[0].performers.as_ref().unwrap()[0].enrichment.is_none());
+        assert!(
+            events[0].performers.as_ref().unwrap()[0]
+                .enrichment
+                .is_none()
+        );
     }
 }

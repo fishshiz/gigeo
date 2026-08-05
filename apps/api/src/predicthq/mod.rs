@@ -81,12 +81,18 @@ mod tests {
     #[test]
     fn performer_search_names_uses_performer_names_when_present() {
         let event = phq_event("The Sauce w/ Jeff Beam", Some("Jeff Beam"));
-        assert_eq!(performer_search_names(&event), vec!["Jeff Beam".to_string()]);
+        assert_eq!(
+            performer_search_names(&event),
+            vec!["Jeff Beam".to_string()]
+        );
     }
 
     #[test]
     fn performer_search_names_falls_back_to_event_title_when_no_performers() {
         let event = phq_event("Role Model", None);
-        assert_eq!(performer_search_names(&event), vec!["Role Model".to_string()]);
+        assert_eq!(
+            performer_search_names(&event),
+            vec!["Role Model".to_string()]
+        );
     }
 }

@@ -63,7 +63,10 @@ pub(super) struct MatchedArtist<'a> {
     pub similar_artists: &'a [SimilarArtist],
 }
 
-pub(super) async fn upsert_matched(pool: &PgPool, row: MatchedArtist<'_>) -> Result<(), sqlx::Error> {
+pub(super) async fn upsert_matched(
+    pool: &PgPool,
+    row: MatchedArtist<'_>,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         insert into artists (
