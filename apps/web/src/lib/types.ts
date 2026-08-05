@@ -31,18 +31,23 @@ type Location = {
   coordinates: [number, number]
 }
 
+/** Already resolved to a concrete size backend-side (Apple's own artwork
+ * URLs are a `{w}x{h}` template) -- no substitution left for the frontend
+ * to do here. */
 type AmArtwork = {
   url: string
-  width: number
-  height: number
-  bgColor: string
+  bgColor?: string | null
 }
 
+/** `artwork`/`apple_music_url` are optional, not just possibly-missing in
+ * the UI: a canonical artist matched via Spotify (see
+ * apps/api/src/artists/worker.rs) can legitimately have no Apple Music
+ * artwork or listen link at all. */
 type AmArtist = {
   name: string
   id: string
-  apple_music_url: string
-  artwork: AmArtwork
+  apple_music_url?: string | null
+  artwork?: AmArtwork | null
 }
 
 interface AmArtistFull extends AmArtist {

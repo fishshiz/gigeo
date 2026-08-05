@@ -63,6 +63,47 @@ pub struct Performer {
     #[serde(rename = "externalLinks")]
     pub external_links: Option<ExternalLinks>,
     pub images: Option<Vec<Images>>,
+    /// Persisted canonical-artist data (see
+    /// `docs/adr/0001-canonical-artist-model.md`), attached by
+    /// `crate::artists::attach_enrichment` right before an event is sent
+    /// to a client. `None` when the performer hasn't been matched to an
+    /// artist yet (or at all) — see `crate::artists::worker` for how/when
+    /// a match is attempted.
+    pub enrichment: Option<ArtistEnrichment>,
+}
+
+/// Persisted canonical-artist data for one performer — the read-side
+/// counterpart of `crate::artists::worker`'s write path. Named and shaped
+/// to match what used to come back from the now-retired `GET
+/// /apple/artist` on-demand endpoint, so the frontend's existing rendering
+/// needed minimal change.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArtistEnrichment {
+    pub name: String,
+    pub id: String,
+    pub apple_music_url: Option<String>,
+    pub artwork: Option<ArtistArtwork>,
+    pub genres: Vec<String>,
+    pub similar_artists: Vec<SimilarArtistResponse>,
+}
+
+/// Already resolved to a concrete size by `crate::artists::worker`
+/// (Apple's own artwork URLs are a `{w}x{h}` template) — unlike the old
+/// on-demand endpoint's raw Apple Music response, there's no template
+/// substitution left for the frontend to do.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArtistArtwork {
+    pub url: String,
+    #[serde(rename = "bgColor")]
+    pub bg_color: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct SimilarArtistResponse {
+    pub name: String,
+    pub id: String,
+    pub apple_music_url: Option<String>,
+    pub artwork: Option<ArtistArtwork>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

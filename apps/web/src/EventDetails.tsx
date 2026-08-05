@@ -19,7 +19,7 @@ import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatTime } from "./lib/dates"
-import { ticketmasterAttractionIds, externalLinksForArtist } from "./lib/performers"
+import { ticketmasterAttractionIds } from "./lib/performers"
 
 /** PredictHQ never provides a ticket purchase link -- when `url` is set on
  * a PredictHQ-sourced event, it's the backend's Apple Music artist-page
@@ -38,7 +38,6 @@ const EventDetails = ({
   otherShowtimes?: EventResponse[]
 }) => {
   const { performers } = eventData
-  const [artistInfo, setArtistInfo] = useState<AmArtistFull[]>([])
   const [futureEvents, setFutureEvents] = useState<
     Record<string, EventResponse[]>
   >({})
@@ -46,30 +45,8 @@ const EventDetails = ({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const { selectEvents } = useEventsContext()
 
-  const { classifications } = eventData
-  const segment =
-    classifications && classifications.length > 0
-      ? classifications[0].segment.name
-      : null
-
   useEffect(() => {
     let cancelled = false
-
-    async function fetchData() {
-      try {
-        const artistInfoQuery = eventData
-          .performers!.map(
-            (performer) => `name=${encodeURIComponent(performer.name || "")}`
-          )
-          .join("&")
-        const res = await fetch(`/api/apple/artist?${artistInfoQuery}`)
-        if (!res.ok) throw new Error("Request failed")
-        const json = await res.json()
-        if (!cancelled) setArtistInfo(json)
-      } catch (e) {
-        console.error("Failed to fetch artist info", e)
-      }
-    }
 
     async function fetchFutureEvents(id: string) {
       try {
@@ -82,15 +59,22 @@ const EventDetails = ({
       }
     }
 
-    if (segment === "Music") {
-      fetchData()
-    }
     ticketmasterAttractionIds(eventData).forEach(fetchFutureEvents)
 
     return () => {
       cancelled = true
     }
-  }, [eventData, segment])
+  }, [eventData])
+
+  // Performers already matched to a canonical artist -- attached
+  // backend-side (see apps/api/src/artists/lookup.rs) rather than fetched
+  // on demand from here, as this used to. The type predicate narrows
+  // `enrichment` to non-null for every consumer below, rather than each
+  // one needing its own `!` assertion.
+  const enrichedPerformers = (performers ?? []).filter(
+    (performer): performer is typeof performer & { enrichment: AmArtistFull } =>
+      Boolean(performer.enrichment)
+  )
 
   // scroll handler for the pane
   useEffect(() => {
@@ -225,14 +209,16 @@ const EventDetails = ({
         </div>
       )}
 
-      {artistInfo.length
-        ? artistInfo.map((artist) => (
+      {enrichedPerformers.length
+        ? enrichedPerformers.map((performer) => (
             <ArtistCard
-              key={artist.id}
-              artist={artist}
-              similarArtists={artist.similar_artists}
-              externalLinks={externalLinksForArtist(performers, artist.name)}
-              futureEvents={futureEvents[artist.id] ?? []}
+              key={performer.enrichment.id || performer.id || performer.name}
+              artist={performer.enrichment}
+              similarArtists={performer.enrichment.similar_artists}
+              externalLinks={performer.externalLinks ?? undefined}
+              futureEvents={
+                (performer.id && futureEvents[performer.id]) || []
+              }
             />
           ))
         : performers?.map((performer) => {
@@ -271,8 +257,11 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
 }) => {
   const { name, genres = [], artwork, apple_music_url } = artist
 
-  const imgUrl = buildArtworkUrl(artwork, artworkSize)
-  const bgColor = normalizeBg(artwork.bgColor)
+  // A canonical artist matched via Spotify (rather than Apple Music) can
+  // legitimately have no artwork at all -- render the card without an
+  // image rather than crashing on a missing url.
+  const imgUrl = artwork ? buildArtworkUrl(artwork, artworkSize) : undefined
+  const bgColor = normalizeBg(artwork?.bgColor)
   const primaryGenre = genres[0]
   const wikiUrl = externalLinks.wiki?.[0]?.url
   const homepageUrl = externalLinks.homepage?.[0]?.url
@@ -285,27 +274,29 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
     >
       {/* Artwork block with bgColor */}
       <div className="relative flex shrink-0">
-        <div
-          className="overflow-hidden rounded-2xl"
-          style={{
-            width: artworkSize,
-            height: artworkSize,
-            backgroundColor: bgColor,
-          }}
-        >
-          <ResponsiveImage
-            sources={[
-              {
-                url: imgUrl,
-                width: artworkSize,
-                height: artworkSize,
-                ratio: "1:1",
-                fallback: true,
-              },
-            ]}
-            alt={`${name} artwork`}
-          />
-        </div>
+        {imgUrl && (
+          <div
+            className="overflow-hidden rounded-2xl"
+            style={{
+              width: artworkSize,
+              height: artworkSize,
+              backgroundColor: bgColor,
+            }}
+          >
+            <ResponsiveImage
+              sources={[
+                {
+                  url: imgUrl,
+                  width: artworkSize,
+                  height: artworkSize,
+                  ratio: "1:1",
+                  fallback: true,
+                },
+              ]}
+              alt={`${name} artwork`}
+            />
+          </div>
+        )}
         <div>
           <h2 className="truncate text-xl font-semibold">{name}</h2>
           {primaryGenre && (

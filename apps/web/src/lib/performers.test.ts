@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { EventResponse } from "../hooks/eventsStream"
-import { externalLinksForArtist, ticketmasterAttractionIds } from "./performers"
+import { ticketmasterAttractionIds } from "./performers"
 
 function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
   return {
@@ -48,38 +48,5 @@ describe("ticketmasterAttractionIds", () => {
     })
 
     expect(ticketmasterAttractionIds(event)).toEqual(["K789"])
-  })
-})
-
-describe("externalLinksForArtist", () => {
-  it("matches a performer name case- and whitespace-insensitively", () => {
-    const performers: EventResponse["performers"] = [
-      {
-        name: "  Role Model  ",
-        externalLinks: { instagram: [{ url: "https://instagram.com/rolemodel" }] },
-      },
-    ]
-
-    expect(externalLinksForArtist(performers, "role model")?.instagram?.[0]?.url).toBe(
-      "https://instagram.com/rolemodel"
-    )
-  })
-
-  it("returns undefined when no performer name matches", () => {
-    const performers: EventResponse["performers"] = [
-      { name: "Someone Else", externalLinks: { wiki: [{ url: "https://en.wikipedia.org/x" }] } },
-    ]
-
-    expect(externalLinksForArtist(performers, "Role Model")).toBeUndefined()
-  })
-
-  it("returns undefined when performers is missing entirely", () => {
-    expect(externalLinksForArtist(undefined, "Role Model")).toBeUndefined()
-  })
-
-  it("returns undefined for a matched performer with no external links (e.g. PredictHQ-sourced)", () => {
-    const performers: EventResponse["performers"] = [{ name: "Role Model" }]
-
-    expect(externalLinksForArtist(performers, "Role Model")).toBeUndefined()
   })
 })

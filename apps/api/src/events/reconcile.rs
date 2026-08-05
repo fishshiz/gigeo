@@ -220,6 +220,7 @@ mod tests {
                     classifications: None,
                     external_links: None,
                     images: None,
+                    enrichment: None,
                 })
                 .collect(),
         );

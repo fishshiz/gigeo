@@ -1,113 +1,16 @@
 //! Axum route handlers for Apple Music endpoints.
+//!
+//! The on-demand `GET /apple/artist` lookup that used to live here was
+//! retired in favor of persisted canonical-artist data (see
+//! `docs/adr/0001-canonical-artist-model.md` and `crate::artists::lookup`)
+//! — `EventDetails.tsx` now reads `performer.enrichment` directly off the
+//! event payload instead of live-fetching per page view.
 
 use axum::{Json, extract::State, http::StatusCode};
-use axum_extra::extract::Query as QueryArray;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-use crate::apple_music::client::Artwork;
 use crate::error::AppError;
 use crate::state::AppState;
-
-// ---------------------------------------------------------------------------
-// GET /apple/artist?name=<name>&name=<name>
-// ---------------------------------------------------------------------------
-
-/// Accepts one or more `name` query params.
-/// Uses `axum_extra::extract::Query` to handle repeated keys.
-#[derive(Deserialize)]
-pub struct ArtistQuery {
-    pub name: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct AppleArtistInfoResponse {
-    pub name: String,
-    pub id: String,
-    pub apple_music_url: Option<String>,
-    pub artwork: Option<Artwork>,
-    pub genres: Vec<String>,
-    pub similar_artists: Vec<SimilarArtist>,
-}
-
-#[derive(Serialize)]
-pub struct SimilarArtist {
-    pub id: String,
-    pub name: String,
-    pub apple_music_url: Option<String>,
-    pub artwork: Option<Artwork>,
-}
-
-/// Look up one or more artists by name and return their info + similar artists.
-///
-/// Uses Developer Token auth (no user login required).
-///
-/// Apple Music endpoints used:
-///   - `GET /v1/catalog/{storefront}/search` (types=artists)
-///   - `GET /v1/catalog/{storefront}/artists/{id}/view/similar-artists`
-pub async fn get_artist_info(
-    State(state): State<AppState>,
-    QueryArray(q): QueryArray<ArtistQuery>,
-) -> Result<Json<Vec<AppleArtistInfoResponse>>, AppError> {
-    if q.name.is_empty() {
-        return Err(AppError::Internal(
-            "At least one `name` query parameter is required".into(),
-        ));
-    }
-
-    let am = state
-        .apple_music_client
-        .as_ref()
-        .ok_or_else(|| AppError::Internal("Apple Music client not configured".into()))?;
-    let token = state
-        .apple_dev_token
-        .as_ref()
-        .ok_or_else(|| {
-            AppError::Internal("Apple Music developer token manager not configured".into())
-        })?
-        .get_token()
-        .await?;
-
-    let mut results = Vec::with_capacity(q.name.len());
-
-    for artist_name in &q.name {
-        let search_results = am.search_artists(&token, artist_name, 1).await?;
-        let artist = search_results
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::ArtistNotFound(artist_name.clone()))?;
-
-        // Fetch similar artists via the view.
-        let similar = am
-            .get_similar_artists(&token, &artist.id)
-            .await
-            .unwrap_or_default();
-
-        let attrs = artist.attributes.as_ref();
-
-        results.push(AppleArtistInfoResponse {
-            name: attrs.map(|a| a.name.clone()).unwrap_or_default(),
-            id: artist.id,
-            apple_music_url: attrs.and_then(|a| a.url.clone()),
-            artwork: attrs.and_then(|a| a.artwork.clone()),
-            genres: attrs.map(|a| a.genre_names.clone()).unwrap_or_default(),
-            similar_artists: similar
-                .into_iter()
-                .map(|a| {
-                    let a_attrs = a.attributes.as_ref();
-                    SimilarArtist {
-                        id: a.id,
-                        name: a_attrs.map(|x| x.name.clone()).unwrap_or_default(),
-                        apple_music_url: a_attrs.and_then(|x| x.url.clone()),
-                        artwork: a_attrs.and_then(|x| x.artwork.clone()),
-                    }
-                })
-                .collect(),
-        });
-    }
-
-    Ok(Json(results))
-}
 
 // ---------------------------------------------------------------------------
 // POST /apple/playlist

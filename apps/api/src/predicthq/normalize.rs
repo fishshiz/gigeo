@@ -44,6 +44,7 @@ pub(crate) fn normalize_predicthq_event(e: PredictHqEvent) -> EventResponse {
             classifications: None,
             external_links: None,
             images: None,
+            enrichment: None,
         })
         .collect();
     let performers = (!performers.is_empty()).then_some(performers);

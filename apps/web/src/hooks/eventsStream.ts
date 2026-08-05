@@ -1,4 +1,8 @@
-import { type Classification, type ExternalLinks } from "../lib/types"
+import {
+  type AmArtistFull,
+  type Classification,
+  type ExternalLinks,
+} from "../lib/types"
 
 export type EventsByDate = Record<string, EventResponse[]>
 
@@ -27,6 +31,11 @@ export type EventResponse = {
     id?: string
     name?: string
     externalLinks?: ExternalLinks | null
+    /** Persisted canonical-artist data (see
+     * apps/api/docs/adr/0001-canonical-artist-model.md), attached
+     * backend-side when this performer has been matched. `null`/absent
+     * when not matched (yet, or at all). */
+    enrichment?: AmArtistFull | null
   }> | null
   url?: string | null
   priceRanges?: Array<{

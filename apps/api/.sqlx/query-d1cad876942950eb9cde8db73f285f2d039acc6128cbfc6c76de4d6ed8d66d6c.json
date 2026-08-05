@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select\n            normalized_name,\n            display_name,\n            apple_music_id,\n            spotify_id,\n            artwork_url,\n            artwork_bg_color,\n            apple_music_url,\n            genres,\n            similar_artists as \"similar_artists: Json<Vec<SimilarArtist>>\"\n        from artists\n        where normalized_name = any($1) and matched_via is not null\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "normalized_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "apple_music_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "spotify_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "artwork_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "artwork_bg_color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "apple_music_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "genres",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "similar_artists: Json<Vec<SimilarArtist>>",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d1cad876942950eb9cde8db73f285f2d039acc6128cbfc6c76de4d6ed8d66d6c"
+}

@@ -161,18 +161,29 @@ pub async fn get_concerts_tm_stream(
                     .map(|embedded| embedded.events)
                     .unwrap_or_default();
 
+                // Deduped first so a page's worth of already-discarded
+                // duplicates don't cost a wasted spot in the batched
+                // lookup below.
+                let mut page_events: Vec<EventResponse> = Vec::new();
                 for raw in events {
                     let mut event = normalize_event(raw);
                     apply_personalization(&mut event, &personalization_matches);
-                    let key = dedupe_key(&event);
-
-                    if seen.insert(key) {
-                        let mut line = serde_json::to_vec(&event)
-                            .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
-                        line.push(b'\n');
-                        yield Bytes::from(line);
-                        ticketmaster_events.push(event);
+                    if seen.insert(dedupe_key(&event)) {
+                        page_events.push(event);
                     }
+                }
+
+                // Plain indexed reads, not a call to Apple Music/Spotify —
+                // safe to run inline rather than detached like
+                // `spawn_enrichment` below (see `crate::artists::lookup`).
+                crate::artists::attach_enrichment(&mut page_events, &state.db.pool).await;
+
+                for event in page_events {
+                    let mut line = serde_json::to_vec(&event)
+                        .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
+                    line.push(b'\n');
+                    yield Bytes::from(line);
+                    ticketmaster_events.push(event);
                 }
 
                 let Some(meta) = body.page else {
@@ -279,6 +290,8 @@ pub async fn get_concerts_tm_stream(
                         ticketmaster_attraction_id: None,
                     })
             }));
+
+            crate::artists::attach_enrichment(&mut new_events, &state.db.pool).await;
 
             for mut event in new_events {
                 apply_personalization(&mut event, &personalization_matches);

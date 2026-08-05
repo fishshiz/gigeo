@@ -1,10 +1,9 @@
 //! Backfills images/url for PredictHQ-only events using the same Apple
-//! Music catalog artist lookup already powering the on-demand artist
-//! panel (`apple_music::handlers::get_artist_info`) — see
-//! `crate::apple_music::artwork_cache` for the caching/name-verification
-//! rules this relies on. Candidate names come from
-//! `super::performer_search_names`, which falls back to the event's own
-//! title when there's no structured performer entity at all.
+//! Music catalog artist lookup `crate::artists::worker` uses for canonical
+//! artist enrichment — see `crate::apple_music::artwork_cache` for the
+//! caching/name-verification rules this relies on. Candidate names come
+//! from `super::performer_search_names`, which falls back to the event's
+//! own title when there's no structured performer entity at all.
 //!
 //! Deliberately scoped to *unmatched* PredictHQ events (the `new_events`
 //! half of `reconcile_predicthq_events`'s output): a matched event is a
@@ -131,6 +130,7 @@ mod tests {
                     classifications: None,
                     external_links: None,
                     images: None,
+                    enrichment: None,
                 }]
             }),
             url: None,

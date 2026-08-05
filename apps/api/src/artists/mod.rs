@@ -22,8 +22,10 @@
 //! Spotify could verify simply has no similar-artists list.
 
 mod db;
+mod lookup;
 mod worker;
 
+pub(crate) use lookup::attach_enrichment;
 pub(crate) use worker::spawn_enrichment;
 
 use serde::{Deserialize, Serialize};
