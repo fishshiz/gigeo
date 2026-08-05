@@ -10,6 +10,9 @@ pub enum AppError {
     #[error("Spotify API error ({status}): {message}")]
     SpotifyApi { status: StatusCode, message: String },
 
+    #[error("Apple Music API error ({status}): {message}")]
+    AppleMusicApi { status: StatusCode, message: String },
+
     #[error("Ticketmaster API error ({status}): {message}")]
     TicketmasterApi { status: StatusCode, message: String },
 
@@ -65,6 +68,10 @@ impl IntoResponse for AppError {
 
         let (status, message) = match &self {
             AppError::SpotifyApi { status, message } => {
+                let code = *status;
+                (code, message.clone())
+            }
+            AppError::AppleMusicApi { status, message } => {
                 let code = *status;
                 (code, message.clone())
             }

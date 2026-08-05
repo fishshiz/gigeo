@@ -4,6 +4,7 @@
 
 use super::types::{PageLimit, TicketmasterResponse, TmPage};
 use crate::error::AppError;
+use crate::http_utils::request_with_backoff;
 
 pub(super) async fn fetch_tm_page(
     client: &reqwest::Client,
@@ -59,16 +60,12 @@ async fn get_and_parse(
     client: &reqwest::Client,
     url: &str,
 ) -> Result<TicketmasterResponse, AppError> {
-    let resp = client.get(url).send().await.map_err(AppError::from)?;
-    let status = resp.status();
-
-    if !status.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(AppError::TicketmasterApi {
-            status,
-            message: body,
-        });
-    }
+    let resp = request_with_backoff(
+        "ticketmaster",
+        || client.get(url),
+        |status, message| AppError::TicketmasterApi { status, message },
+    )
+    .await?;
 
     resp.json::<TicketmasterResponse>()
         .await

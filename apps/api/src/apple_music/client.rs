@@ -325,9 +325,9 @@ impl AppleMusicClient {
         } else {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            Err(AppError::SpotifyApi {
+            Err(AppError::AppleMusicApi {
                 status,
-                message: format!("Apple Music: {text}"),
+                message: text,
             })
         }
     }
@@ -346,7 +346,7 @@ impl AppleMusicClient {
                     .map(|err| err.detail.unwrap_or(err.title))
             })
             .unwrap_or(text);
-        AppError::SpotifyApi { status, message }
+        AppError::AppleMusicApi { status, message }
     }
 
     /// GET with exponential back-off on 429.
