@@ -20,7 +20,8 @@ export function useMapInstance(
   containerId: string,
   style: string,
   initialCenter: [number, number],
-  onGeolocate: (coordinates: [number, number]) => void
+  onGeolocate: (coordinates: [number, number]) => void,
+  initialZoom: number = INITIAL_ZOOM
 ) {
   const [selectedFeature, setSelectedFeature] = useState<GeoJSONFeature | null>(
     null
@@ -33,7 +34,7 @@ export function useMapInstance(
       style,
       container: containerId,
       center: initialCenter,
-      zoom: INITIAL_ZOOM,
+      zoom: initialZoom,
     })
 
     mapRef.current.on("load", () => {

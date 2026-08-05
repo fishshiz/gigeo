@@ -2,6 +2,7 @@
 import * as React from "react"
 import type { MapView } from "../lib/types"
 import { DEFAULT_CENTER } from "./searchProvider"
+import { readMapViewFromSearch, writeMapViewToUrl } from "../lib/mapViewUrl"
 
 // Same zoom the camera already settles to after a search (see
 // useMapCamera's easeToLocation) -- keeps a first-ever visitor's default
@@ -47,6 +48,13 @@ function readStoredMapView(): MapView | undefined {
 type MapViewProviderState = {
   mapView: MapView
   setMapView: (view: MapView) => void
+  /** Whether the initial `mapView` came from a shared link or a
+   * remembered session, rather than the app's static default. Consumers
+   * use this to skip a first-load "ease in" animation that would
+   * otherwise fly away from a deep-linked/restored position back to the
+   * default search location. Reflects only the value at mount -- it does
+   * not change as the user navigates afterward. */
+  isRestoredMapView: boolean
 }
 
 type MapViewProviderProps = {
@@ -58,9 +66,22 @@ export const MapViewProviderContext = React.createContext<
 >(undefined)
 
 export function MapViewProvider({ children }: MapViewProviderProps) {
-  const [mapView, setMapView] = React.useState<MapView>(
-    () => readStoredMapView() ?? DEFAULT_MAP_VIEW
-  )
+  // Computed once, at mount, from the URL/localStorage. A ref would also
+  // work here but React forbids reading/writing ref values during render
+  // (only effects/handlers) -- useMemo with an empty dependency array
+  // gets the same "compute once" behavior without tripping that rule.
+  const initial = React.useMemo(() => {
+    const fromUrl = readMapViewFromSearch(window.location.search)
+    if (fromUrl) return { mapView: fromUrl, isRestoredMapView: true }
+
+    const fromStorage = readStoredMapView()
+    if (fromStorage) return { mapView: fromStorage, isRestoredMapView: true }
+
+    return { mapView: DEFAULT_MAP_VIEW, isRestoredMapView: false }
+  }, [])
+  const isRestoredMapView = initial.isRestoredMapView
+
+  const [mapView, setMapView] = React.useState<MapView>(initial.mapView)
 
   // Remember the last camera position so a returning visitor's map starts
   // roughly where they left it, mirroring searchProvider's coordinate
@@ -73,8 +94,21 @@ export function MapViewProvider({ children }: MapViewProviderProps) {
     }
   }, [mapView])
 
+  // Keeps the address bar shareable at all times, Google-Maps-style --
+  // never history.pushState, so panning doesn't turn the back button into
+  // a map-undo stack. See writeMapViewToUrl for why.
+  React.useEffect(() => {
+    writeMapViewToUrl(mapView)
+  }, [mapView])
+
   return (
-    <MapViewProviderContext value={{ mapView, setMapView }}>
+    <MapViewProviderContext
+      value={{
+        mapView,
+        setMapView,
+        isRestoredMapView,
+      }}
+    >
       {children}
     </MapViewProviderContext>
   )

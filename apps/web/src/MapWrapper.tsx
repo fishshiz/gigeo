@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { Map as MapboxMap } from "mapbox-gl"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
+import { useMapViewProvider } from "./providers/mapViewProvider"
 import { useEventsContext } from "./providers/eventsProvider"
 import { useNavigateToLocation } from "./hooks/useNavigateToLocation"
 import { useMapInstance } from "./hooks/useMapInstance"
@@ -18,6 +19,7 @@ import "./App.css"
 
 const MapWrapper = () => {
   const { selectedCoordinates, setSelectedLocation } = useSearchProvider()
+  const { mapView, isRestoredMapView } = useMapViewProvider()
   const navigateToLocation = useNavigateToLocation()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
@@ -26,6 +28,13 @@ const MapWrapper = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRendered(true)
   }, [])
+
+  // A shared link or a remembered session already has a real camera
+  // position -- the mount-time ease-to-search-location below should fire
+  // for genuine location changes, but not once, initially, on top of a
+  // position we just restored. Ref (not state): this only needs to gate
+  // the first post-mount firing, never trigger a render itself.
+  const skipInitialEaseRef = useRef(isRestoredMapView)
 
   const {
     eventsByDate,
@@ -74,8 +83,11 @@ const MapWrapper = () => {
     mapRef,
     "map-container",
     theme,
-    selectedCoordinates,
-    handleGeolocate
+    isRestoredMapView
+      ? [mapView.longitude, mapView.latitude]
+      : selectedCoordinates,
+    handleGeolocate,
+    isRestoredMapView ? mapView.zoom : undefined
   )
   useResizeFix(mapRef, mapContainer)
   useMapViewSync(mapRef)
@@ -95,6 +107,10 @@ const MapWrapper = () => {
 
   useEffect(() => {
     if (!rendered) return
+    if (skipInitialEaseRef.current) {
+      skipInitialEaseRef.current = false
+      return
+    }
     camera.easeToLocation(selectedCoordinates)
   }, [selectedCoordinates, rendered, camera])
 
