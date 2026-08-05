@@ -17,4 +17,13 @@ type Location = {
   coordinates: [number, number]
 }
 
-export type { Location }
+/** The map camera's current position -- distinct from `Location`/
+ * `selectedCoordinates`, which track the searched place rather than
+ * wherever the user has since panned or zoomed to. */
+type MapView = {
+  latitude: number
+  longitude: number
+  zoom: number
+}
+
+export type { Location, MapView }
