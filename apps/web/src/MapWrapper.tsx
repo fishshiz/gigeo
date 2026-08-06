@@ -13,6 +13,7 @@ import { useEventLayer } from "./hooks/useEventLayer"
 import { useClusterSelection } from "./hooks/useClusterSelection"
 import { locationFromFeature } from "./lib/mapbox"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
+import { SearchThisAreaButton } from "./SearchThisAreaButton"
 import { useIsMobile } from "./providers/Breakpoint"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
@@ -29,12 +30,15 @@ const MapWrapper = () => {
     setRendered(true)
   }, [])
 
-  // A shared link or a remembered session already has a real camera
-  // position -- the mount-time ease-to-search-location below should fire
-  // for genuine location changes, but not once, initially, on top of a
-  // position we just restored. Ref (not state): this only needs to gate
-  // the first post-mount firing, never trigger a render itself.
-  const skipInitialEaseRef = useRef(isRestoredMapView)
+  // Suppresses the next firing of the ease-to-search-location effect
+  // below. Set from two places: (1) a shared link or remembered session
+  // already has a real camera position, so the very first post-mount
+  // firing shouldn't fly away from it back to the search location; (2) a
+  // "search this area" click deliberately sets selectedCoordinates to
+  // wherever the camera already is, and shouldn't yank the view to a
+  // hardcoded zoom in response to its own change. Ref, not state: only
+  // needs to gate the next effect firing, never trigger a render itself.
+  const skipNextEaseRef = useRef(isRestoredMapView)
 
   const {
     eventsByDate,
@@ -43,7 +47,16 @@ const MapWrapper = () => {
     isStreaming,
     searchRadius,
     radiusExpanded,
+    searchThisArea,
   } = useEventsContext()
+
+  const handleSearchThisArea = useCallback(
+    (coordinates: [number, number]) => {
+      skipNextEaseRef.current = true
+      searchThisArea(coordinates)
+    },
+    [searchThisArea]
+  )
 
   const mapRef = useRef<MapboxMap | null>(null)
   const mapContainer = useRef<HTMLDivElement | null>(null)
@@ -107,8 +120,8 @@ const MapWrapper = () => {
 
   useEffect(() => {
     if (!rendered) return
-    if (skipInitialEaseRef.current) {
-      skipInitialEaseRef.current = false
+    if (skipNextEaseRef.current) {
+      skipNextEaseRef.current = false
       return
     }
     camera.easeToLocation(selectedCoordinates)
@@ -127,6 +140,7 @@ const MapWrapper = () => {
       <div className="relative flex min-h-0 flex-1">
         {!useIsMobile() && <DrawerWrapper />}
         <div ref={mapContainer} id="map-container" className="h-full w-full" />
+        <SearchThisAreaButton onSearchThisArea={handleSearchThisArea} />
       </div>
     </>
   )
