@@ -60,6 +60,11 @@ type StreamConcertsInput = {
   longitude: number
   start: string
   end: string
+  /** Radius tier (miles) to start widening from, skipping any smaller
+   * tiers that a previous nearby search already knows come up empty.
+   * Defaults to the smallest tier -- a genuinely new location has no such
+   * guarantee. */
+  startRadius?: number
 }
 
 type StreamConcertsParams = StreamConcertsInput & {
@@ -71,6 +76,12 @@ type EventsContextValue = EventsState & {
   cancelStream: () => void
   selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
+  /** Re-searches at `coordinates` starting from the last-successful radius
+   * tier rather than resetting to the smallest one -- for "search this
+   * area", where the user hasn't indicated local event density has
+   * changed, just their location. Unlike useNavigateToLocation, this
+   * doesn't reset the selected-location label or date range. */
+  searchThisArea: (coordinates: [number, number]) => void
   /** The radius (miles) the current/last search actually used. */
   searchRadius: number | null
   /** Whether searchRadius went beyond the base tier to find results. */
@@ -187,10 +198,13 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: "STREAM_STATUS", payload: { isStreaming: true } })
       setSearchRadius(null)
 
+      const startRadius = params.startRadius ?? BASE_RADIUS
+      const tiers = RADIUS_TIERS.filter((radius) => radius >= startRadius)
+
       try {
         let totalCount = 0
 
-        for (const radius of RADIUS_TIERS) {
+        for (const radius of tiers) {
           if (controller.signal.aborted) return
 
           const tierCount = await runStream(
@@ -230,7 +244,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   // this is just the two providers' own concerns meeting, and previously
   // only met inside MapWrapper because that's where the effect was first
   // written, not because the map needed to own it.
-  const { selectedCoordinates, dateRange } = useSearchProvider()
+  const { selectedCoordinates, setSelectedCoordinates, dateRange } =
+    useSearchProvider()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
     // Marks first-mount completion so the search effect below skips its
@@ -239,6 +254,19 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     setRendered(true)
   }, [])
 
+  // Set just before a "search this area" coordinate change, consumed by
+  // the reactive effect below on the render that change causes. A ref
+  // rather than state: it's read once, synchronously, by that effect --
+  // it never needs to itself trigger a render.
+  const startRadiusOverrideRef = useRef<number | null>(null)
+  const searchThisArea = useCallback(
+    (coordinates: [number, number]) => {
+      startRadiusOverrideRef.current = searchRadius ?? BASE_RADIUS
+      setSelectedCoordinates(coordinates)
+    },
+    [searchRadius, setSelectedCoordinates]
+  )
+
   const { latitude, longitude, start, end } = {
     latitude: selectedCoordinates[1],
     longitude: selectedCoordinates[0],
@@ -246,16 +274,10 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   }
   useEffect(() => {
     if (!rendered) return
-    // streamEvents dispatches synchronously (RESET_EVENTS/STREAM_STATUS)
-    // before its first await -- long-standing, intentional behavior
-    // (immediately marking the stream in-flight and clearing prior
-    // results), not something introduced by relocating this effect here.
-    // The lint rule can only see it now that the call site shares a file
-    // with streamEvents' own definition; it was equally true when this
-    // effect lived in MapWrapper, just invisible to static analysis
-    // across the context-consumer boundary.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void streamEvents({ latitude, longitude, start, end })
+    const startRadius = startRadiusOverrideRef.current ?? BASE_RADIUS
+    startRadiusOverrideRef.current = null
+
+    void streamEvents({ latitude, longitude, start, end, startRadius })
 
     return () => {
       cancelStream()
@@ -269,6 +291,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       cancelStream,
       resetEvents,
       selectEvents,
+      searchThisArea,
       searchRadius,
       radiusExpanded,
     }),
@@ -278,6 +301,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       cancelStream,
       resetEvents,
       selectEvents,
+      searchThisArea,
       searchRadius,
       radiusExpanded,
     ]
