@@ -12,9 +12,17 @@ type ResponsiveImageProps = {
   alt: string
   // optional: CSS width (e.g. "100%", "300px")
   style?: React.CSSProperties
+  /** @default "lazy" -- pass "eager" for images that render above the
+   * fold (e.g. a hero), where lazy-loading would delay the LCP fetch. */
+  loading?: "lazy" | "eager"
 }
 
-export function ResponsiveImage({ sources, alt, style }: ResponsiveImageProps) {
+export function ResponsiveImage({
+  sources,
+  alt,
+  style,
+  loading = "lazy",
+}: ResponsiveImageProps) {
   if (!sources.length) {
     return (
       <div
@@ -59,7 +67,7 @@ export function ResponsiveImage({ sources, alt, style }: ResponsiveImageProps) {
         srcSet={srcSet || undefined}
         sizes={sizes}
         alt={alt}
-        loading="lazy"
+        loading={loading}
         style={{
           position: "absolute",
           inset: 0,

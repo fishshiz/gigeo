@@ -76,20 +76,23 @@ const EventDetails = ({
       Boolean(performer.enrichment)
   )
 
-  // scroll handler for the pane
+  // scroll handler for the pane -- this component's own root never
+  // overflows itself (it's exactly as tall as its content), so the pane
+  // that actually scrolls is our parent (DrawerBody in production, see
+  // Drawer/DrawerWrapper.tsx). Watch that, not scrollRef itself.
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
+    const scrollParent = scrollRef.current?.parentElement
+    if (!scrollParent) return
 
     const handleScroll = () => {
       // tweak threshold to taste (depends on hero height)
       const threshold = 160
-      setShowStickyHeader(el.scrollTop > threshold)
+      setShowStickyHeader(scrollParent.scrollTop > threshold)
     }
 
     handleScroll()
-    el.addEventListener("scroll", handleScroll)
-    return () => el.removeEventListener("scroll", handleScroll)
+    scrollParent.addEventListener("scroll", handleScroll)
+    return () => scrollParent.removeEventListener("scroll", handleScroll)
   }, [])
 
   return (
@@ -100,7 +103,7 @@ const EventDetails = ({
           <div className="flex min-w-0 items-center">
             <Button
               aria-label="Back to events"
-              className="z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
+              className="z-10 touch-manipulation dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               variant="secondary"
               onClick={() => selectEvents([])}
             >
@@ -120,7 +123,7 @@ const EventDetails = ({
               href={eventData.url}
               target="_blank"
               variant="button"
-              className="ml-2 shrink-0 rounded-full bg-(--color-toasted-almond-600) px-2 py-1 text-[11px] font-medium text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+              className="ml-2 shrink-0 touch-manipulation rounded-full bg-(--color-toasted-almond-600) px-2 py-1 text-[11px] font-medium text-(--color-blush-rose-600) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
             >
               {eventLinkLabel(eventData)}
             </Link>
@@ -128,20 +131,24 @@ const EventDetails = ({
         </div>
       )}
 
-      {/* back + top-right tickets over hero */}
-      <Button
-        aria-label="Back to events"
-        className="absolute top-2 left-2 z-10 dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600)"
-        variant="secondary"
-        onClick={() => selectEvents([])}
-      >
-        <ArrowLeftIcon aria-hidden className="h-4 w-4" />
-      </Button>
+      {/* back + top-right tickets over hero -- hidden once the sticky
+          header takes over the same two controls, so there's never a
+          duplicate "Back to events" / tickets link in the tab order. */}
+      {!showStickyHeader && (
+        <Button
+          aria-label="Back to events"
+          className="absolute top-2 left-2 z-10 touch-manipulation dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+          variant="secondary"
+          onClick={() => selectEvents([])}
+        >
+          <ArrowLeftIcon aria-hidden className="h-4 w-4" />
+        </Button>
+      )}
 
-      {eventData.url && (
+      {!showStickyHeader && eventData.url && (
         <Link
           variant="button"
-          className="absolute top-2 right-14 z-10 bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+          className="absolute top-2 right-14 z-10 touch-manipulation bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
           href={eventData.url}
           target="_blank"
         >
@@ -151,7 +158,11 @@ const EventDetails = ({
 
       <div className="relative">
         <div className="absolute top-0 left-0 z-[1] h-full w-full bg-gradient-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
-        <ResponsiveImage sources={eventData.images} alt="test" />
+        <ResponsiveImage
+          sources={eventData.images}
+          alt={eventData.name}
+          loading="eager"
+        />
         <h3 className="absolute bottom-2 left-2 z-[2] text-2xl font-semibold text-(--color-ivory-100) dark:text-(--color-text-primary-dark-600)">
           {eventData.name}
         </h3>
@@ -273,7 +284,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
-      <div className="relative flex shrink-0">
+      <div className="relative flex shrink-0 gap-4">
         {imgUrl && (
           <div
             className="overflow-hidden rounded-2xl"
@@ -326,7 +337,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
               {similarArtists.slice(0, 6).map((a) => (
                 <li
                   key={a.id}
-                  className="cursor-pointer rounded-full bg-slate-800/70 px-3 py-1 transition hover:bg-slate-700"
+                  className="rounded-full bg-slate-800/70 px-3 py-1"
                 >
                   {a.name}
                 </li>
@@ -350,9 +361,17 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
         className="my-1 flex items-center fill-(--color-toasted-almond-600) no-underline dark:fill-(--color-text-secondary-dark-600) dark:text-(--color-text-secondary-dark-600)"
       >
         {label === "Wikipedia" ? (
-          <ReactSVG className="h-[24px] w-[24px]" src={WikiLogo} />
+          <ReactSVG
+            className="h-[24px] w-[24px]"
+            src={WikiLogo}
+            beforeInjection={(svg) => svg.setAttribute("aria-hidden", "true")}
+          />
         ) : label === "Instagram" ? (
-          <ReactSVG className="me-[4px] h-[24px] w-[24px]" src={IgLogo} />
+          <ReactSVG
+            className="me-[4px] h-[24px] w-[24px]"
+            src={IgLogo}
+            beforeInjection={(svg) => svg.setAttribute("aria-hidden", "true")}
+          />
         ) : label === "Apple Music" ? (
           <MusicIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
         ) : (
@@ -371,29 +390,35 @@ const UpcomingEvents = ({ events }: { events: EventResponse[] }) => {
       <h3 className="text-xs tracking-wide text-slate-400 uppercase">
         Upcoming events
       </h3>
-      <ul className="mt-1 flex flex-col gap-2 text-sm">
-        {events.map((e) => (
-          <li
-            key={e.id}
-            className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
-          >
-            <span>{e.datesPretty}</span>
-            <div className="flex flex-col">
-              <span className="font-semibold text-slate-600">{e.name}</span>
-              <span className="text-slate-500">
-                {e.venue?.name}, {e.venue?.city}
-              </span>
-            </div>
-            <Link
-              href={e.url ?? undefined}
-              target="_blank"
-              className="ml-auto text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+      {events.length ? (
+        <ul className="mt-1 flex flex-col gap-2 text-sm">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
             >
-              {eventLinkLabel(e)}
-            </Link>
-          </li>
-        ))}
-      </ul>
+              <span>{e.datesPretty}</span>
+              <div className="flex flex-col">
+                <span className="font-semibold text-slate-600">{e.name}</span>
+                <span className="text-slate-500">
+                  {e.venue?.name}, {e.venue?.city}
+                </span>
+              </div>
+              {e.url && (
+                <Link
+                  href={e.url}
+                  target="_blank"
+                  className="ml-auto text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+                >
+                  {eventLinkLabel(e)}
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm text-slate-500">No upcoming events</p>
+      )}
     </div>
   )
 }
