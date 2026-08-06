@@ -53,8 +53,23 @@ const MapWrapper = () => {
   const handleSearchThisArea = useCallback(
     (coordinates: [number, number]) => {
       skipNextEaseRef.current = true
-      searchThisArea(coordinates)
+      fetch(
+        `/api/reverse-geocode?longitude=${coordinates[0]}&latitude=${coordinates[1]}`
+      )
+        .then((res) => res.json())
+        .then((data: { features?: GeoJSONFeature[] }) => {
+          const feature = data.features?.[0]
+          const location = feature && locationFromFeature(feature)
+          if (location) {
+            setSelectedLocation(location)
+            searchThisArea(coordinates)
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to reverse geocode geolocated position", err)
+        })
     },
+
     [searchThisArea]
   )
 
