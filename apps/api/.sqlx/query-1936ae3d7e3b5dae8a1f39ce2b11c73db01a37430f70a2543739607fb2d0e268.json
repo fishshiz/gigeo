@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update playlist set update_cadence_days = $2 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1936ae3d7e3b5dae8a1f39ce2b11c73db01a37430f70a2543739607fb2d0e268"
+}

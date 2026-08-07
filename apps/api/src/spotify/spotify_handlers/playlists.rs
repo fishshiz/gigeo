@@ -1,7 +1,7 @@
-use super::db::{
+use super::db::resolve_account_from_cookie;
+use crate::accounts::db::{
     CreatePlaylistParams, UpdatePlaylistParams, create_playlist_record, deactivate_playlist,
-    get_playlist_for_account, resolve_account_from_cookie, soft_delete_playlist,
-    update_playlist_config,
+    get_playlist_for_account, soft_delete_playlist, update_playlist_config,
 };
 use crate::error::AppError;
 use crate::services::playlist_builder::{

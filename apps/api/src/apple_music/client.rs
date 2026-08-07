@@ -332,6 +332,49 @@ impl AppleMusicClient {
         }
     }
 
+    /// `GET /v1/me/library/playlists/{id}`
+    ///
+    /// Fetch a single library playlist's attributes (name, description).
+    /// Requires: `Music-User-Token` header.
+    /// Ref: https://developer.apple.com/documentation/applemusicapi/get-a-library-playlist
+    pub async fn get_library_playlist(
+        &self,
+        developer_token: &str,
+        user_token: &str,
+        playlist_id: &str,
+    ) -> Result<LibraryPlaylistResource, AppError> {
+        let url = format!("{BASE}/v1/me/library/playlists/{playlist_id}");
+        let resp: DataResponse<LibraryPlaylistResource> = self
+            .get_json(developer_token, Some(user_token), &url)
+            .await?;
+
+        resp.data
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::Internal("Empty response from get library playlist".into()))
+    }
+
+    /// `GET /v1/me/library/playlists/{id}/tracks`
+    ///
+    /// Fetch a library playlist's tracks. First page only (limit 100) —
+    /// same bounded-completeness trade-off as
+    /// `playlist_builder::find_artist_names_near`; used to avoid
+    /// re-adding songs already present, not to enumerate every track in a
+    /// very large playlist.
+    /// Requires: `Music-User-Token` header.
+    pub async fn get_library_playlist_tracks(
+        &self,
+        developer_token: &str,
+        user_token: &str,
+        playlist_id: &str,
+    ) -> Result<Vec<SongResource>, AppError> {
+        let url = format!("{BASE}/v1/me/library/playlists/{playlist_id}/tracks?limit=100");
+        let resp: DataResponse<SongResource> = self
+            .get_json(developer_token, Some(user_token), &url)
+            .await?;
+        Ok(resp.data)
+    }
+
     // -- Internal helpers ---------------------------------------------------
 
     /// Map a non-2xx Apple Music response body to an `AppError`, extracting

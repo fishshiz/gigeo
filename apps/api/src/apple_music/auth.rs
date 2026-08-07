@@ -1,14 +1,15 @@
-//! Apple Music authentication: Developer Token (JWT) for catalog data,
-//! Music User Token for user-scoped operations (library playlists).
+//! Apple Music Developer Token (JWT) generation, used for both catalog
+//! data and (paired with a Music User Token) user-scoped operations.
+//! The Music User Token itself is obtained client-side via MusicKit JS
+//! and persisted per-account in `apple_music_account` — see
+//! `apple_handlers::db` — rather than held here.
 //!
-//! References:
+//! Reference:
 //!   Developer Tokens – https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens
-//!   User Auth        – https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit
 
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use crate::error::AppError;
 use crate::token_cache::TokenCache;
@@ -116,43 +117,5 @@ impl DeveloperTokenManager {
             self.token_lifetime_secs
         );
         Ok(token)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Music User Token store
-// ---------------------------------------------------------------------------
-
-/// Stores a Music User Token provided by the client.
-///
-/// In a real application, the user obtains this token via MusicKit JS on the
-/// frontend and sends it to the backend. The backend stores it here for
-/// use with user-scoped endpoints (`/v1/me/...`).
-///
-/// Music User Tokens do not have a standard refresh flow like OAuth; the
-/// frontend must re-authenticate with MusicKit when the token expires.
-pub struct MusicUserTokenStore {
-    token: RwLock<Option<String>>,
-}
-
-impl MusicUserTokenStore {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            token: RwLock::new(None),
-        })
-    }
-
-    /// Store a Music User Token (provided by the frontend after MusicKit auth).
-    pub async fn set_token(&self, token: String) {
-        *self.token.write().await = Some(token);
-    }
-
-    /// Retrieve the stored Music User Token.
-    pub async fn get_token(&self) -> Result<String, AppError> {
-        self.token.read().await.clone().ok_or_else(|| {
-            AppError::AuthRequired(
-                "Music User Token not set. POST to /apple/user-token first.".into(),
-            )
-        })
     }
 }

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into apple_music_account (\n            account_id, apple_music_user_id, music_user_token, storefront, token_created_at\n        )\n        values ($1, $2, $3, $4, now())\n        on conflict (account_id) do update set\n            music_user_token = excluded.music_user_token,\n            storefront = excluded.storefront,\n            token_created_at = now(),\n            updated_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a3d5f295336cb157c849eae57dd81d5845d45c481cc83c966cf938a25f0f199"
+}

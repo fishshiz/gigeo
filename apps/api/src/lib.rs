@@ -1,4 +1,5 @@
 // src/lib.rs
+mod accounts;
 mod apple_music;
 mod artists;
 mod auth;
@@ -30,7 +31,7 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use apple_music::artwork_cache::ArtworkCache;
-use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager, MusicUserTokenStore};
+use apple_music::auth::{AppleMusicCredentials, DeveloperTokenManager};
 use apple_music::client::AppleMusicClient;
 use auth::{ClientCredentialsManager, SpotifyCredentials, UserTokenManager};
 use axum_extra::extract::cookie::Key;
@@ -99,16 +100,15 @@ pub async fn build_app() -> Result<Router> {
     }
 
     // Apple Music optional setup
-    let (apple_client, apple_dev, apple_user) = if std::env::var("APPLE_MUSIC_TEAM_ID").is_ok() {
+    let (apple_client, apple_dev) = if std::env::var("APPLE_MUSIC_TEAM_ID").is_ok() {
         let creds = AppleMusicCredentials::from_env();
         let storefront = std::env::var("APPLE_MUSIC_STOREFRONT").unwrap_or_else(|_| "us".into());
         let client = AppleMusicClient::new(http.clone(), storefront);
         let dev = DeveloperTokenManager::new(creds);
-        let user = MusicUserTokenStore::new();
-        (Some(client), Some(dev), Some(user))
+        (Some(client), Some(dev))
     } else {
         tracing::info!("Apple Music env vars not set — Apple Music routes will return errors");
-        (None, None, None)
+        (None, None)
     };
 
     let shared_state = AppState(Arc::new(AppStateInner {
@@ -125,7 +125,6 @@ pub async fn build_app() -> Result<Router> {
 
         apple_music_client: apple_client,
         apple_dev_token: apple_dev,
-        apple_user_token: apple_user,
         apple_artwork_cache: Arc::new(ArtworkCache::new()),
         predicthq_api_key,
         cookie_domain: config.cookie_domain.clone(),
@@ -177,12 +176,30 @@ pub async fn build_app() -> Result<Router> {
             axum::routing::get(spotify::spotify_handlers::oauth_callback),
         )
         .route(
-            "/apple/playlist",
-            axum::routing::post(apple_music::handlers::create_playlist),
+            "/apple/developer-token",
+            axum::routing::get(apple_music::apple_handlers::developer_token),
         )
         .route(
-            "/apple/user-token",
-            axum::routing::post(apple_music::handlers::set_user_token),
+            "/apple/connect",
+            axum::routing::post(apple_music::apple_handlers::connect),
+        )
+        .route(
+            "/apple/logout",
+            axum::routing::post(apple_music::apple_handlers::logout),
+        )
+        .route(
+            "/apple/auth-status",
+            axum::routing::get(apple_music::apple_handlers::auth_status),
+        )
+        .route(
+            "/apple/playlist",
+            axum::routing::post(apple_music::apple_handlers::create_playlist)
+                .get(apple_music::apple_handlers::get_user_playlists),
+        )
+        .route(
+            "/apple/playlist/{id}",
+            axum::routing::patch(apple_music::apple_handlers::update_playlist)
+                .delete(apple_music::apple_handlers::delete_playlist),
         )
         .layer(cors)
         .with_state(shared_state);

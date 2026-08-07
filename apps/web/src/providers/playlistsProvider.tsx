@@ -21,9 +21,26 @@ export type SpotifyPlaylist = {
   is_active: boolean
 }
 
+/// Apple's public API only supports create + add-tracks (see Phase 0's
+/// plan doc) — there's no rename, visibility toggle, or destructive
+/// update mode to report, so this is intentionally a narrower shape than
+/// `SpotifyPlaylist` rather than padding it out with always-constant
+/// fields.
+export type ApplePlaylist = {
+  playlist_id: string
+  id: string
+  name: string
+  track_count: number
+  city: string
+  update_cadence_days: 7 | 30 | 60
+  is_active: boolean
+}
+
 type PlaylistProviderState = {
   spotifyPlaylists: SpotifyPlaylist[]
   setSpotifyPlaylists: (playlists: SpotifyPlaylist[]) => void
+  applePlaylists: ApplePlaylist[]
+  setApplePlaylists: (playlists: ApplePlaylist[]) => void
   playlistManagement: "spotify" | "apple" | undefined
   setPlaylistManagement: (management: "spotify" | "apple" | undefined) => void
 }
@@ -40,6 +57,7 @@ export function PlaylistProvider({ children }: PlaylistProviderProps) {
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>(
     []
   )
+  const [applePlaylists, setApplePlaylists] = useState<ApplePlaylist[]>([])
   const [playlistManagement, setPlaylistManagement] = useState<
     "spotify" | "apple" | undefined
   >(undefined)
@@ -49,6 +67,8 @@ export function PlaylistProvider({ children }: PlaylistProviderProps) {
       value={{
         spotifyPlaylists,
         setSpotifyPlaylists,
+        applePlaylists,
+        setApplePlaylists,
         playlistManagement,
         setPlaylistManagement,
       }}

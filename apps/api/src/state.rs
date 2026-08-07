@@ -5,7 +5,7 @@ use crate::db::AppDatabase;
 use crate::spotify::client::SpotifyClient;
 
 use crate::apple_music::artwork_cache::ArtworkCache;
-use crate::apple_music::auth::{DeveloperTokenManager, MusicUserTokenStore};
+use crate::apple_music::auth::DeveloperTokenManager;
 use crate::apple_music::client::AppleMusicClient;
 use axum_extra::extract::cookie::Key;
 use std::{ops::Deref, sync::Arc};
@@ -32,7 +32,6 @@ pub struct AppStateInner {
     pub spotify_client_secret: String,
     pub apple_music_client: Option<AppleMusicClient>,
     pub apple_dev_token: Option<Arc<DeveloperTokenManager>>,
-    pub apple_user_token: Option<Arc<MusicUserTokenStore>>,
     /// Shared regardless of whether Apple Music is configured — cheap to
     /// hold, and only ever consulted when `apple_music_client`/
     /// `apple_dev_token` are also present (see

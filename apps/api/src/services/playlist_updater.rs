@@ -1,11 +1,15 @@
 //! Periodic playlist updater: polls the `playlist` table for rows whose
-//! `next_update_at` is due, refreshes each one's Spotify tracks from
-//! currently-nearby Ticketmaster events, and records the outcome in
+//! `next_update_at` is due, refreshes each one's tracks from currently-
+//! nearby Ticketmaster events, and records the outcome in
 //! `playlist_update_run`.
 //!
-//! Spotify only for now — Apple Music playlists aren't persisted to the DB
-//! yet and its user tokens have no refresh flow, both of which need their
-//! own work before this can cover them too.
+//! Covers both providers, but not symmetrically. Spotify playlists get
+//! full additive/destructive updates via a refreshable OAuth token.
+//! Apple Music playlists are always additive (the public Apple Music API
+//! has no track-removal endpoint — see the Phase 0 plan) and use
+//! whatever Music User Token is on file with no refresh flow; an
+//! expired/revoked token surfaces as an auth failure and deactivates the
+//! playlist the same way a 404 does on Spotify's side.
 
 use std::collections::HashSet;
 use std::time::Duration as StdDuration;
@@ -15,9 +19,11 @@ use sqlx::PgPool;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::apple_music::apple_handlers::get_apple_music_account;
 use crate::error::AppError;
 use crate::services::playlist_builder::{
     PlaylistUpdateMode, find_artist_names_near, search_tracks_for_artists,
+    search_tracks_for_artists_apple,
 };
 use crate::spotify::token::get_valid_spotify_token;
 use crate::state::AppState;
@@ -85,13 +91,18 @@ struct ClaimedPlaylist {
     geohash: String,
     update_mode: PlaylistUpdateMode,
     update_cadence_days: i16,
+    /// `"spotify"` or `"apple_music"` — plain string, following the same
+    /// `music_provider::text` cast convention `artists/db.rs` already
+    /// established rather than introducing a dedicated Rust enum.
+    provider: String,
 }
 
 /// Atomically claims one due playlist: `FOR UPDATE SKIP LOCKED` picks and
 /// locks a single row (skipping any already locked by a concurrent tick),
 /// then the outer `UPDATE` bumps `next_update_at` forward by a short grace
 /// window so nothing else claims it while this update is in flight. This
-/// is the standard Postgres job-queue claim pattern.
+/// is the standard Postgres job-queue claim pattern. Joins `account` (via
+/// `UPDATE ... FROM`) purely to read `provider` alongside the claimed row.
 async fn claim_due_playlist(
     pool: &PgPool,
     claim_until: chrono::DateTime<Utc>,
@@ -101,7 +112,9 @@ async fn claim_due_playlist(
         r#"
         update playlist
         set next_update_at = $1
-        where id = (
+        from account
+        where account.id = playlist.account_id
+          and playlist.id = (
             select id from playlist
             where is_active
               and deleted_at is null
@@ -111,9 +124,10 @@ async fn claim_due_playlist(
             for update skip locked
         )
         returning
-            id, account_id, provider_playlist_id, geohash,
-            update_mode as "update_mode: PlaylistUpdateMode",
-            update_cadence_days
+            playlist.id, playlist.account_id, playlist.provider_playlist_id, playlist.geohash,
+            playlist.update_mode as "update_mode: PlaylistUpdateMode",
+            playlist.update_cadence_days,
+            account.provider::text as "provider!"
         "#,
         claim_until
     )
@@ -147,8 +161,16 @@ async fn update_one_playlist(state: &AppState, p: ClaimedPlaylist) {
         }
         Err(e) => {
             warn!(playlist_id = %p.id, error = %e, "playlist update failed");
-            let deactivate =
-                matches!(&e, AppError::SpotifyApi { status, .. } if status.as_u16() == 404);
+            let deactivate = if p.provider == "apple_music" {
+                // No 404-equivalent "gone" signal from Apple; a 401/403 or
+                // AuthRequired (missing account row / no token) is as
+                // close as it gets to unrecoverable, since there's no
+                // refresh flow to retry with.
+                matches!(&e, AppError::AppleMusicApi { status, .. } if status.as_u16() == 401 || status.as_u16() == 403)
+                    || matches!(&e, AppError::AuthRequired(_))
+            } else {
+                matches!(&e, AppError::SpotifyApi { status, .. } if status.as_u16() == 404)
+            };
             if let Err(e) = finish_run_failure(&state.db.pool, run_id, &e.to_string()).await {
                 error!(playlist_id = %p.id, error = %e, "failed to finalize playlist_update_run (failure)");
             }
@@ -185,7 +207,104 @@ fn diff_uris(current: &[String], new: &[String]) -> (Vec<String>, i32, i32) {
     (to_add, added, removed)
 }
 
+/// Apple Music's update path: always additive (see module doc) — finds
+/// new tracks and adds whatever isn't already in the playlist, never
+/// removes anything. No refresh flow for the stored Music User Token; a
+/// missing account row or an auth error from Apple propagates up to
+/// `update_one_playlist`, which treats it as unrecoverable.
+async fn do_update_apple(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcome, AppError> {
+    let (coord, _, _) = geohash::decode(&p.geohash)
+        .map_err(|e| AppError::Internal(format!("geohash decode failed: {e}")))?;
+
+    let am = state
+        .apple_music_client
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("Apple Music client not configured".into()))?;
+    let dev_token = state
+        .apple_dev_token
+        .as_ref()
+        .ok_or_else(|| {
+            AppError::Internal("Apple Music developer token manager not configured".into())
+        })?
+        .get_token()
+        .await?;
+    let account = get_apple_music_account(&state.db.pool, p.account_id)
+        .await?
+        .ok_or_else(|| AppError::AuthRequired("Apple Music account no longer connected.".into()))?;
+
+    let artist_names = find_artist_names_near(
+        state,
+        coord.y,
+        coord.x,
+        SEARCH_RADIUS_MILES,
+        EVENT_WINDOW_DAYS,
+    )
+    .await?;
+
+    if artist_names.is_empty() {
+        return Ok(UpdateOutcome {
+            tracks_added: 0,
+            tracks_removed: 0,
+            artist_names: vec![],
+        });
+    }
+
+    let track_results =
+        search_tracks_for_artists_apple(state, &dev_token, &artist_names, TRACKS_PER_ARTIST)
+            .await?;
+
+    let mut seen = HashSet::new();
+    let new_song_ids: Vec<String> = track_results
+        .into_iter()
+        .filter(|t| seen.insert(t.uri.clone()))
+        .map(|t| t.uri)
+        .collect();
+
+    let current_ids: HashSet<String> = am
+        .get_library_playlist_tracks(
+            &dev_token,
+            &account.music_user_token,
+            &p.provider_playlist_id,
+        )
+        .await?
+        .into_iter()
+        .map(|s| s.id)
+        .collect();
+
+    let mut to_add: Vec<String> = new_song_ids
+        .into_iter()
+        .filter(|id| !current_ids.contains(id))
+        .collect();
+    to_add.truncate(MAX_TRACKS_PER_RUN);
+
+    for chunk in to_add.chunks(100) {
+        am.add_tracks_to_playlist(
+            &dev_token,
+            &account.music_user_token,
+            &p.provider_playlist_id,
+            chunk,
+        )
+        .await?;
+    }
+
+    Ok(UpdateOutcome {
+        tracks_added: to_add.len() as i32,
+        tracks_removed: 0,
+        artist_names,
+    })
+}
+
 async fn do_update(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcome, AppError> {
+    match p.provider.as_str() {
+        "apple_music" => do_update_apple(state, p).await,
+        _ => do_update_spotify(state, p).await,
+    }
+}
+
+async fn do_update_spotify(
+    state: &AppState,
+    p: &ClaimedPlaylist,
+) -> Result<UpdateOutcome, AppError> {
     let (coord, _, _) = geohash::decode(&p.geohash)
         .map_err(|e| AppError::Internal(format!("geohash decode failed: {e}")))?;
 

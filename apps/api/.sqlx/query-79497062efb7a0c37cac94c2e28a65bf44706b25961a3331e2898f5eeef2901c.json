@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select account_id, music_user_token, storefront\n        from apple_music_account\n        where account_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "music_user_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "storefront",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "79497062efb7a0c37cac94c2e28a65bf44706b25961a3331e2898f5eeef2901c"
+}

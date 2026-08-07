@@ -1,6 +1,5 @@
-use super::db::{
-    create_session, get_spotify_account, resolve_session_account, upsert_spotify_account,
-};
+use super::db::{get_spotify_account, upsert_spotify_account};
+use crate::accounts::db::{create_session, resolve_session_account};
 use crate::cookie::utils::build_session_cookie;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -63,7 +62,11 @@ pub async fn oauth_callback(
     let account_id = upsert_spotify_account(&state.db.pool, &token, &me.id).await?;
     let session_id = create_session(&state.db.pool, account_id).await?;
 
-    let jar = jar.add(build_session_cookie(&state, session_id));
+    let jar = jar.add(build_session_cookie(
+        &state,
+        session_id,
+        "spotify_oauth_state",
+    ));
 
     Ok((jar, Redirect::to("/")))
 }
