@@ -31,6 +31,16 @@ pub(crate) fn normalize_predicthq_event(e: PredictHqEvent) -> EventResponse {
                 }
             }),
             city: geo.and_then(|g| g.address.as_ref()?.locality.clone()),
+            // PredictHQ's own address data (`PredictHqAddress`) has no
+            // structured state/postal-code/URL/image equivalent of
+            // Ticketmaster's venue object -- these are Ticketmaster-only
+            // fields (see #70), not a gap in this mapping.
+            state: None,
+            state_code: None,
+            address: None,
+            postal_code: None,
+            url: None,
+            images: vec![],
         }),
     };
 

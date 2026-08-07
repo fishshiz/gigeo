@@ -16,6 +16,7 @@ function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
     venue: {
       name: "Test Venue",
       location: { latitude: "43.65", longitude: "-70.25" },
+      images: [],
     },
     ...overrides,
   }
@@ -36,6 +37,7 @@ describe("buildEventFeatureCollection", () => {
       venue: {
         name: "The Venue",
         location: { latitude: "43.65", longitude: "-70.25" },
+        images: [],
       },
     })
     const result = buildEventFeatureCollection({ "2026-08-01": [event] })
@@ -66,7 +68,7 @@ describe("buildEventFeatureCollection", () => {
   })
 
   it("skips events with a venue but no location", () => {
-    const event = makeEvent({ venue: { name: "No Geo Venue" } })
+    const event = makeEvent({ venue: { name: "No Geo Venue", images: [] } })
     expect(buildEventFeatureCollection({ "2026-08-01": [event] })).toEqual({
       type: "FeatureCollection",
       features: [],
@@ -94,7 +96,7 @@ describe("eventIconImageExpression", () => {
 
   it("matches by shared venue name for cluster highlighting", () => {
     const expression = eventIconImageExpression([
-      makeEvent({ id: "e1", venue: { name: "Shared Venue" } }),
+      makeEvent({ id: "e1", venue: { name: "Shared Venue", images: [] } }),
     ])
     expect(expression[3]).toEqual([
       "in",

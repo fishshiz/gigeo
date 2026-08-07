@@ -92,13 +92,35 @@ pub struct EventEmbedded {
 #[derive(Debug, Deserialize, Clone)]
 pub struct TmVenue {
     pub name: Option<String>,
+    pub url: Option<String>,
+    #[serde(default)]
+    pub images: Vec<Images>,
     pub location: Option<TmLocation>,
     pub city: Option<TmCity>,
+    pub state: Option<TmState>,
+    pub address: Option<TmAddress>,
+    #[serde(rename = "postalCode")]
+    pub postal_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TmCity {
     pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TmState {
+    pub name: Option<String>,
+    #[serde(rename = "stateCode")]
+    pub state_code: Option<String>,
+}
+
+/// Ticketmaster's venue address only ever carries `line1` in practice
+/// (confirmed live) -- `line2`/`line3` exist in their schema for other
+/// resource types but weren't observed on venues.
+#[derive(Debug, Deserialize, Clone)]
+pub struct TmAddress {
+    pub line1: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -160,6 +160,19 @@ pub struct VenueResponse {
     pub name: Option<String>,
     pub location: Option<LocationResponse>,
     pub city: Option<String>,
+    pub state: Option<String>,
+    #[serde(rename = "stateCode")]
+    pub state_code: Option<String>,
+    /// Street address (Ticketmaster's `address.line1`) -- `None` for the
+    /// ~28%-ish of venues that don't carry one (same kind of gap PredictHQ
+    /// has for `name`, see `predicthq::normalize`).
+    pub address: Option<String>,
+    #[serde(rename = "postalCode")]
+    pub postal_code: Option<String>,
+    /// The venue's own Ticketmaster page, when available -- distinct from
+    /// `EventResponse::url`, which links the specific event.
+    pub url: Option<String>,
+    pub images: Vec<Images>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
