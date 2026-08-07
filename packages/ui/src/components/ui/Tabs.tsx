@@ -20,7 +20,7 @@ import { focusRing } from "@workspace/ui/lib/react-aria-utils"
 import { twMerge } from "tailwind-merge"
 
 const tabsStyles = tv({
-  base: "flex gap-4 font-sans max-w-full",
+  base: "flex font-sans max-w-full",
   variants: {
     orientation: {
       horizontal: "flex-col",

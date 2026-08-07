@@ -32,9 +32,7 @@ export const EventsDrawer = ({
     activeForYouArtists.size > 0 ||
     activeForYouGenres.size > 0
   const filteredEverythingOut =
-    hasActiveFilters &&
-    !entries.length &&
-    Object.keys(eventsByDate).length > 0
+    hasActiveFilters && !entries.length && Object.keys(eventsByDate).length > 0
 
   if (!entries.length && isStreaming) {
     return (
@@ -47,7 +45,7 @@ export const EventsDrawer = ({
   }
 
   return (
-    <>
+    <div className="px-4">
       <ForYouConnectNudge />
       {entries.length ? (
         <div className="flex flex-col gap-4">
@@ -91,7 +89,7 @@ export const EventsDrawer = ({
           </p>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -140,7 +138,7 @@ const DateAnchor = ({
 }) => {
   const formattedDate = formatDate(date)
   return (
-    <>
+    <div className="relative -mx-4">
       <div id={`a${date}`} />
       <div
         ref={ref}
@@ -150,6 +148,6 @@ const DateAnchor = ({
           {formattedDate}
         </h3>
       </div>
-    </>
+    </div>
   )
 }
