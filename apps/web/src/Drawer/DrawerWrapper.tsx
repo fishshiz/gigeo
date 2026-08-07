@@ -88,17 +88,11 @@ const DestinationIcon = ({
 }
 
 const DrawerWrapper = () => {
-  const { eventsByDate, selectedEvents } = useEventsContext()
+  const { eventsByDate, selectedEvents, isStreaming } = useEventsContext()
   const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
   const shouldReduceMotion = useReducedMotion()
 
   const [activeTab, setActiveTab] = useState<Key>("explore")
-  // FIXME: eventListRef is never attached to a DOM node, so the effect below
-  // that guards on `eventListRef.current` never runs — "switch to Explore
-  // tab on new events" is currently dead code, not working behavior. Left
-  // as-is for now; revisit as its own change rather than reviving it as a
-  // side effect of the date-scroll fix.
-  const eventListRef = useRef<HTMLDivElement>(null)
   const eventsScrollRef = useRef<HTMLDivElement>(null)
   const { topMostId, registerItem } = useTopMostVisibleInScrollContainer(
     eventsScrollRef,
@@ -130,10 +124,25 @@ const DrawerWrapper = () => {
     }
   }, [selectedEvents, setIsDrawerOpen])
 
+  // Switches to the Explore tab when a new search starts (e.g. the caller
+  // is on the Spotify/Apple Music tab, then moves the map or changes the
+  // date range) so the new results are actually visible rather than
+  // silently arriving behind unrelated tab content.
+  //
+  // Keyed off isStreaming's false->true transition, not eventsByDate:
+  // the backend streams results in one at a time (see
+  // eventsProvider.tsx's UPSERT_STREAMED_EVENT), so eventsByDate changes
+  // dozens of times over the course of a single search -- switching tabs
+  // on every one of those would be exactly the kind of repeated,
+  // twitchy interruption this behavior is meant to avoid, not cause.
+  const wasStreamingRef = useRef(isStreaming)
   useEffect(() => {
-    if (!eventListRef.current) return
-    handleDestinationTab("explore")
-  }, [eventsByDate, setIsDrawerOpen, handleDestinationTab])
+    const searchJustStarted = isStreaming && !wasStreamingRef.current
+    wasStreamingRef.current = isStreaming
+    if (searchJustStarted) {
+      handleDestinationTab("explore")
+    }
+  }, [isStreaming, handleDestinationTab])
 
   const isDesktop = useMediaQuery("(min-width: 768px)", {
     defaultValue: false,
