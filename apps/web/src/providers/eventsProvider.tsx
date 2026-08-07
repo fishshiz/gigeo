@@ -19,6 +19,7 @@ import {
   eventResponseSchema,
   type EventResponse,
 } from "@/hooks/eventsStreamSchema"
+import { type EventsByDate } from "@/hooks/eventsStream"
 import { useSearchProvider } from "./searchProvider"
 import { dateRangeToApiParams } from "../lib/dates"
 
@@ -47,6 +48,42 @@ function parseStreamedEvent(raw: string) {
   }
 
   return result.data
+}
+
+/** The genres of the performer that triggered `event.matchedArtist`, read
+ * off that performer's already-attached canonical-artist enrichment (see
+ * `apps/api/src/artists/lookup.rs`) rather than any personalization-
+ * specific data -- there isn't any, the "for you" match pipeline only ever
+ * tracks a name. Empty when unmatched, or when that performer's
+ * enrichment hasn't resolved yet (best-effort, same as everywhere else
+ * `enrichment` is read). */
+export function matchedPerformerGenres(event: EventResponse): string[] {
+  if (!event.matchedArtist) return []
+  const performer = event.performers?.find(
+    (p) => p.name === event.matchedArtist
+  )
+  return performer?.enrichment?.genres ?? []
+}
+
+export function matchesClassificationFilter(
+  event: EventResponse,
+  active: Set<string>
+): boolean {
+  if (active.size === 0) return true
+  return (event.classifications ?? []).some(
+    (c) => c.primary && c.segment?.name && active.has(c.segment.name)
+  )
+}
+
+export function matchesForYouFilter(
+  event: EventResponse,
+  activeArtists: Set<string>,
+  activeGenres: Set<string>
+): boolean {
+  if (activeArtists.size === 0 && activeGenres.size === 0) return true
+  if (!event.matchedArtist) return false
+  if (activeArtists.has(event.matchedArtist)) return true
+  return matchedPerformerGenres(event).some((g) => activeGenres.has(g))
 }
 
 // Search radii (miles) tried in order until one returns events. Lets
@@ -86,6 +123,17 @@ type EventsContextValue = EventsState & {
   searchRadius: number | null
   /** Whether searchRadius went beyond the base tier to find results. */
   radiusExpanded: boolean
+  /** `eventsByDate` narrowed by the active filters (classification + For
+   * You) -- what list/map rendering should consume. `eventsByDate` itself
+   * stays the raw, unfiltered set so filter-option counts don't shrink as
+   * more filters get applied. */
+  visibleEventsByDate: EventsByDate
+  activeClassifications: Set<string>
+  setActiveClassifications: (classifications: Set<string>) => void
+  activeForYouArtists: Set<string>
+  setActiveForYouArtists: (artists: Set<string>) => void
+  activeForYouGenres: Set<string>
+  setActiveForYouGenres: (genres: Set<string>) => void
 }
 
 function buildConcertStreamUrl(params: StreamConcertsParams) {
@@ -104,6 +152,40 @@ const EventsContext = createContext<EventsContextValue | null>(null)
 export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(eventsReducer, initialEventsState)
   const abortRef = useRef<AbortController | null>(null)
+  const [activeClassifications, setActiveClassifications] = useState<
+    Set<string>
+  >(new Set())
+  const [activeForYouArtists, setActiveForYouArtists] = useState<Set<string>>(
+    new Set()
+  )
+  const [activeForYouGenres, setActiveForYouGenres] = useState<Set<string>>(
+    new Set()
+  )
+  const visibleEventsByDate = useMemo(() => {
+    if (
+      activeClassifications.size === 0 &&
+      activeForYouArtists.size === 0 &&
+      activeForYouGenres.size === 0
+    ) {
+      return state.eventsByDate
+    }
+
+    const result: EventsByDate = {}
+    for (const [date, events] of Object.entries(state.eventsByDate)) {
+      const filtered = events.filter(
+        (event) =>
+          matchesClassificationFilter(event, activeClassifications) &&
+          matchesForYouFilter(event, activeForYouArtists, activeForYouGenres)
+      )
+      if (filtered.length) result[date] = filtered
+    }
+    return result
+  }, [
+    state.eventsByDate,
+    activeClassifications,
+    activeForYouArtists,
+    activeForYouGenres,
+  ])
   const [searchRadius, setSearchRadius] = React.useState<number | null>(null)
 
   const cancelStream = useCallback(() => {
@@ -294,6 +376,13 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       searchThisArea,
       searchRadius,
       radiusExpanded,
+      visibleEventsByDate,
+      activeClassifications,
+      setActiveClassifications,
+      activeForYouArtists,
+      setActiveForYouArtists,
+      activeForYouGenres,
+      setActiveForYouGenres,
     }),
     [
       state,
@@ -304,6 +393,10 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       searchThisArea,
       searchRadius,
       radiusExpanded,
+      visibleEventsByDate,
+      activeClassifications,
+      activeForYouArtists,
+      activeForYouGenres,
     ]
   )
 

@@ -16,9 +16,25 @@ export const EventsDrawer = ({
 }: {
   registerItem: RegisterItem
 }) => {
-  const { eventsByDate, isStreaming, searchRadius, radiusExpanded } =
-    useEventsContext()
-  const entries = Object.entries(eventsByDate).sort()
+  const {
+    eventsByDate,
+    visibleEventsByDate,
+    isStreaming,
+    searchRadius,
+    radiusExpanded,
+    activeClassifications,
+    activeForYouArtists,
+    activeForYouGenres,
+  } = useEventsContext()
+  const entries = Object.entries(visibleEventsByDate).sort()
+  const hasActiveFilters =
+    activeClassifications.size > 0 ||
+    activeForYouArtists.size > 0 ||
+    activeForYouGenres.size > 0
+  const filteredEverythingOut =
+    hasActiveFilters &&
+    !entries.length &&
+    Object.keys(eventsByDate).length > 0
 
   if (!entries.length && isStreaming) {
     return (
@@ -67,9 +83,11 @@ export const EventsDrawer = ({
       ) : (
         <div className="flex h-full w-full items-center justify-center p-6 text-center">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {radiusExpanded && searchRadius
-              ? `No events found within ${searchRadius}mi. Try searching for a different location, or adjusting the calendar date range.`
-              : "No events found. Try searching for a different location, or adjusting the calendar date range."}
+            {filteredEverythingOut
+              ? "No events match the selected filters. Try clearing a filter."
+              : radiusExpanded && searchRadius
+                ? `No events found within ${searchRadius}mi. Try searching for a different location, or adjusting the calendar date range.`
+                : "No events found. Try searching for a different location, or adjusting the calendar date range."}
           </p>
         </div>
       )}
@@ -84,9 +102,10 @@ export const EventsDrawerHeader = ({
   topMostId: string | null
   onSelect: (date: string) => void
 }) => {
-  const { eventsByDate, searchRadius, radiusExpanded } = useEventsContext()
+  const { visibleEventsByDate, searchRadius, radiusExpanded } =
+    useEventsContext()
   const { selectedLocation } = useSearchProvider()
-  const entries = Object.entries(eventsByDate).sort()
+  const entries = Object.entries(visibleEventsByDate).sort()
 
   return (
     <>

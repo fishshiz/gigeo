@@ -3,21 +3,42 @@ import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Tooltip } from "@workspace/ui/components/ui/Tooltip"
 import { Popover } from "@workspace/ui/components/ui/Popover"
-import { useEventsContext } from "./providers/eventsProvider"
+import {
+  useEventsContext,
+  matchedPerformerGenres,
+} from "./providers/eventsProvider"
 import { type Classification } from "./lib/types"
-import { useState } from "react"
 import { FilterIcon } from "lucide-react"
 import { DialogTrigger, Heading, TooltipTrigger } from "react-aria-components"
 
+const toKeySet = (keys: "all" | Set<Key>) =>
+  keys === "all" ? new Set<string>() : new Set([...keys].map(String))
+
 const EventFilter = () => {
-  const [selected, setSelected] = useState<Set<Key>>(new Set())
+  const {
+    eventsByDate,
+    activeClassifications,
+    setActiveClassifications,
+    activeForYouArtists,
+    setActiveForYouArtists,
+    activeForYouGenres,
+    setActiveForYouGenres,
+  } = useEventsContext()
+
+  const totalSelected =
+    activeClassifications.size +
+    activeForYouArtists.size +
+    activeForYouGenres.size
 
   const clearFilters = () => {
-    setSelected(new Set())
+    setActiveClassifications(new Set())
+    setActiveForYouArtists(new Set())
+    setActiveForYouGenres(new Set())
   }
-  const { eventsByDate } = useEventsContext()
-  const classifications = Object.values(eventsByDate)
-    .flat()
+
+  const allEvents = Object.values(eventsByDate).flat()
+
+  const classifications = allEvents
     .flatMap((e) => e.classifications || [])
     .reduce(
       (
@@ -37,6 +58,33 @@ const EventFilter = () => {
       },
       {}
     )
+
+  // "For You" tag options are scoped to currently-matched events only --
+  // this is a personalization filter, not a general performer/genre
+  // browser (see Phase 1 plan). Empty when nothing's matched (not
+  // connected, or no match in the current search results).
+  const matchedEvents = allEvents.filter((e) => e.matchedArtist)
+
+  const matchedArtists = matchedEvents.reduce(
+    (acc: Record<string, number>, e) => {
+      const name = e.matchedArtist!
+      acc[name] = (acc[name] ?? 0) + 1
+      return acc
+    },
+    {}
+  )
+
+  const matchedGenres = matchedEvents
+    .flatMap(matchedPerformerGenres)
+    .reduce((acc: Record<string, number>, genre) => {
+      acc[genre] = (acc[genre] ?? 0) + 1
+      return acc
+    }, {})
+
+  const hasForYouOptions =
+    Object.keys(matchedArtists).length > 0 ||
+    Object.keys(matchedGenres).length > 0
+
   return (
     <>
       <DialogTrigger>
@@ -47,9 +95,9 @@ const EventFilter = () => {
             className="relative !h-9 !w-9 shrink-0 max-md:before:absolute max-md:before:-inset-1 max-md:before:content-['']"
           >
             <FilterIcon aria-hidden className="block h-5 w-5 shrink-0" />
-            {selected.size > 0 && (
+            {totalSelected > 0 && (
               <div className="absolute -top-2 -right-2 aspect-square h-4 rounded-full bg-(--accent-bg) text-xs text-(--text-on-accent)">
-                {selected.size}
+                {totalSelected}
               </div>
             )}
           </Button>
@@ -60,7 +108,7 @@ const EventFilter = () => {
             <Heading slot="title" className="m-0 mb-2 text-lg font-semibold">
               Filters
             </Heading>
-            {selected.size > 0 && (
+            {totalSelected > 0 && (
               <Button
                 onPress={clearFilters}
                 variant="secondary"
@@ -72,9 +120,9 @@ const EventFilter = () => {
             <div className="flex flex-col gap-4">
               <TagGroup
                 selectionMode="multiple"
-                selectedKeys={selected}
+                selectedKeys={activeClassifications}
                 onSelectionChange={(keys) =>
-                  setSelected(keys === "all" ? new Set() : new Set(keys))
+                  setActiveClassifications(toKeySet(keys))
                 }
                 escapeKeyBehavior="none"
               >
@@ -88,13 +136,72 @@ const EventFilter = () => {
                   ))}
                 </TagList>
               </TagGroup>
+
+              {hasForYouOptions && (
+                <div className="flex flex-col gap-2">
+                  <Heading className="text-xs font-semibold text-muted-foreground uppercase">
+                    For You
+                  </Heading>
+                  {Object.keys(matchedArtists).length > 0 && (
+                    <TagGroup
+                      aria-label="Filter by matched artist"
+                      selectionMode="multiple"
+                      selectedKeys={activeForYouArtists}
+                      onSelectionChange={(keys) =>
+                        setActiveForYouArtists(toKeySet(keys))
+                      }
+                      escapeKeyBehavior="none"
+                    >
+                      <TagList>
+                        {Object.entries(matchedArtists).map(
+                          ([name, count]) => (
+                            <Tag
+                              key={name}
+                              id={name}
+                              textValue={name}
+                            >{`${name} - ${count}`}</Tag>
+                          )
+                        )}
+                      </TagList>
+                    </TagGroup>
+                  )}
+                  {Object.keys(matchedGenres).length > 0 && (
+                    <TagGroup
+                      aria-label="Filter by matched genre"
+                      selectionMode="multiple"
+                      selectedKeys={activeForYouGenres}
+                      onSelectionChange={(keys) =>
+                        setActiveForYouGenres(toKeySet(keys))
+                      }
+                      escapeKeyBehavior="none"
+                    >
+                      <TagList>
+                        {Object.entries(matchedGenres).map(
+                          ([genre, count]) => (
+                            <Tag
+                              key={genre}
+                              id={genre}
+                              textValue={genre}
+                            >{`${genre} - ${count}`}</Tag>
+                          )
+                        )}
+                      </TagList>
+                    </TagGroup>
+                  )}
+                </div>
+              )}
             </div>
           </Dialog>
         </Popover>
       </DialogTrigger>
-      {selected.size > 0 && (
+      {totalSelected > 0 && (
         <p className="text-xs text-muted-foreground">
-          Filtering by: {[...selected].join(", ")}
+          Filtering by:{" "}
+          {[
+            ...activeClassifications,
+            ...activeForYouArtists,
+            ...activeForYouGenres,
+          ].join(", ")}
         </p>
       )}
     </>
