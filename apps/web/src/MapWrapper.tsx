@@ -41,7 +41,7 @@ const MapWrapper = () => {
   const skipNextEaseRef = useRef(isRestoredMapView)
 
   const {
-    eventsByDate,
+    visibleEventsByDate,
     selectEvents,
     selectedEvents,
     isStreaming,
@@ -120,8 +120,8 @@ const MapWrapper = () => {
   useResizeFix(mapRef, mapContainer)
   useMapViewSync(mapRef)
   const camera = useMapCamera(mapRef)
-  useEventLayer(mapRef, eventsByDate, selectedEvents, selectEvents)
-  useClusterSelection(mapRef, eventsByDate, selectEvents)
+  useEventLayer(mapRef, visibleEventsByDate, selectedEvents, selectEvents)
+  useClusterSelection(mapRef, visibleEventsByDate, selectEvents)
 
   useEffect(() => {
     // Only flies when there's a selected event with a venue location --
