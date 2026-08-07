@@ -27,6 +27,18 @@ const PlaylistDrawerHeader = lazy(() =>
   }))
 )
 
+const AppleMusicDrawerBody = lazy(() =>
+  import("./AppleMusicDrawer").then((m) => ({
+    default: m.AppleMusicDrawerBody,
+  }))
+)
+
+const AppleMusicDrawerHeader = lazy(() =>
+  import("./AppleMusicDrawer").then((m) => ({
+    default: m.AppleMusicDrawerHeader,
+  }))
+)
+
 import {
   Tabs,
   TabList,
@@ -219,6 +231,12 @@ const DrawerWrapper = () => {
           <Suspense fallback={null}>
             <PlaylistDrawerHeader />
             <PlaylistsDrawerBody />
+          </Suspense>
+        </TabPanel>
+        <TabPanel id="apple" className="flex flex-col">
+          <Suspense fallback={null}>
+            <AppleMusicDrawerHeader />
+            <AppleMusicDrawerBody />
           </Suspense>
         </TabPanel>
         <TabPanel

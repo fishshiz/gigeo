@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select id, provider_playlist_id, city, update_cadence_days, is_active\n        from playlist\n        where account_id = $1 and deleted_at is null\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_playlist_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "update_cadence_days",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d602b93a847d97e597c965550507027517eaef20046491294e99eda011b10873"
+}

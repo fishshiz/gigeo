@@ -142,6 +142,44 @@ pub async fn search_tracks_for_artists(
     Ok(results)
 }
 
+/// Searches Apple Music's catalog (developer token only, no user token
+/// needed for catalog search) for up to `per_artist` top tracks per artist
+/// name. Mirrors `search_tracks_for_artists`; `TrackResult::uri` holds the
+/// Apple catalog song ID rather than a Spotify URI.
+///
+/// Shared by the create-playlist handler and the periodic playlist
+/// updater's Apple Music path.
+pub async fn search_tracks_for_artists_apple(
+    state: &AppState,
+    developer_token: &str,
+    artist_names: &[String],
+    per_artist: u8,
+) -> Result<Vec<TrackResult>, AppError> {
+    let am = state
+        .apple_music_client
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("Apple Music client not configured".into()))?;
+
+    let mut results = Vec::new();
+
+    for artist_name in artist_names {
+        let songs = am
+            .search_songs(developer_token, artist_name, per_artist)
+            .await?;
+
+        for song in songs {
+            let attrs = song.attributes.as_ref();
+            results.push(TrackResult {
+                name: attrs.map(|a| a.name.clone()).unwrap_or_default(),
+                artist: attrs.map(|a| a.artist_name.clone()).unwrap_or_default(),
+                uri: song.id,
+            });
+        }
+    }
+
+    Ok(results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

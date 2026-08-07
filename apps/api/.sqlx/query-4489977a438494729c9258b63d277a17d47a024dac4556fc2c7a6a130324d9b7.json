@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        update playlist\n        set next_update_at = $1\n        where id = (\n            select id from playlist\n            where is_active\n              and deleted_at is null\n              and (next_update_at is null or next_update_at <= now())\n            order by next_update_at nulls first\n            limit 1\n            for update skip locked\n        )\n        returning\n            id, account_id, provider_playlist_id, geohash,\n            update_mode as \"update_mode: PlaylistUpdateMode\",\n            update_cadence_days\n        ",
+  "query": "\n        update playlist\n        set next_update_at = $1\n        from account\n        where account.id = playlist.account_id\n          and playlist.id = (\n            select id from playlist\n            where is_active\n              and deleted_at is null\n              and (next_update_at is null or next_update_at <= now())\n            order by next_update_at nulls first\n            limit 1\n            for update skip locked\n        )\n        returning\n            playlist.id, playlist.account_id, playlist.provider_playlist_id, playlist.geohash,\n            playlist.update_mode as \"update_mode: PlaylistUpdateMode\",\n            playlist.update_cadence_days,\n            account.provider::text as \"provider!\"\n        ",
   "describe": {
     "columns": [
       {
@@ -42,6 +42,11 @@
         "ordinal": 5,
         "name": "update_cadence_days",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "provider!",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -55,8 +60,9 @@
       false,
       false,
       false,
-      false
+      false,
+      null
     ]
   },
-  "hash": "d4abf01e16ab0bc76ffa6d0a02416adacee2e810d8d229a07b00be0fa0a15040"
+  "hash": "4489977a438494729c9258b63d277a17d47a024dac4556fc2c7a6a130324d9b7"
 }

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select account_id from apple_music_account where apple_music_user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "07dcad441618a82dfd144b499f27ddb66df95d16b8dda1dd63a325ab22ff317f"
+}
