@@ -146,7 +146,7 @@ const MapWrapper = () => {
   // zoom out to frame the actual area covered instead of staying zoomed
   // in on a radius that came up empty.
   useEffect(() => {
-    if (isStreaming || !radiusExpanded || !searchRadius) return
+    if (isStreaming || !searchRadius) return
     camera.fitToRadius(selectedCoordinates, searchRadius)
   }, [isStreaming, radiusExpanded, searchRadius, selectedCoordinates, camera])
 
@@ -154,8 +154,14 @@ const MapWrapper = () => {
     <>
       <div className="relative flex min-h-0 flex-1">
         {!useIsMobile() && <DrawerWrapper />}
-        <div ref={mapContainer} id="map-container" className="h-full w-full" />
-        <SearchThisAreaButton onSearchThisArea={handleSearchThisArea} />
+        <div className="relative h-full w-full">
+          <div
+            ref={mapContainer}
+            id="map-container"
+            className="h-full w-full"
+          />
+          <SearchThisAreaButton onSearchThisArea={handleSearchThisArea} />
+        </div>
       </div>
     </>
   )

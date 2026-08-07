@@ -233,14 +233,12 @@ const DrawerWrapper = () => {
             <PlaylistsDrawerBody />
           </Suspense>
         </TabPanel>
-        <TabPanel
-          id="search"
-          className="flex items-center justify-center"
-        ></TabPanel>
-        <TabPanel
-          id="settings"
-          className="flex items-center justify-center"
-        ></TabPanel>
+        <TabPanel id="apple" className="flex flex-col">
+          <Suspense fallback={null}>
+            <AppleMusicDrawerHeader />
+            <AppleMusicDrawerBody />
+          </Suspense>
+        </TabPanel>
       </TabPanels>
     </DrawerContent>
   )
