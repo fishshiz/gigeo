@@ -200,7 +200,7 @@ const DrawerWrapper = () => {
           )}
           <DrawerBody
             ref={eventsScrollRef}
-            className="h-full flex-1 overflow-y-auto scroll-smooth"
+            className="h-full flex-1 overflow-y-auto scroll-smooth p-0"
           >
             {selectedGroups.length === 1 ? (
               <EventDetails
