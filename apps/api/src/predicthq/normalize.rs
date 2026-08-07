@@ -63,6 +63,19 @@ pub(crate) fn normalize_predicthq_event(e: PredictHqEvent) -> EventResponse {
         .map(|dt| dt.with_timezone(&Local).format("%B %d").to_string())
         .ok();
 
+    // `start_local` is the venue-local wall clock with no UTC offset, so its
+    // date portion is already the correct local calendar day -- no
+    // timezone math needed. Falls back to `start`'s (UTC) date portion on
+    // the rare event missing `start_local`, matching this codebase's
+    // existing graceful-degradation style.
+    let local_calendar_day = e
+        .start_local
+        .as_deref()
+        .unwrap_or(&e.start)
+        .split('T')
+        .next()
+        .map(|d| d.to_string());
+
     EventResponse {
         // PredictHQ and Ticketmaster ids are both opaque alphanumeric
         // strings from unrelated generators, but the collision risk costs
@@ -73,6 +86,7 @@ pub(crate) fn normalize_predicthq_event(e: PredictHqEvent) -> EventResponse {
         images: vec![],
         dates: Some(e.start),
         dates_pretty,
+        local_calendar_day,
         classifications: Some(build_classifications(e.phq_labels.as_deref())),
         performers,
         url: None,
@@ -158,6 +172,7 @@ mod tests {
             phq_attendance: Some(300),
             entities: vec![],
             start: "2026-08-09T23:00:00Z".to_string(),
+            start_local: Some("2026-08-09T19:00:00".to_string()),
             geo: None,
             phq_labels: None,
         }

@@ -34,6 +34,11 @@ pub(crate) struct PredictHqEvent {
     #[serde(default)]
     pub(crate) entities: Vec<PredictHqEntity>,
     pub(crate) start: String,
+    /// Venue-local wall-clock start time, no UTC offset (e.g.
+    /// `"2026-11-03T20:00:00"` for an 8pm local show) — used to derive the
+    /// correct local calendar day for cross-source dedup, since `start` is
+    /// UTC and can land on the next calendar day for evening shows.
+    pub(crate) start_local: Option<String>,
     pub(crate) geo: Option<PredictHqGeo>,
     pub(crate) phq_labels: Option<Vec<PhqLabel>>,
 }

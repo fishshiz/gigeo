@@ -232,6 +232,7 @@ mod tests {
             images: vec![],
             dates: None,
             dates_pretty: None,
+            local_calendar_day: None,
             classifications: None,
             performers: Some(names.iter().map(|n| performer(Some(n))).collect()),
             url: None,

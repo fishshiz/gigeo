@@ -27,6 +27,13 @@ pub struct EventResponse {
     pub dates: Option<String>,
     #[serde(rename = "datesPretty")]
     pub dates_pretty: Option<String>,
+    /// The venue-local calendar day this event falls on, sourced from each
+    /// provider's own local-time field (Ticketmaster's `dates.start.localDate`,
+    /// PredictHQ's `start_local`) rather than derived from `dates` (UTC) --
+    /// used only for cross-source dedup matching (`events::reconcile`), not
+    /// sent to the frontend. See `events::reconcile::calendar_day`.
+    #[serde(skip_serializing)]
+    pub local_calendar_day: Option<String>,
     pub classifications: Option<Vec<Classification>>,
     pub performers: Option<Vec<Performer>>,
     pub url: Option<String>,

@@ -115,6 +115,7 @@ mod tests {
             images: vec![],
             dates: None,
             dates_pretty: None,
+            local_calendar_day: None,
             classifications: None,
             performers: Some(vec![Performer {
                 name: Some(name.to_string()),
@@ -243,6 +244,7 @@ mod tests {
             images: vec![],
             dates: Some("2026-08-01T20:00:00Z".to_string()),
             dates_pretty: None,
+            local_calendar_day: None,
             classifications: None,
             performers: Some(vec![Performer {
                 name: Some("Artist".to_string()),
@@ -287,6 +289,7 @@ mod tests {
             images: vec![],
             dates: Some("2026-08-01T20:00:00Z".to_string()),
             dates_pretty: None,
+            local_calendar_day: None,
             classifications: None,
             performers: None,
             url: None,
