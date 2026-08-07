@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::{Duration, Utc};
 use futures::{StreamExt, stream};
 
+use super::cleaning;
 use super::db::{self, MatchedArtist};
 use super::{ArtistCandidate, SimilarArtist};
 use crate::apple_music::client::ArtistAttributes;
@@ -112,9 +113,7 @@ async fn resolve_one(state: &AppState, candidate: ArtistCandidate) {
 }
 
 async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized: &str) {
-    if let Some((apple_music_id, attrs)) =
-        try_apple_music_match(state, &candidate.name, normalized).await
-    {
+    if let Some((apple_music_id, attrs)) = try_apple_music_match(state, &candidate.name).await {
         let similar = fetch_similar_artists(state, &apple_music_id).await;
         let artwork_url = attrs
             .artwork
@@ -147,7 +146,7 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
         return;
     }
 
-    if let Some(artist) = try_spotify_match(state, &candidate.name, normalized).await {
+    if let Some(artist) = try_spotify_match(state, &candidate.name).await {
         let artwork_url = artist.images.first().map(|i| i.url.as_str());
         let result = db::upsert_matched(
             &state.db.pool,
@@ -244,49 +243,92 @@ async fn refresh_dynamic_fields(state: &AppState, normalized_name: &str, row: &d
     }
 }
 
-/// Verified Apple Music catalog search: returns a match only when the top
-/// result's own name normalizes to the same string as the query, since
-/// Apple's search can return an unrelated artist for an ambiguous or messy
-/// term — same rule `apple_music::artwork_cache` already applies.
-async fn try_apple_music_match(
-    state: &AppState,
-    name: &str,
-    normalized: &str,
-) -> Option<(String, ArtistAttributes)> {
+/// How many search results to check for an exact-normalized match, up
+/// from just the top one. Still exact-match, so this is a pure recall
+/// improvement with no new false-positive risk on its own — validated
+/// against the real unmatched-artist corpus (see the `matching_eval` eval
+/// harness): widening alone finds 7% of previously-unmatched names purely
+/// because the right result wasn't ranked first.
+const MAX_SEARCH_CANDIDATES: u8 = 10;
+
+/// The name to search with, tried in order: the original name first, then
+/// `cleaning::billing_variants(name)` (split multi-artist billing, strip
+/// tour-name/city qualifiers) if the original doesn't verify. Combined
+/// with the widened candidate pool, this is the "cleaned" strategy from
+/// the eval harness — 23% recall on the real unmatched corpus, versus 7%
+/// for widening alone.
+fn name_variants(name: &str) -> Vec<String> {
+    let mut variants = vec![name.to_string()];
+    for v in cleaning::billing_variants(name) {
+        if !variants.contains(&v) {
+            variants.push(v);
+        }
+    }
+    variants
+}
+
+/// Verified Apple Music catalog search: returns a match only when some
+/// result among the top `MAX_SEARCH_CANDIDATES` normalizes to the same
+/// string as the query (or a cleaned variant of it — see
+/// `name_variants`), and isn't a bare genre word (see
+/// `cleaning::is_bare_genre_word`) — Apple's search can return an
+/// unrelated artist for an ambiguous or messy term, same rule
+/// `apple_music::artwork_cache` already applies.
+async fn try_apple_music_match(state: &AppState, name: &str) -> Option<(String, ArtistAttributes)> {
     let am = state.apple_music_client.as_ref()?;
     let dev_mgr = state.apple_dev_token.as_ref()?;
     let token = dev_mgr.get_token().await.ok()?;
 
-    let candidate = am
-        .search_artists(&token, name, 1)
-        .await
-        .ok()?
-        .into_iter()
-        .next()?;
-    let attrs = candidate.attributes?;
-    if normalize_artist_name(&attrs.name) != normalized {
-        return None;
+    for variant in name_variants(name) {
+        let normalized = normalize_artist_name(&variant);
+        if normalized.is_empty() {
+            continue;
+        }
+        let Ok(candidates) = am
+            .search_artists(&token, &variant, MAX_SEARCH_CANDIDATES)
+            .await
+        else {
+            continue;
+        };
+        for candidate in candidates {
+            let Some(attrs) = candidate.attributes else {
+                continue;
+            };
+            if normalize_artist_name(&attrs.name) == normalized
+                && !cleaning::is_bare_genre_word(&attrs.name)
+            {
+                return Some((candidate.id, attrs));
+            }
+        }
     }
-    Some((candidate.id, attrs))
+    None
 }
 
 /// Verified Spotify catalog search, under the same name-match rule as
 /// `try_apple_music_match`. Only called when Apple Music had no verified
 /// match for this name.
-async fn try_spotify_match(
-    state: &AppState,
-    name: &str,
-    normalized: &str,
-) -> Option<SpotifyArtist> {
+async fn try_spotify_match(state: &AppState, name: &str) -> Option<SpotifyArtist> {
     let token = state.cc_manager.get_token().await.ok()?;
-    let candidate = state
-        .spotify
-        .search_artist(&token.access_token, name, 1)
-        .await
-        .ok()?
-        .into_iter()
-        .next()?;
-    (normalize_artist_name(&candidate.name) == normalized).then_some(candidate)
+
+    for variant in name_variants(name) {
+        let normalized = normalize_artist_name(&variant);
+        if normalized.is_empty() {
+            continue;
+        }
+        let Ok(candidates) = state
+            .spotify
+            .search_artist(&token.access_token, &variant, MAX_SEARCH_CANDIDATES)
+            .await
+        else {
+            continue;
+        };
+        if let Some(artist) = candidates.into_iter().find(|c| {
+            normalize_artist_name(&c.name) == normalized && !cleaning::is_bare_genre_word(&c.name)
+        }) {
+            return Some(artist);
+        }
+    }
+    None
 }
 
 async fn fetch_similar_artists(state: &AppState, apple_music_id: &str) -> Vec<SimilarArtist> {
@@ -396,5 +438,24 @@ mod tests {
     fn resolve_artwork_url_replaces_both_size_placeholders() {
         let url = resolve_artwork_url("https://example.com/{w}x{h}bb.jpg", 300);
         assert_eq!(url, "https://example.com/300x300bb.jpg");
+    }
+
+    #[test]
+    fn name_variants_always_tries_the_original_name_first() {
+        let variants = name_variants("Casey Donahew in Deshler");
+        assert_eq!(variants[0], "Casey Donahew in Deshler");
+        assert!(variants.contains(&"Casey Donahew".to_string()));
+    }
+
+    #[test]
+    fn name_variants_is_just_the_original_when_nothing_to_clean() {
+        assert_eq!(name_variants("Role Model"), vec!["Role Model".to_string()]);
+    }
+
+    #[test]
+    fn name_variants_has_no_duplicates() {
+        let variants = name_variants("Zedd, Ganja White Night in Magna");
+        let unique: std::collections::HashSet<_> = variants.iter().collect();
+        assert_eq!(variants.len(), unique.len());
     }
 }

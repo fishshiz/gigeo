@@ -21,6 +21,7 @@
 //! see `crate::spotify::top_artists` module docs), so an artist that only
 //! Spotify could verify simply has no similar-artists list.
 
+mod cleaning;
 mod db;
 mod lookup;
 #[cfg(test)]
