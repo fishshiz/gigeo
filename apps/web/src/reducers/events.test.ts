@@ -32,13 +32,13 @@ describe("sameEvent", () => {
     const a = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
       performers: [{ id: "artist-1" }],
     })
     const b = makeEvent({
       id: "tm-2",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
       performers: [{ id: "artist-1" }],
     })
     expect(sameEvent(a, b)).toBe(true)
@@ -48,12 +48,12 @@ describe("sameEvent", () => {
     const a = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "Venue A" },
+      venue: { name: "Venue A", images: [] },
     })
     const b = makeEvent({
       id: "tm-2",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "Venue B" },
+      venue: { name: "Venue B", images: [] },
     })
     expect(sameEvent(a, b)).toBe(false)
   })
@@ -160,12 +160,12 @@ describe("eventsReducer", () => {
     const event = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
     })
     const duplicate = makeEvent({
       id: "tm-2",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
     })
 
     const afterFirst = eventsReducer(initialEventsState, {
@@ -188,12 +188,12 @@ describe("eventsReducer", () => {
     const original = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
     })
     const enriched = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
-      venue: { name: "The Venue" },
+      venue: { name: "The Venue", images: [] },
       rank: 62,
       predictedAttendance: 900,
     })

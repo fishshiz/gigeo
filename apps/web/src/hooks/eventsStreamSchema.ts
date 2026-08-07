@@ -95,6 +95,16 @@ const venueResponseSchema = z.object({
   name: optional(z.string()),
   location: optional(locationResponseSchema),
   city: optional(z.string()),
+  state: optional(z.string()),
+  stateCode: optional(z.string()),
+  /** Street address (Ticketmaster's `address.line1`) -- absent for venues
+   * that don't carry one. */
+  address: optional(z.string()),
+  postalCode: optional(z.string()),
+  /** The venue's own Ticketmaster page, distinct from the event's own
+   * `url`. */
+  url: optional(z.string()),
+  images: z.array(imagesSchema),
 })
 
 const priceRangeSchema = z.object({

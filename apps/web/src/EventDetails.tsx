@@ -30,6 +30,14 @@ import { ticketmasterAttractionIds } from "./lib/performers"
 const eventLinkLabel = (event: Pick<EventResponse, "source">) =>
   event.source === "predicthq" ? "Listen" : "Tickets"
 
+/** "Venue Name, City, ST" -- venue name plus a short city/state locator,
+ * used anywhere a venue is referenced inline (the hero details line and
+ * the upcoming-shows list both want the same shape). */
+const venueLine = (venue: EventResponse["venue"]) =>
+  [venue?.name, [venue?.city, venue?.stateCode].filter(Boolean).join(", ")]
+    .filter(Boolean)
+    .join(", ") || "—"
+
 const formatPriceRange = (range: { currency: string; min: number; max: number }) => {
   const formatter = new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -268,9 +276,19 @@ const EventDetails = ({
           </div>
           <div className="flex items-center gap-1">
             <MapPinIcon aria-hidden className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">
-              {eventData.venue?.name ?? "—"}
-            </span>
+            {eventData.venue?.url ? (
+              <Link
+                href={eventData.venue.url}
+                target="_blank"
+                className="min-w-0 truncate text-(--text-link)"
+              >
+                {venueLine(eventData.venue)}
+              </Link>
+            ) : (
+              <span className="min-w-0 truncate">
+                {venueLine(eventData.venue)}
+              </span>
+            )}
           </div>
           {eventData.priceRanges && (
             <div className="flex items-center gap-1">
@@ -600,9 +618,6 @@ const UpcomingEvents = (
             {events.length ? (
               <ul className="mt-1 flex flex-col gap-2 text-sm">
                 {events.map((e) => {
-                  const venueLine =
-                    [e.venue?.name, e.venue?.city].filter(Boolean).join(", ") ||
-                    "—"
                   return (
                     <li
                       key={e.id}
@@ -616,7 +631,7 @@ const UpcomingEvents = (
                           {e.name}
                         </span>
                         <span className="truncate text-slate-500">
-                          {venueLine}
+                          {venueLine(e.venue)}
                         </span>
                       </div>
                       {e.url && (

@@ -32,6 +32,12 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
             longitude: loc.longitude,
         }),
         city: v.city.and_then(|c| c.name),
+        state: v.state.as_ref().and_then(|s| s.name.clone()),
+        state_code: v.state.and_then(|s| s.state_code),
+        address: v.address.and_then(|a| a.line1),
+        postal_code: v.postal_code,
+        url: v.url,
+        images: v.images,
     });
 
     let performers = e.embedded.and_then(|a| a.attractions);
@@ -150,13 +156,23 @@ mod tests {
             venues: Some(vec![
                 TmVenue {
                     name: Some("First Venue".to_string()),
+                    url: None,
+                    images: vec![],
                     location: None,
                     city: None,
+                    state: None,
+                    address: None,
+                    postal_code: None,
                 },
                 TmVenue {
                     name: Some("Second Venue".to_string()),
+                    url: None,
+                    images: vec![],
                     location: None,
                     city: None,
+                    state: None,
+                    address: None,
+                    postal_code: None,
                 },
             ]),
             attractions: None,
