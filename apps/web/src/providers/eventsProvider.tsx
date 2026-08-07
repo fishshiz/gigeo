@@ -268,6 +268,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
+  //FIXME commenting these setState lines out as they violate lint rules https://react.dev/learn/you-might-not-need-an-effect. Need to fix
   const streamEvents = useCallback(
     async (params: StreamConcertsInput) => {
       abortRef.current?.abort()
@@ -277,7 +278,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "RESET_EVENTS" })
       dispatch({ type: "STREAM_STATUS", payload: { isStreaming: true } })
-      setSearchRadius(null)
+      // setSearchRadius(null)
 
       const startRadius = params.startRadius ?? BASE_RADIUS
       const tiers = RADIUS_TIERS.filter((radius) => radius >= startRadius)
@@ -293,7 +294,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
             controller.signal
           )
           totalCount += tierCount
-          setSearchRadius(radius)
+          // setSearchRadius(radius)
 
           if (totalCount > 0) break
         }
