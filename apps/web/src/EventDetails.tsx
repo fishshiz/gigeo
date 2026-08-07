@@ -1,6 +1,7 @@
 import type { AmArtistFull, ExternalLinks } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useCallback, useEffect, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import {
@@ -65,6 +66,7 @@ const EventDetails = ({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const isMountedRef = useRef(true)
   const { selectEvents } = useEventsContext()
+  const shouldReduceMotion = useReducedMotion()
 
   useEffect(() => {
     // Explicitly re-arm on setup (not just the useRef(true) initializer) --
@@ -132,71 +134,115 @@ const EventDetails = ({
   }, [])
 
   return (
-    <div ref={scrollRef} className="relative overflow-y-scroll">
+    // overflow-y-scroll removed: this div never actually overflows itself
+    // (see the scroll-listener comment above -- its content is always
+    // exactly as tall as it is). Worse than just dead, it was actively
+    // harmful: any overflow value other than visible makes an element a
+    // scroll container, and position:sticky sticks relative to its
+    // nearest scroll-container ancestor -- so the sticky header below was
+    // sticking relative to *this* div (which never scrolls) instead of
+    // the real scrolling parent, meaning it never actually pinned to the
+    // viewport, just scrolled away like normal content. Caught via
+    // getBoundingClientRect() during animation verification, not visible
+    // from a colors-only check.
+    <div ref={scrollRef} className="relative">
       {/* sticky compact header inside the pane */}
-      {showStickyHeader && (
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur">
-          <div className="flex min-w-0 items-center">
-            {/* bg-(--surface-secondary) is repeated under dark: because Button's
-                own "secondary" variant carries its own dark:bg-neutral-700 --
-                without the explicit dark: pair here, that wins the cascade over
-                the unprefixed override (confirmed empirically, not assumed). */}
+      <AnimatePresence>
+        {showStickyHeader && (
+          <motion.div
+            key="sticky-header"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur"
+          >
+            <div className="flex min-w-0 items-center">
+              {/* bg-(--surface-secondary) is repeated under dark: because Button's
+                  own "secondary" variant carries its own dark:bg-neutral-700 --
+                  without the explicit dark: pair here, that wins the cascade over
+                  the unprefixed override (confirmed empirically, not assumed). */}
+              <Button
+                aria-label="Back to events"
+                className="z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+                variant="secondary"
+                onClick={() => selectEvents([])}
+              >
+                <ArrowLeftIcon aria-hidden className="h-4 w-4 rtl:-scale-x-100" />
+              </Button>
+              <div className="ms-2 flex min-w-0 flex-col">
+                <div className="truncate font-semibold">{eventData.name}</div>
+                <div className="flex gap-2 text-[11px] text-slate-300">
+                  <span dir="ltr" className="truncate">
+                    {eventData.datesPretty}
+                  </span>
+                  <span className="truncate">· {eventData.venue?.name ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            {eventData.url && (
+              <Link
+                href={eventData.url}
+                target="_blank"
+                variant="button"
+                className="ms-2 shrink-0 touch-manipulation rounded-full bg-(--accent-bg) px-2 py-1 text-[11px] font-medium text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+              >
+                {eventLinkLabel(eventData)}
+              </Link>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* back + top-right tickets over hero -- hidden once the sticky
+          header takes over the same two controls, so there's never a
+          duplicate "Back to events" / tickets link in the tab order.
+          initial={false} on both AnimatePresence wrappers: these are
+          visible by default on first paint, so that first render must
+          not animate in -- only later toggles (scrolling past/back
+          above the threshold) should. */}
+      <AnimatePresence initial={false}>
+        {!showStickyHeader && (
+          <motion.div
+            key="hero-back"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
             <Button
               aria-label="Back to events"
-              className="z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+              className="absolute top-2 start-2 z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               variant="secondary"
               onClick={() => selectEvents([])}
             >
               <ArrowLeftIcon aria-hidden className="h-4 w-4 rtl:-scale-x-100" />
             </Button>
-            <div className="ms-2 flex min-w-0 flex-col">
-              <div className="truncate font-semibold">{eventData.name}</div>
-              <div className="flex gap-2 text-[11px] text-slate-300">
-                <span dir="ltr" className="truncate">
-                  {eventData.datesPretty}
-                </span>
-                <span className="truncate">· {eventData.venue?.name ?? "—"}</span>
-              </div>
-            </div>
-          </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {eventData.url && (
+      <AnimatePresence initial={false}>
+        {!showStickyHeader && eventData.url && (
+          <motion.div
+            key="hero-tickets"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
             <Link
+              variant="button"
+              className="absolute top-2 end-14 z-10 touch-manipulation bg-(--accent-bg) text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               href={eventData.url}
               target="_blank"
-              variant="button"
-              className="ms-2 shrink-0 touch-manipulation rounded-full bg-(--accent-bg) px-2 py-1 text-[11px] font-medium text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
             >
               {eventLinkLabel(eventData)}
             </Link>
-          )}
-        </div>
-      )}
-
-      {/* back + top-right tickets over hero -- hidden once the sticky
-          header takes over the same two controls, so there's never a
-          duplicate "Back to events" / tickets link in the tab order. */}
-      {!showStickyHeader && (
-        <Button
-          aria-label="Back to events"
-          className="absolute top-2 start-2 z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
-          variant="secondary"
-          onClick={() => selectEvents([])}
-        >
-          <ArrowLeftIcon aria-hidden className="h-4 w-4 rtl:-scale-x-100" />
-        </Button>
-      )}
-
-      {!showStickyHeader && eventData.url && (
-        <Link
-          variant="button"
-          className="absolute top-2 end-14 z-10 touch-manipulation bg-(--accent-bg) text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
-          href={eventData.url}
-          target="_blank"
-        >
-          {eventLinkLabel(eventData)}
-        </Link>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="relative">
         <div className="absolute top-0 start-0 z-[1] h-full w-full bg-gradient-to-t from-(--surface-scrim) to-transparent opacity-85" />
@@ -228,7 +274,9 @@ const EventDetails = ({
           {eventData.priceRanges && (
             <div className="flex items-center gap-1">
               <DollarSignIcon aria-hidden className="h-4 w-4 shrink-0" />
-              <span dir="ltr">{formatPriceRange(eventData.priceRanges[0])}</span>
+              <span dir="ltr" className="tabular-nums">
+                {formatPriceRange(eventData.priceRanges[0])}
+              </span>
             </div>
           )}
         </div>
@@ -435,7 +483,9 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
           <GlobeIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
         )}
 
-        <span>{label}</span>
+        {/* Non-breaking space keeps two-word labels ("Apple Music") from
+            wrapping mid-name on narrow viewports. */}
+        <span>{label.replace(" ", " ")}</span>
       </Link>
     </li>
   )
@@ -489,6 +539,18 @@ const UpcomingEvents = (
   const { status, onRetry } = props
   const events = status === "loaded" ? props.events : []
   const loadingPhase = useLoadingPhase(status === "loading")
+  const shouldReduceMotion = useReducedMotion()
+  // Simple opacity crossfade between statuses -- this is a small utility
+  // list, not a hero moment, so no spatial motion, per the dashboard-tier
+  // motion budget (micro-interactions only). mode="wait" avoids the old
+  // and new status content overlapping mid-transition; initial={false}
+  // skips animating whatever status happens to render first.
+  const fade = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: shouldReduceMotion ? 0 : 0.15 },
+  }
 
   return (
     <div className="mt-4" aria-busy={status === "loading"}>
@@ -496,70 +558,79 @@ const UpcomingEvents = (
         Upcoming events
       </h3>
 
-      {status === "loading" && (
-        <>
-          <span className="sr-only">Loading upcoming events…</span>
-          {loadingPhase !== null && <UpcomingEventsSkeleton />}
-          {loadingPhase === "slow" && (
-            <p className="mt-1 text-sm text-slate-500">Still loading…</p>
-          )}
-        </>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {status === "loading" && (
+          <motion.div key="loading" {...fade}>
+            <span className="sr-only">Loading upcoming events…</span>
+            {loadingPhase !== null && <UpcomingEventsSkeleton />}
+            {loadingPhase === "slow" && (
+              <p className="mt-1 text-sm text-slate-500">Still loading…</p>
+            )}
+          </motion.div>
+        )}
 
-      {status === "error" && (
-        <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-          <span className="text-slate-400">Couldn't load upcoming events.</span>
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="shrink-0 text-(--text-link) underline underline-offset-2"
-            >
-              Try again
-            </button>
-          )}
-        </div>
-      )}
+        {status === "error" && (
+          <motion.div
+            key="error"
+            {...fade}
+            className="mt-1 flex items-center justify-between gap-2 text-sm"
+          >
+            <span className="text-slate-400">Couldn't load upcoming events.</span>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="shrink-0 text-(--text-link) underline underline-offset-2"
+              >
+                Try again
+              </button>
+            )}
+          </motion.div>
+        )}
 
-      {status === "loaded" &&
-        (events.length ? (
-          <ul className="mt-1 flex flex-col gap-2 text-sm">
-            {events.map((e) => {
-              const venueLine =
-                [e.venue?.name, e.venue?.city].filter(Boolean).join(", ") ||
-                "—"
-              return (
-                <li
-                  key={e.id}
-                  className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
-                >
-                  <span dir="ltr" className="shrink-0">
-                    {e.datesPretty}
-                  </span>
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-semibold text-slate-600">
-                      {e.name}
-                    </span>
-                    <span className="truncate text-slate-500">
-                      {venueLine}
-                    </span>
-                  </div>
-                  {e.url && (
-                    <Link
-                      href={e.url}
-                      target="_blank"
-                      className="ms-auto shrink-0 text-(--text-link) no-underline dark:text-(--text-link)"
+        {status === "loaded" && (
+          <motion.div key="loaded" {...fade}>
+            {events.length ? (
+              <ul className="mt-1 flex flex-col gap-2 text-sm">
+                {events.map((e) => {
+                  const venueLine =
+                    [e.venue?.name, e.venue?.city].filter(Boolean).join(", ") ||
+                    "—"
+                  return (
+                    <li
+                      key={e.id}
+                      className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
                     >
-                      {eventLinkLabel(e)}
-                    </Link>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="mt-1 text-sm text-slate-500">No upcoming events</p>
-        ))}
+                      <span dir="ltr" className="shrink-0">
+                        {e.datesPretty}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-semibold text-slate-600">
+                          {e.name}
+                        </span>
+                        <span className="truncate text-slate-500">
+                          {venueLine}
+                        </span>
+                      </div>
+                      {e.url && (
+                        <Link
+                          href={e.url}
+                          target="_blank"
+                          className="ms-auto shrink-0 text-(--text-link) no-underline dark:text-(--text-link)"
+                        >
+                          {eventLinkLabel(e)}
+                        </Link>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="mt-1 text-sm text-slate-500">No upcoming events</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
