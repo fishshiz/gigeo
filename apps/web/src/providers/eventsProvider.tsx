@@ -113,8 +113,7 @@ type EventsContextValue = EventsState & {
   cancelStream: () => void
   selectEvents: (events: EventResponse[]) => void
   resetEvents: () => void
-  /** Re-searches at `coordinates` starting from the last-successful radius
-   * tier rather than resetting to the smallest one -- for "search this
+  /** Re-searches at `coordinates` starting from the smallest search radius tier -- for "search this
    * area", where the user hasn't indicated local event density has
    * changed, just their location. Unlike useNavigateToLocation, this
    * doesn't reset the selected-location label or date range. */
@@ -336,14 +335,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     setRendered(true)
   }, [])
 
-  // Set just before a "search this area" coordinate change, consumed by
-  // the reactive effect below on the render that change causes. A ref
-  // rather than state: it's read once, synchronously, by that effect --
-  // it never needs to itself trigger a render.
-  const startRadiusOverrideRef = useRef<number | null>(null)
   const searchThisArea = useCallback(
     (coordinates: [number, number]) => {
-      startRadiusOverrideRef.current = searchRadius ?? BASE_RADIUS
       setSelectedCoordinates(coordinates)
     },
     [searchRadius, setSelectedCoordinates]
@@ -356,8 +349,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   }
   useEffect(() => {
     if (!rendered) return
-    const startRadius = startRadiusOverrideRef.current ?? BASE_RADIUS
-    startRadiusOverrideRef.current = null
+    const startRadius = BASE_RADIUS
 
     void streamEvents({ latitude, longitude, start, end, startRadius })
 

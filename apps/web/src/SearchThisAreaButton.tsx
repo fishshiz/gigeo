@@ -49,7 +49,7 @@ export function SearchThisAreaButton({
     <Button
       variant="secondary"
       onPress={() => onSearchThisArea(cameraCoordinates)}
-      className="absolute top-4 left-1/2 z-10 -translate-x-1/2 gap-2 shadow-md"
+      className="absolute top-4 left-1/2 z-10 w-full min-w-[200px] -translate-x-1/2 touch-manipulation rounded-full bg-(--accent-bg) px-2 py-1 text-[11px] font-medium text-(--text-on-accent) shadow-md max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
     >
       <RefreshCw aria-hidden className="h-4 w-4" />
       Search this area
