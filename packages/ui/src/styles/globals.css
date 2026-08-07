@@ -90,8 +90,35 @@
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
+    /* --background/--foreground/--muted/--muted-foreground below are wired
+       to apps/web/src/App.css's brand primitives instead of achromatic
+       (zero-chroma) Tailwind defaults -- these four are the ones with a
+       real, live consumer today: --background/--foreground via the
+       `body { @apply bg-background text-foreground }` base-layer rule
+       below, --muted-foreground via 13+ `text-muted-foreground` call
+       sites. That base-layer body rule was the actual root cause of the
+       achromatic dark-canvas finding from /finalize's Pass 3 -- every
+       page's dark-mode background came from here.
+
+       --color-bg-dark-900 / --color-text-primary-dark-200 / etc. are
+       defined in apps/web/src/App.css, not this file -- packages/ui is
+       coupled to that app's brand palette here. Fine today (apps/web is
+       this package's only consumer, per CONTEXT-MAP.md), but revisit if
+       packages/ui ever needs to be app-agnostic.
+
+       --primary/--secondary/--accent/--card/--popover/--destructive/
+       --border/--input/--ring and light mode are deliberately untouched:
+       --primary and --secondary have ambiguous, mixed existing usage
+       (sometimes heading text, sometimes a real accent/selected-state
+       tint) that a value change could visibly break without a review of
+       each call site -- that's the larger "re-theme the shared library"
+       migration already explicitly deferred, not this fix. --card/
+       --popover have zero live consumers (confirmed: no bg-card/
+       bg-popover anywhere in either package). --destructive/--border/
+       --ring already function correctly as conventional red/neutral
+       chrome and don't need brand hue. */
+    --background: var(--color-bg-dark-900);
+    --foreground: var(--color-text-primary-dark-200);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
@@ -100,8 +127,8 @@
     --primary-foreground: oklch(0.205 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
+    --muted: var(--color-surface-dark-800);
+    --muted-foreground: var(--color-text-secondary-dark-400);
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
