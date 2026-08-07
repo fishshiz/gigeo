@@ -23,6 +23,8 @@
 
 mod db;
 mod lookup;
+#[cfg(test)]
+mod matching_eval;
 mod worker;
 
 pub(crate) use lookup::attach_enrichment;
