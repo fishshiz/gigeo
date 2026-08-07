@@ -23,7 +23,7 @@ const VenueDetails = ({ events }: { events: EventResponse[] }) => {
       >
         <ArrowLeftIcon aria-hidden className="h-4 w-4" />
       </Button>
-      <h2 className="mt-3 leading-none font-semibold text-black dark:text-(--color-primary-dark-900)">
+      <h2 className="mt-3 leading-none font-semibold text-(--text-primary)">
         {groups.length} Events at {venue?.name}
       </h2>
       <ul className="flex w-full flex-col justify-between gap-2.5 pt-4">

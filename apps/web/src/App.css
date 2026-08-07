@@ -215,6 +215,12 @@
      mode silently falling back to the shared Button component's neutral
      default; now a bespoke light value from the same ramp family. */
   --surface-secondary: var(--color-dusty-olive-600);
+
+  /* Primary heading/title text on a plain card or page surface -- not a
+     link, not on a scrim. Light value matches the pre-existing
+     text-black usage exactly (unchanged); this just gives it a name so
+     dark mode can be defined alongside it instead of separately. */
+  --text-primary: #000;
 }
 
 .dark {
@@ -224,6 +230,18 @@
   --surface-scrim: var(--color-bg-dark-900);
   --text-on-scrim: var(--color-text-primary-dark-600);
   --surface-secondary: var(--color-dusty-olive-dark-600);
+
+  /* Fixes two undefined-variable bugs: EventCard.tsx and VenueDetails.tsx
+     referenced --color-primary-dark-900 and --color-secondary-dark-900,
+     neither of which was ever defined anywhere in this file -- both
+     silently resolved to nothing. The primitive ramps above already mark
+     their intended values in comments ("~text-primary-dark",
+     "~text-secondary-dark"); using those. --text-secondary has no :root
+     entry because its light-mode value (indigo-600) is a raw Tailwind
+     color, not a brand primitive -- left as-is, flagged separately, not
+     decided here. */
+  --text-primary: var(--color-text-primary-dark-200);
+  --text-secondary: var(--color-text-secondary-dark-400);
 }
 
 #root {
