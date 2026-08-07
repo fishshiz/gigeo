@@ -396,7 +396,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
-      <div className="relative flex shrink-0 gap-4">
+      <div className="relative flex min-w-0 shrink-0 gap-4">
         {imgUrl && (
           <div
             className="overflow-hidden rounded-2xl"
@@ -420,7 +420,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             />
           </div>
         )}
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{name}</h2>
           {primaryGenre && (
             <p className="mt-1 text-sm text-slate-300">{primaryGenre}</p>
@@ -439,7 +439,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       </div>
 
       {/* Text / metadata */}
-      <div className="flex flex-1 flex-col justify-between">
+      <div className="min-w-0 flex flex-1 flex-col justify-between">
         {similarArtists.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xs tracking-wide text-slate-400 uppercase">
