@@ -154,10 +154,10 @@ fn first_billed_segment(name: &str) -> String {
 fn strip_known_suffixes(name: &str) -> String {
     let mut s = name.trim();
 
-    if let Some(idx) = s.rfind('(') {
-        if s.ends_with(')') {
-            s = s[..idx].trim();
-        }
+    if let Some(idx) = s.rfind('(')
+        && s.ends_with(')')
+    {
+        s = s[..idx].trim();
     }
 
     if let Some((before, _)) = s.split_once(" - ") {
