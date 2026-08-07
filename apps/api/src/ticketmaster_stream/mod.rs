@@ -205,6 +205,7 @@ pub async fn get_concerts_tm_stream(
         // it.
         let mut artist_candidates: Vec<crate::artists::ArtistCandidate> = ticketmaster_events
             .iter()
+            .filter(|event| crate::events::is_music_classified(event))
             .flat_map(|event| event.performers.iter().flatten())
             .filter_map(|performer| {
                 performer.name.clone().map(|name| crate::artists::ArtistCandidate {
@@ -282,14 +283,19 @@ pub async fn get_concerts_tm_stream(
             // falls back to the event's own title for the ~28% of
             // PredictHQ events with no structured performer entity at
             // all, same as the image backfill above.
-            artist_candidates.extend(new_events.iter().flat_map(|event| {
-                crate::predicthq::performer_search_names(event)
-                    .into_iter()
-                    .map(|name| crate::artists::ArtistCandidate {
-                        name,
-                        ticketmaster_attraction_id: None,
-                    })
-            }));
+            artist_candidates.extend(
+                new_events
+                    .iter()
+                    .filter(|event| crate::events::is_music_classified(event))
+                    .flat_map(|event| {
+                        crate::predicthq::performer_search_names(event)
+                            .into_iter()
+                            .map(|name| crate::artists::ArtistCandidate {
+                                name,
+                                ticketmaster_attraction_id: None,
+                            })
+                    }),
+            );
 
             crate::artists::attach_enrichment(&mut new_events, &state.db.pool).await;
 

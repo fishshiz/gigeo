@@ -55,6 +55,37 @@ fn find_matching_performer(
     })
 }
 
+/// Gates which events feed canonical-artist matching (see
+/// `crate::artists::spawn_enrichment`) — Sports/Arts & Theatre/Film events
+/// regularly have their own real Apple Music/Spotify catalog entries (a
+/// stage musical's cast recording, a team's warmup playlist) that
+/// exact-name matching happily "succeeds" against, producing artist
+/// enrichment (genres, similar artists, artwork) that makes no sense for
+/// what's actually a play or a rodeo. Confirmed live: "The Rocky Horror
+/// Show" matched an Apple Music cast-recording page under this exact
+/// failure mode.
+///
+/// Defaults to `true` (attempt the match) whenever there's no primary
+/// classification to check — missing metadata shouldn't cost a real music
+/// event its enrichment. PredictHQ-sourced events always pass this: their
+/// classification's segment is unconditionally `"Music"` (see
+/// `predicthq::normalize::build_classifications`), so this only has a real
+/// effect on the unscoped Ticketmaster fetch (PredictHQ's own fetch is
+/// already `category=concerts`-scoped at the API level).
+pub(crate) fn is_music_classified(event: &EventResponse) -> bool {
+    let Some(classifications) = &event.classifications else {
+        return true;
+    };
+    let primary = classifications.iter().find(|c| c.primary == Some(true));
+    match primary {
+        None => true,
+        Some(c) => c
+            .segment
+            .as_ref()
+            .is_some_and(|s| s.name.eq_ignore_ascii_case("music")),
+    }
+}
+
 pub(crate) fn dedupe_key(event: &EventResponse) -> String {
     let venue_name = event.venue.as_ref().and_then(|v| v.name.clone());
     let performer_id = event
@@ -74,7 +105,7 @@ pub(crate) fn dedupe_key(event: &EventResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use types::{Source, VenueResponse};
+    use types::{Classification, Segment, Source, VenueResponse};
 
     fn event_with_performer(name: &str) -> EventResponse {
         EventResponse {
@@ -283,5 +314,56 @@ mod tests {
         other.id = "2".to_string();
 
         assert_ne!(dedupe_key(&base), dedupe_key(&other));
+    }
+
+    fn classification(primary: bool, segment_name: &str) -> Classification {
+        Classification {
+            primary: Some(primary),
+            segment: Some(Segment {
+                id: "id".to_string(),
+                name: segment_name.to_string(),
+            }),
+            genre: None,
+            sub_genre: None,
+            sub_type: None,
+            family: Some(false),
+        }
+    }
+
+    #[test]
+    fn is_music_classified_true_with_no_classifications_at_all() {
+        let event = event_with_performer("Artist");
+        assert!(is_music_classified(&event));
+    }
+
+    #[test]
+    fn is_music_classified_true_with_primary_music_segment() {
+        let mut event = event_with_performer("Artist");
+        event.classifications = Some(vec![classification(true, "Music")]);
+        assert!(is_music_classified(&event));
+    }
+
+    #[test]
+    fn is_music_classified_false_with_primary_non_music_segment() {
+        let mut event = event_with_performer("The Rocky Horror Show");
+        event.classifications = Some(vec![classification(true, "Arts & Theatre")]);
+        assert!(!is_music_classified(&event));
+    }
+
+    #[test]
+    fn is_music_classified_true_when_no_classification_is_flagged_primary() {
+        let mut event = event_with_performer("Artist");
+        event.classifications = Some(vec![classification(false, "Sports")]);
+        assert!(is_music_classified(&event));
+    }
+
+    #[test]
+    fn is_music_classified_ignores_non_primary_entries() {
+        let mut event = event_with_performer("Artist");
+        event.classifications = Some(vec![
+            classification(false, "Comedy"),
+            classification(true, "Music"),
+        ]);
+        assert!(is_music_classified(&event));
     }
 }
