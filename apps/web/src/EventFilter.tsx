@@ -48,7 +48,7 @@ const EventFilter = () => {
           >
             <FilterIcon aria-hidden className="block h-5 w-5 shrink-0" />
             {selected.size > 0 && (
-              <div className="absolute -top-2 -right-2 aspect-square h-4 rounded-full bg-blue-600 text-xs text-white">
+              <div className="absolute -top-2 -right-2 aspect-square h-4 rounded-full bg-(--accent-bg) text-xs text-(--text-on-accent)">
                 {selected.size}
               </div>
             )}
