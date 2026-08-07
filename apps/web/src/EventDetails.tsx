@@ -137,9 +137,13 @@ const EventDetails = ({
       {showStickyHeader && (
         <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur">
           <div className="flex min-w-0 items-center">
+            {/* bg-(--surface-secondary) is repeated under dark: because Button's
+                own "secondary" variant carries its own dark:bg-neutral-700 --
+                without the explicit dark: pair here, that wins the cascade over
+                the unprefixed override (confirmed empirically, not assumed). */}
             <Button
               aria-label="Back to events"
-              className="z-10 touch-manipulation dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+              className="z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               variant="secondary"
               onClick={() => selectEvents([])}
             >
@@ -161,7 +165,7 @@ const EventDetails = ({
               href={eventData.url}
               target="_blank"
               variant="button"
-              className="ms-2 shrink-0 touch-manipulation rounded-full bg-(--color-toasted-almond-600) px-2 py-1 text-[11px] font-medium text-(--color-blush-rose-600) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+              className="ms-2 shrink-0 touch-manipulation rounded-full bg-(--accent-bg) px-2 py-1 text-[11px] font-medium text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
             >
               {eventLinkLabel(eventData)}
             </Link>
@@ -175,7 +179,7 @@ const EventDetails = ({
       {!showStickyHeader && (
         <Button
           aria-label="Back to events"
-          className="absolute top-2 start-2 z-10 touch-manipulation dark:border-(--color-border-subtle-dark-200) dark:bg-(--color-dusty-olive-dark-600) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+          className="absolute top-2 start-2 z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
           variant="secondary"
           onClick={() => selectEvents([])}
         >
@@ -186,7 +190,7 @@ const EventDetails = ({
       {!showStickyHeader && eventData.url && (
         <Link
           variant="button"
-          className="absolute top-2 end-14 z-10 touch-manipulation bg-(--color-toasted-almond-600) text-(--color-blush-rose-600) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:bg-(--color-toasted-almond-dark-600) dark:text-(--color-text-primary-dark-600)"
+          className="absolute top-2 end-14 z-10 touch-manipulation bg-(--accent-bg) text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
           href={eventData.url}
           target="_blank"
         >
@@ -195,13 +199,13 @@ const EventDetails = ({
       )}
 
       <div className="relative">
-        <div className="absolute top-0 start-0 z-[1] h-full w-full bg-gradient-to-t from-(--color-jet-black-900) to-transparent opacity-85 dark:from-(--color-bg-dark-900)" />
+        <div className="absolute top-0 start-0 z-[1] h-full w-full bg-gradient-to-t from-(--surface-scrim) to-transparent opacity-85" />
         <ResponsiveImage
           sources={eventData.images}
           alt={eventData.name}
           loading="eager"
         />
-        <h3 className="absolute bottom-2 start-2 end-2 z-[2] line-clamp-2 text-2xl font-semibold text-(--color-ivory-100) dark:text-(--color-text-primary-dark-600)">
+        <h3 className="absolute bottom-2 start-2 end-2 z-[2] line-clamp-2 text-2xl font-semibold text-(--text-on-scrim)">
           {eventData.name}
         </h3>
       </div>
@@ -246,10 +250,14 @@ const EventDetails = ({
                     showtime.datesPretty}
                 </span>
                 {showtime.url && (
+                  // text-(--text-link) is repeated under dark: because Link's
+                  // default "primary" variant carries its own dark:text-blue-500
+                  // -- without the explicit dark: pair, that wins the cascade
+                  // over the unprefixed override (confirmed empirically).
                   <Link
                     href={showtime.url}
                     target="_blank"
-                    className="text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+                    className="text-(--text-link) no-underline dark:text-(--text-link)"
                   >
                     {eventLinkLabel(showtime)}
                   </Link>
@@ -407,7 +415,7 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
       <Link
         href={url}
         target="_blank"
-        className="my-1 flex items-center fill-(--color-toasted-almond-600) no-underline dark:fill-(--color-text-secondary-dark-600) dark:text-(--color-text-secondary-dark-600)"
+        className="my-1 flex items-center fill-(--text-link) text-(--text-link) no-underline dark:fill-(--text-link) dark:text-(--text-link)"
       >
         {label === "Wikipedia" ? (
           <ReactSVG
@@ -505,7 +513,7 @@ const UpcomingEvents = (
             <button
               type="button"
               onClick={onRetry}
-              className="shrink-0 text-(--color-toasted-almond-600) underline underline-offset-2 dark:text-(--color-text-secondary-dark-600)"
+              className="shrink-0 text-(--text-link) underline underline-offset-2"
             >
               Try again
             </button>
@@ -540,7 +548,7 @@ const UpcomingEvents = (
                     <Link
                       href={e.url}
                       target="_blank"
-                      className="ms-auto shrink-0 text-(--color-toasted-almond-600) no-underline dark:text-(--color-text-secondary-dark-600)"
+                      className="ms-auto shrink-0 text-(--text-link) no-underline dark:text-(--text-link)"
                     >
                       {eventLinkLabel(e)}
                     </Link>

@@ -179,6 +179,71 @@
   --color-dusty-olive-dark-950: oklch(32% 0.026 121);
 }
 
+/* ── Semantic color layer ──────────────────────────────────────────
+   Extracted from the repeated light/dark pairings already used across
+   EventDetails.tsx. Primitives above are unchanged; this just names
+   the roles so a new usage has one canonical var to reach for instead
+   of re-deriving "which ramp, which step, which dark: pair" each time.
+   Consume the same way existing code already does: text-(--text-link),
+   bg-(--accent-bg), etc. */
+:root {
+  /* Interactive text -- links, external-link icons, ticket labels.
+     Confirmed identical in 3 places: otherShowtimes Link, ExternalLink
+     (text + fill), UpcomingEvents Link. */
+  --text-link: var(--color-toasted-almond-600);
+
+  /* Accent CTA background -- the "Tickets"/"Listen" pill.
+     Confirmed identical in 2 places: hero pill, sticky-header pill. */
+  --accent-bg: var(--color-toasted-almond-600);
+
+  /* Text on top of --accent-bg. Was blush-rose-600 on toasted-almond-600
+     -- a rose-on-orange pairing with the two colors close in lightness
+     (49.7% vs 56.4%), so low contrast. Confirmed bug; using ivory-100
+     instead, matching --text-on-scrim's existing "light text over a
+     mid-tone/saturated surface" role. */
+  --text-on-accent: var(--color-ivory-100);
+
+  /* Scrim over the hero image, and the text sitting on it. Single
+     usage today (EventDetails hero), but a structurally distinct role
+     from the page surface -- worth naming now rather than after the
+     second usage duplicates the ad hoc pattern. */
+  --surface-scrim: var(--color-jet-black-900);
+  --text-on-scrim: var(--color-ivory-100);
+
+  /* Secondary chrome surface -- e.g. the icon-only back button over the
+     hero. Previously dark-mode-only (dusty-olive-dark-600) with light
+     mode silently falling back to the shared Button component's neutral
+     default; now a bespoke light value from the same ramp family. */
+  --surface-secondary: var(--color-dusty-olive-600);
+
+  /* Primary heading/title text on a plain card or page surface -- not a
+     link, not on a scrim. Light value matches the pre-existing
+     text-black usage exactly (unchanged); this just gives it a name so
+     dark mode can be defined alongside it instead of separately. */
+  --text-primary: #000;
+}
+
+.dark {
+  --text-link: var(--color-text-secondary-dark-600);
+  --accent-bg: var(--color-toasted-almond-dark-600);
+  --text-on-accent: var(--color-text-primary-dark-600);
+  --surface-scrim: var(--color-bg-dark-900);
+  --text-on-scrim: var(--color-text-primary-dark-600);
+  --surface-secondary: var(--color-dusty-olive-dark-600);
+
+  /* Fixes two undefined-variable bugs: EventCard.tsx and VenueDetails.tsx
+     referenced --color-primary-dark-900 and --color-secondary-dark-900,
+     neither of which was ever defined anywhere in this file -- both
+     silently resolved to nothing. The primitive ramps above already mark
+     their intended values in comments ("~text-primary-dark",
+     "~text-secondary-dark"); using those. --text-secondary has no :root
+     entry because its light-mode value (indigo-600) is a raw Tailwind
+     color, not a brand primitive -- left as-is, flagged separately, not
+     decided here. */
+  --text-primary: var(--color-text-primary-dark-200);
+  --text-secondary: var(--color-text-secondary-dark-400);
+}
+
 #root {
   position: absolute;
   top: 0;

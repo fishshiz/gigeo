@@ -53,7 +53,7 @@ const EventCard = ({
       </div>
       <div className="flex h-auto min-w-0 flex-3 flex-col justify-between gap-2 p-3">
         <div className="flex flex-col items-start gap-1">
-          <h3 className="leading-tight font-semibold text-black dark:text-(--color-primary-dark-900)">
+          <h3 className="leading-tight font-semibold text-(--text-primary)">
             {event.name}
           </h3>
           {event.matchedArtist && (
@@ -65,7 +65,7 @@ const EventCard = ({
         </div>
         <div className="flex flex-col gap-1">
           <div>{date}</div>
-          <div className="flex items-center gap-1 text-sm leading-none text-indigo-600 dark:text-(--color-secondary-dark-900)">
+          <div className="flex items-center gap-1 text-sm leading-none text-indigo-600 dark:text-(--text-secondary)">
             <HouseIcon aria-hidden className="h-4 w-4 shrink-0" />
             <span className="truncate">{event.venue?.name}</span>
           </div>
