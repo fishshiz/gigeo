@@ -41,7 +41,7 @@ const tagStyles = tv({
       true: 'pr-1'
     },
     isSelected: {
-      true: 'bg-blue-600 text-white border-transparent forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-color-adjust-none'
+      true: 'bg-primary text-primary-foreground border-transparent forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-color-adjust-none'
     },
     isDisabled: {
       true: 'bg-neutral-100 dark:bg-transparent dark:border-white/20 text-neutral-300 dark:text-neutral-600 forced-colors:text-[GrayText]'

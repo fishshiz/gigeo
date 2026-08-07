@@ -40,7 +40,7 @@ const itemStyles = tv({
     isSelected: {
       false:
         "hover:bg-neutral-100 pressed:bg-neutral-100 dark:hover:bg-neutral-700/60 dark:pressed:bg-neutral-700/60",
-      true: "bg-blue-100 dark:bg-blue-700/30 hover:bg-blue-200 pressed:bg-blue-200 dark:hover:bg-blue-700/40 dark:pressed:bg-blue-700/40 border-y-blue-200 dark:border-y-blue-900 z-20",
+      true: "bg-primary/10 hover:bg-primary/20 pressed:bg-primary/20 border-y-primary/20 z-20",
     },
     isDisabled: {
       true: "text-neutral-300 dark:text-neutral-600 forced-colors:text-[GrayText] z-10",

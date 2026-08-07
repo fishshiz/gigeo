@@ -33,7 +33,7 @@ export function AlertDialog({
             className="text-xl font-semibold leading-6 my-0">
             {title}
           </Heading>
-          <div className={`w-6 h-6 absolute right-6 top-6 stroke-2 ${variant === 'destructive' ? 'text-red-500' : 'text-blue-500'}`}>
+          <div className={`w-6 h-6 absolute right-6 top-6 stroke-2 ${variant === 'destructive' ? 'text-red-500' : 'text-primary'}`}>
             {variant === 'destructive' ? <AlertCircleIcon aria-hidden /> : <InfoIcon aria-hidden />}
           </div>
           <p className="mt-3 text-neutral-500 dark:text-neutral-400">

@@ -37,7 +37,7 @@ const fillStyles = tv({
         "h-(--size) w-[6px] bottom-(--start,0) ml-[50%] -translate-x-[50%]",
     },
     isDisabled: {
-      false: "bg-blue-500 forced-colors:bg-[Highlight]",
+      false: "bg-primary forced-colors:bg-[Highlight]",
       true: "bg-neutral-300 dark:bg-neutral-600 forced-colors:bg-[GrayText]",
     },
   },

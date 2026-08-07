@@ -27,7 +27,7 @@ const cellStyles = tv({
     isSelected: {
       false:
         "text-neutral-900 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 pressed:bg-neutral-300 dark:pressed:bg-neutral-600",
-      true: "bg-blue-600 invalid:bg-red-600 text-white forced-colors:bg-[Highlight] forced-colors:invalid:bg-[Mark] forced-colors:text-[HighlightText]",
+      true: "bg-primary invalid:bg-red-600 text-primary-foreground forced-colors:bg-[Highlight] forced-colors:invalid:bg-[Mark] forced-colors:text-[HighlightText]",
     },
     isDisabled: {
       true: "text-neutral-300 dark:text-neutral-600 forced-colors:text-[GrayText]",

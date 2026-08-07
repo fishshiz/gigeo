@@ -7,10 +7,10 @@ const dropZone = tv({
   base: "flex items-center justify-center p-8 min-h-24 w-[30%] font-sans text-base text-balance text-center rounded-lg border border-1 border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900",
   variants: {
     isFocusVisible: {
-      true: "outline outline-2 -outline-offset-1 outline-blue-600 dark:outline-blue-500 forced-colors:outline-[Highlight]"
+      true: "outline outline-2 -outline-offset-1 outline-primary forced-colors:outline-[Highlight]"
     },
     isDropTarget: {
-      true: "bg-blue-200 dark:bg-blue-800 outline outline-2 -outline-offset-1 outline-blue-600 dark:outline-blue-500 forced-colors:outline-[Highlight]",
+      true: "bg-primary/20 outline outline-2 -outline-offset-1 outline-primary forced-colors:outline-[Highlight]",
     }
   }
 });

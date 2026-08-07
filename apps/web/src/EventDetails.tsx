@@ -2,6 +2,7 @@ import type { AmArtistFull, ExternalLinks } from "./lib/types"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { MOTION_DURATION, MOTION_EASE } from "@workspace/ui/lib/motion"
 import { useCallback, useEffect, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import {
@@ -154,8 +155,8 @@ const EventDetails = ({
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur"
+            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
+            className="sticky top-0 z-sticky flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur"
           >
             <div className="flex min-w-0 items-center">
               {/* bg-(--surface-secondary) is repeated under dark: because Button's
@@ -209,7 +210,7 @@ const EventDetails = ({
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
           >
             <Button
               aria-label="Back to events"
@@ -230,7 +231,7 @@ const EventDetails = ({
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
           >
             <Link
               variant="button"
@@ -385,7 +386,13 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
 
   return (
     <div
-      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:text-(--color-text-secondary-600)"
+      // Shadows are close to invisible on a near-black surface (no contrast
+      // between a black-on-black shadow and the background it's cast on).
+      // Dark mode swaps the shadow for a border ring instead, per the
+      // shadow rule -- bgColor is a dynamic per-artist value, so a fixed
+      // neutral white-overlay ring (not a specific brand-hued border
+      // primitive) is the one that won't clash with it.
+      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:border dark:border-white/10 dark:shadow-none dark:text-(--color-text-secondary-600)"
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
@@ -549,7 +556,7 @@ const UpcomingEvents = (
     initial: { opacity: 0 },
     animate: { opacity: 1 },
     exit: { opacity: 0 },
-    transition: { duration: shouldReduceMotion ? 0 : 0.15 },
+    transition: { duration: shouldReduceMotion ? 0 : MOTION_DURATION.fast },
   }
 
   return (
