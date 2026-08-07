@@ -11,6 +11,22 @@
 @source "../../../components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
+/* Semantic z-index scale -- generates z-dropdown / z-sticky / etc.
+   utilities. Only the tiers that coordinate meaning *across* components
+   (a sticky header needs to out-rank normal content app-wide, a toast
+   needs to out-rank a modal) get a name here. Small, purely-local
+   stacking within a single component (e.g. a gradient sitting behind its
+   own title) doesn't need one -- that relationship is already clear from
+   the two elements sitting next to each other in the same file. */
+@theme {
+    --z-index-dropdown: 10;
+    --z-index-sticky: 20;
+    --z-index-modal-backdrop: 30;
+    --z-index-modal: 40;
+    --z-index-toast: 50;
+    --z-index-tooltip: 60;
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -55,14 +71,27 @@
 }
 
 :root {
+    /* Lets native form controls (checkboxes, scrollbars, date pickers)
+       render themselves correctly for whichever mode is actually active,
+       instead of defaulting to light chrome inside a dark page. */
+    color-scheme: light dark;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
+    /* --primary is the one shadcn slot that's genuinely "the brand action
+       color" -- wired to the same toasted-almond ramp as --accent-bg, so
+       Button/Link's "primary" variant and the rest of the app's CTAs are
+       finally the same color instead of two unrelated systems. Its
+       foreground is the same ivory-100 already used as --text-on-accent.
+       --secondary/--accent stay neutral on purpose: per Component Craft
+       convention, secondary = outline/neutral so the branded primary
+       stands out. Making secondary branded too would flatten that
+       hierarchy, not fix a gap -- neutral is correct here. */
+    --primary: var(--color-toasted-almond-600);
+    --primary-foreground: var(--color-ivory-100);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
@@ -87,6 +116,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+}
+
+/* Symmetric with .dark below: pins native controls to light rendering
+   once the user has explicitly picked light, rather than leaving :root's
+   light-dark to keep following OS preference. */
+.light {
+    color-scheme: light;
 }
 
 .dark {
@@ -117,14 +153,19 @@
        bg-popover anywhere in either package). --destructive/--border/
        --ring already function correctly as conventional red/neutral
        chrome and don't need brand hue. */
+    /* Pins native controls to dark rendering once .dark is explicitly
+       applied, rather than leaving it to :root's light-dark (which would
+       otherwise follow OS preference even after the user has picked a
+       mode -- the transition rule says the explicit toggle wins). */
+    color-scheme: dark;
     --background: var(--color-bg-dark-900);
     --foreground: var(--color-text-primary-dark-200);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
+    --primary: var(--color-toasted-almond-dark-600);
+    --primary-foreground: var(--color-text-primary-dark-600);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: var(--color-surface-dark-800);
