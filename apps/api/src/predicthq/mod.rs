@@ -63,6 +63,7 @@ mod tests {
             images: vec![],
             dates: None,
             dates_pretty: None,
+            local_calendar_day: None,
             classifications: None,
             performers: performer.map(|name| {
                 vec![Performer {

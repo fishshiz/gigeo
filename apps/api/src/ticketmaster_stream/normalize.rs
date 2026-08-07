@@ -19,6 +19,17 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
         }
     });
 
+    // `local_date` is already the venue-local calendar day, no timezone math
+    // needed. Falls back to `dates`'s (UTC) date portion on the rare event
+    // missing `local_date` too, matching this codebase's existing
+    // graceful-degradation style.
+    let local_calendar_day = e.dates.start.local_date.clone().or_else(|| {
+        dates
+            .as_deref()
+            .and_then(|d| d.split('T').next())
+            .map(str::to_string)
+    });
+
     let venue = e
         .embedded
         .as_ref()
@@ -56,6 +67,7 @@ pub(crate) fn normalize_event(e: TmEvent) -> EventResponse {
         images: e.images,
         dates,
         dates_pretty,
+        local_calendar_day,
         classifications: e.classifications,
         performers,
         price_ranges: e.price_ranges,

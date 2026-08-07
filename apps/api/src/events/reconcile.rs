@@ -137,14 +137,19 @@ fn performer_names_overlap(a: &EventResponse, b: &EventResponse) -> bool {
     }
 }
 
-/// The calendar-day portion of `event.dates` (both sources' dates are UTC
-/// ISO 8601 strings, so a plain string split is enough — no timezone math
-/// needed to compare "same day").
+/// The venue-local calendar day this event falls on, sourced from each
+/// provider's own local-time field (see `events::types::EventResponse::local_calendar_day`).
+///
+/// Deliberately NOT derived from `event.dates` — that's UTC, and for an
+/// evening show in any US timezone, splitting a UTC timestamp on `T` yields
+/// a day that's one ahead of the actual local day the show is on.
+/// Confirmed live against both providers (see the plan/PR this shipped
+/// with): a real PredictHQ concert with `start: "2026-11-04T04:00:00Z"` /
+/// `start_local: "2026-11-03T20:00:00"`, and real Ticketmaster evening
+/// events where `dates.start.dateTime` lands on the next UTC day relative
+/// to `dates.start.localDate`.
 fn calendar_day(event: &EventResponse) -> Option<&str> {
-    event
-        .dates
-        .as_deref()
-        .map(|d| d.split('T').next().unwrap_or(d))
+    event.local_calendar_day.as_deref()
 }
 
 /// When both sides have structured performer data, require at least one
@@ -196,6 +201,12 @@ mod tests {
             images: vec![],
             dates: Some(date.to_string()),
             dates_pretty: None,
+            // Mirrors the pre-fix naive `split('T')` behavior so existing
+            // fixtures above (which pass a single UTC `dates` string and
+            // expect it to double as the calendar day) keep working
+            // unchanged; tests that need to exercise a UTC/local-day
+            // mismatch override this field explicitly afterward.
+            local_calendar_day: Some(date.split('T').next().unwrap_or(date).to_string()),
             classifications: None,
             performers: None,
             url: None,
@@ -468,6 +479,27 @@ mod tests {
 
         assert!(enrichments.is_empty());
         assert_eq!(new_events.len(), 1);
+    }
+
+    #[test]
+    fn matches_via_local_calendar_day_even_when_utc_dates_disagree() {
+        // The confirmed-live bug this regression-tests: Ticketmaster's
+        // fallback path (no `dateTime`, bare `localDate` only) doesn't
+        // cross midnight, while PredictHQ's `start` (always UTC) does for
+        // an evening show -- so the old naive `split('T')` on `dates` saw
+        // "2026-10-23" vs "2026-10-24" and never matched, even though both
+        // sources agree the show is on the venue-local day of 2026-10-23.
+        let mut tm = event("tm-1", "State Theatre", "2026-10-23"); // TM's local-date-only fallback
+        tm.local_calendar_day = Some("2026-10-23".to_string());
+
+        let mut phq = phq_event("phq-1", "State Theatre", "2026-10-24T03:00:00Z", 60); // PHQ's UTC start, crossed midnight
+        phq.local_calendar_day = Some("2026-10-23".to_string());
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&[tm], vec![phq]);
+
+        assert_eq!(enrichments.len(), 1);
+        assert_eq!(enrichments[0].id, "tm-1");
+        assert!(new_events.is_empty());
     }
 
     #[test]

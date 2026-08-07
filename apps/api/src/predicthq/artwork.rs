@@ -128,6 +128,7 @@ mod tests {
             images: vec![],
             dates: Some("2026-08-09T23:00:00Z".to_string()),
             dates_pretty: None,
+            local_calendar_day: Some("2026-08-09".to_string()),
             classifications: None,
             performers: performer.map(|name| {
                 vec![Performer {
