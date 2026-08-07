@@ -1,7 +1,19 @@
 @import "tailwindcss";
 @plugin "tailwindcss-react-aria-components";
 
-@theme {
+/* `static` forces every variable below to always emit as a real CSS
+   custom property. Required for cross-package references specifically:
+   packages/ui/src/styles/globals.css now references some of these
+   primitives via plain var() (wiring up its dark-mode tokens), but that
+   file is its own separate Tailwind compilation -- a var() reference
+   from a different entry point's CSS doesn't count as "usage" for this
+   file's own tree-shaking, so an otherwise-unreferenced-in-this-file
+   primitive (e.g. one only used from globals.css, never as a literal
+   utility class anywhere) gets silently dropped without `static`.
+   Confirmed empirically: --color-surface-dark-800 resolved to nothing
+   in the browser until this was added, despite the reference in
+   globals.css looking correct. */
+@theme static {
   --color-jet-black-50: oklch(96.05% 0.005 258.32);
   --color-jet-black-100: oklch(92.23% 0.008 241.67);
   --color-jet-black-200: oklch(84.3% 0.016 241.81);
