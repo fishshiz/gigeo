@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
+import SpotifyLogo from "@/assets/Primary_Logo_Green_CMYK.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
@@ -390,7 +391,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
   onRetryFutureEvents,
   artworkSize = 200,
 }) => {
-  const { name, genres = [], artwork, apple_music_url } = artist
+  const { name, genres = [], artwork, apple_music_url, spotify_url } = artist
 
   // A canonical artist matched via Spotify (rather than Apple Music) can
   // legitimately have no artwork at all -- render the card without an
@@ -452,6 +453,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
             {apple_music_url && (
               <ExternalLink url={apple_music_url} label="Apple Music" />
             )}
+            {spotify_url && <ExternalLink url={spotify_url} label="Spotify" />}
           </ul>
         </div>
       </div>
@@ -504,6 +506,12 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
           />
         ) : label === "Apple Music" ? (
           <MusicIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
+        ) : label === "Spotify" ? (
+          <ReactSVG
+            className="me-[4px] h-[24px] w-[24px]"
+            src={SpotifyLogo}
+            beforeInjection={(svg) => svg.setAttribute("aria-hidden", "true")}
+          />
         ) : (
           <GlobeIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
         )}

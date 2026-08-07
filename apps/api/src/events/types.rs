@@ -89,6 +89,11 @@ pub struct ArtistEnrichment {
     pub name: String,
     pub id: String,
     pub apple_music_url: Option<String>,
+    /// `None` for an artist matched via Apple Music with no Spotify
+    /// identity recorded (`try_apple_music_match` never looks Spotify up
+    /// once Apple already verified a match — see `artists::worker`), not
+    /// necessarily an artist Spotify itself has no page for.
+    pub spotify_url: Option<String>,
     pub artwork: Option<ArtistArtwork>,
     pub genres: Vec<String>,
     pub similar_artists: Vec<SimilarArtistResponse>,

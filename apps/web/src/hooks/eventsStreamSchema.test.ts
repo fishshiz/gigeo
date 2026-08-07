@@ -92,6 +92,7 @@ describe("eventResponseSchema", () => {
               name: "Role Model",
               id: "sp-1",
               apple_music_url: null,
+              spotify_url: "https://open.spotify.com/artist/sp-1",
               artwork: null,
               genres: ["Pop"],
               similar_artists: [],
@@ -105,6 +106,10 @@ describe("eventResponseSchema", () => {
       const performer = result.data.performers?.[0]
       expect(performer?.enrichment?.artwork).toBeUndefined()
       expect(performer?.enrichment?.genres).toEqual(["Pop"])
+      expect(performer?.enrichment?.apple_music_url).toBeUndefined()
+      expect(performer?.enrichment?.spotify_url).toBe(
+        "https://open.spotify.com/artist/sp-1"
+      )
     }
   })
 

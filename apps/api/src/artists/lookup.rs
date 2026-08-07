@@ -22,6 +22,7 @@ struct EnrichmentRow {
     artwork_url: Option<String>,
     artwork_bg_color: Option<String>,
     apple_music_url: Option<String>,
+    spotify_url: Option<String>,
     genres: Vec<String>,
     similar_artists: Json<Vec<SimilarArtist>>,
 }
@@ -99,6 +100,7 @@ async fn fetch_rows(
             artwork_url,
             artwork_bg_color,
             apple_music_url,
+            spotify_url,
             genres,
             similar_artists as "similar_artists: Json<Vec<SimilarArtist>>"
         from artists
@@ -126,6 +128,7 @@ fn to_response(row: &EnrichmentRow) -> ArtistEnrichment {
         name: row.display_name.clone(),
         id,
         apple_music_url: row.apple_music_url.clone(),
+        spotify_url: row.spotify_url.clone(),
         artwork,
         genres: row.genres.clone(),
         similar_artists: row
@@ -159,6 +162,7 @@ mod tests {
             artwork_url: Some("https://example.com/art.jpg".to_string()),
             artwork_bg_color: Some("abcdef".to_string()),
             apple_music_url: Some("https://music.apple.com/artist/1".to_string()),
+            spotify_url: None,
             genres: vec!["Pop".to_string()],
             similar_artists: Json(vec![SimilarArtist {
                 name: "Similar Artist".to_string(),
@@ -190,6 +194,22 @@ mod tests {
         let mut r = row("role model");
         r.artwork_url = None;
         assert!(to_response(&r).artwork.is_none());
+    }
+
+    #[test]
+    fn to_response_maps_spotify_url_when_present() {
+        let mut r = row("role model");
+        r.spotify_url = Some("https://open.spotify.com/artist/1".to_string());
+        assert_eq!(
+            to_response(&r).spotify_url.as_deref(),
+            Some("https://open.spotify.com/artist/1")
+        );
+    }
+
+    #[test]
+    fn to_response_leaves_spotify_url_none_when_absent() {
+        let r = row("role model");
+        assert!(to_response(&r).spotify_url.is_none());
     }
 
     #[test]
