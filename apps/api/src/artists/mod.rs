@@ -12,13 +12,17 @@
 //! a given artist won't have enrichment for it yet; every request after
 //! does.
 //!
-//! Provider priority is Apple Music first (verified exact-normalized-name
-//! match against catalog search), Spotify as fallback only when Apple has
-//! no verified match — mirrors the priority already established by
+//! Both Apple Music and Spotify are always looked up (verified
+//! exact-normalized-name match against each provider's own catalog
+//! search), concurrently — but Apple Music wins identity/display fields
+//! whenever it has a match (display_name, artwork, genres,
+//! similar_artists), mirroring the priority already established by
 //! `crate::apple_music::artwork_cache` and `crate::spotify::top_artists`.
-//! Similar/related artists only ever come from Apple Music's
-//! `similar-artists` view (Spotify deprecated its own for new API access —
-//! see `crate::spotify::top_artists` module docs), so an artist that only
+//! A Spotify match found alongside an Apple one only ever contributes its
+//! own id/listen link on top — see `worker::resolve_fresh`. Similar/
+//! related artists only ever come from Apple Music's `similar-artists`
+//! view (Spotify deprecated its own for new API access — see
+//! `crate::spotify::top_artists` module docs), so an artist that only
 //! Spotify could verify simply has no similar-artists list.
 
 mod cleaning;
@@ -26,6 +30,8 @@ mod db;
 mod lookup;
 #[cfg(test)]
 mod matching_eval;
+#[cfg(test)]
+mod spotify_backfill;
 mod worker;
 
 pub(crate) use lookup::attach_enrichment;

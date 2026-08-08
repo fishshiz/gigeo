@@ -158,6 +158,43 @@ pub(super) async fn touch_last_attempted(
     .map(|_| ())
 }
 
+/// Narrowly attaches a Spotify identity to an already-matched row without
+/// touching Apple identity/artwork/genres/similar_artists — the write path
+/// for the one-off Spotify backfill (see `spotify_backfill`), for a row
+/// that was matched via Apple Music before Spotify was looked up alongside
+/// it too. Guarded by `where spotify_id is null`: unlike
+/// `upsert_matched`'s unconditional `spotify_url = excluded.spotify_url`,
+/// this must never clobber a value another path already wrote (e.g. an
+/// overlapping backfill run). Deliberately doesn't touch
+/// `enrichment_refreshed_at` — that drives the dynamic-field-freshness
+/// check in `worker::resolve_one`, and bumping it here would silently push
+/// out this row's next genre/similar-artist refresh as a side effect of an
+/// unrelated write.
+///
+/// Only consumed by the `#[cfg(test)]`-gated `spotify_backfill` tool today,
+/// so a plain non-test build sees no caller.
+#[allow(dead_code)]
+pub(super) async fn attach_spotify(
+    pool: &PgPool,
+    normalized_name: &str,
+    spotify_id: &str,
+    spotify_url: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        update artists
+        set spotify_id = $2, spotify_url = $3, last_attempted_at = now()
+        where normalized_name = $1 and spotify_id is null
+        "#,
+        normalized_name,
+        spotify_id,
+        spotify_url,
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
 /// Refreshes only the fields expected to go stale on their own (genres,
 /// similar artists) for an already-matched row — identity and artwork are
 /// left untouched, per ADR-0001.

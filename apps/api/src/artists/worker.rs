@@ -7,7 +7,8 @@ use super::cleaning;
 use super::db::{self, MatchedArtist};
 use super::{ArtistCandidate, SimilarArtist};
 use crate::apple_music::client::ArtistAttributes;
-use crate::spotify::client::{Artist as SpotifyArtist, normalize_artist_name};
+use crate::auth::ClientCredentialsManager;
+use crate::spotify::client::{Artist as SpotifyArtist, SpotifyClient, normalize_artist_name};
 use crate::state::AppState;
 
 /// Apple Music's own artwork template resolved to a real photo size for an
@@ -113,7 +114,18 @@ async fn resolve_one(state: &AppState, candidate: ArtistCandidate) {
 }
 
 async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized: &str) {
-    if let Some((apple_music_id, attrs)) = try_apple_music_match(state, &candidate.name).await {
+    // Both providers are always attempted now, concurrently -- independent
+    // read-only lookups, so there's no reason to serialize them. Apple
+    // Music still wins identity/display fields when it has a match
+    // (display_name, artwork, genres, similar_artists -- see module docs /
+    // ADR-0001 on why); a Spotify match found alongside it only ever
+    // contributes spotify_id/spotify_url on top.
+    let (apple_match, spotify_match) = tokio::join!(
+        try_apple_music_match(state, &candidate.name),
+        try_spotify_match(&state.spotify, &state.cc_manager, &candidate.name),
+    );
+
+    if let Some((apple_music_id, attrs)) = apple_match {
         let similar = fetch_similar_artists(state, &apple_music_id).await;
         let artwork_url = attrs
             .artwork
@@ -127,13 +139,15 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
                 normalized_name: normalized,
                 display_name: &attrs.name,
                 apple_music_id: Some(&apple_music_id),
-                spotify_id: None,
+                spotify_id: spotify_match.as_ref().map(|a| a.id.as_str()),
                 ticketmaster_attraction_id: candidate.ticketmaster_attraction_id.as_deref(),
                 matched_via: "apple_music",
                 artwork_url: artwork_url.as_deref(),
                 artwork_bg_color: artwork_bg_color.as_deref(),
                 apple_music_url: attrs.url.as_deref(),
-                spotify_url: None,
+                spotify_url: spotify_match
+                    .as_ref()
+                    .and_then(|a| a.external_urls.spotify.as_deref()),
                 genres: &attrs.genre_names,
                 similar_artists: &similar,
             },
@@ -146,7 +160,7 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
         return;
     }
 
-    if let Some(artist) = try_spotify_match(state, &candidate.name).await {
+    if let Some(artist) = spotify_match {
         let artwork_url = artist.images.first().map(|i| i.url.as_str());
         let result = db::upsert_matched(
             &state.db.pool,
@@ -305,18 +319,24 @@ async fn try_apple_music_match(state: &AppState, name: &str) -> Option<(String, 
 }
 
 /// Verified Spotify catalog search, under the same name-match rule as
-/// `try_apple_music_match`. Only called when Apple Music had no verified
-/// match for this name.
-async fn try_spotify_match(state: &AppState, name: &str) -> Option<SpotifyArtist> {
-    let token = state.cc_manager.get_token().await.ok()?;
+/// `try_apple_music_match`. Always attempted alongside Apple Music (see
+/// `resolve_fresh`) rather than only as a fallback — takes `SpotifyClient`/
+/// `ClientCredentialsManager` directly rather than `&AppState` so it's
+/// reusable outside a live request (see `spotify_backfill`, which has no
+/// need for the rest of `AppState`'s fields).
+pub(super) async fn try_spotify_match(
+    spotify: &SpotifyClient,
+    cc_manager: &ClientCredentialsManager,
+    name: &str,
+) -> Option<SpotifyArtist> {
+    let token = cc_manager.get_token().await.ok()?;
 
     for variant in name_variants(name) {
         let normalized = normalize_artist_name(&variant);
         if normalized.is_empty() {
             continue;
         }
-        let Ok(candidates) = state
-            .spotify
+        let Ok(candidates) = spotify
             .search_artist(&token.access_token, &variant, MAX_SEARCH_CANDIDATES)
             .await
         else {
