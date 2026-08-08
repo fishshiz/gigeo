@@ -127,23 +127,34 @@ const Search = () => {
   return (
     <div className="relative w-full p-4 sm:max-w-lg">
       <div className="relative flex h-fit max-h-[80px] w-full items-center overflow-hidden rounded-xl border-1 border-gray-300 bg-white">
-        <TextField
-          id="search"
-          ref={inputRef}
-          type="text"
-          autoComplete="off"
-          aria-label="Search for a city"
-          aria-autocomplete="list"
-          aria-controls={listboxId}
-          name="search"
-          value={selectedLocation ? selectedLocation.fullAddress : searchTerm}
-          placeholder="Search for a city"
-          className="block w-full grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
-          onChange={(e) => updateSearchTerm(e)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => places.length > 1 && setIsSuggestionsOpen(true)}
-          onBlur={() => setIsSuggestionsOpen(false)}
-        />
+        {/* TextField doesn't forward arbitrary input attributes like
+            `title` down to the underlying <input> -- wrapping it in a
+            `contents` span (removed from the box model entirely, so it
+            can't affect the flex layout) is the least invasive way to
+            make the full, possibly-truncated value discoverable on
+            hover/long-press without touching the shared component. */}
+        <span
+          title={selectedLocation ? selectedLocation.fullAddress : searchTerm}
+          className="contents"
+        >
+          <TextField
+            id="search"
+            ref={inputRef}
+            type="text"
+            autoComplete="off"
+            aria-label="Search for a city"
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            name="search"
+            value={selectedLocation ? selectedLocation.fullAddress : searchTerm}
+            placeholder="Search for a city"
+            className="block w-full grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
+            onChange={(e) => updateSearchTerm(e)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => places.length > 1 && setIsSuggestionsOpen(true)}
+            onBlur={() => setIsSuggestionsOpen(false)}
+          />
+        </span>
         <DateRangePicker
           aria-label="Select timeframe"
           value={dateRange}
