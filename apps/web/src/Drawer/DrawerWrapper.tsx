@@ -8,7 +8,7 @@ import {
   DrawerClose,
 } from "@workspace/ui/components/ui/Drawer"
 import { useEventsContext } from "../providers/eventsProvider"
-import { useMediaQuery } from "usehooks-ts"
+import { useIsMobile } from "../providers/Breakpoint"
 import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react"
 import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
@@ -144,10 +144,7 @@ const DrawerWrapper = () => {
     }
   }, [isStreaming, handleDestinationTab])
 
-  const isDesktop = useMediaQuery("(min-width: 768px)", {
-    defaultValue: false,
-    initializeWithValue: false,
-  })
+  const isDesktop = !useIsMobile()
 
   const entries = Object.entries(eventsByDate).sort()
   // A single group means selectedEvents is either one event, or several
