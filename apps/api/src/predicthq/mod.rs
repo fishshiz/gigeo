@@ -2,16 +2,18 @@
 //! (`client`/`normalize`), plus a best-effort Apple Music image/link
 //! backfill (`artwork`) for events that pass through
 //! `crate::events::reconcile_predicthq_events` unmatched — PredictHQ's own
-//! API provides neither field. Cross-source dedup and the live-stream
-//! wiring live in `ticketmaster_stream` and `crate::events`.
+//! API provides neither field. `source` is this provider's
+//! `crate::events::source::EventSource` adapter — the seam
+//! `crate::events::merge` merges against. Cross-source dedup and the
+//! live-stream wiring itself live in `crate::events` now (`reconcile`,
+//! `merge`, `stream`), not here or in `ticketmaster_stream`.
 
 mod artwork;
 mod client;
 mod normalize;
+pub(crate) mod source;
 
 pub(crate) use artwork::backfill_artwork;
-pub(crate) use client::search_concerts;
-pub(crate) use normalize::normalize_predicthq_event;
 
 use crate::events::types::EventResponse;
 

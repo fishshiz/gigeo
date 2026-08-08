@@ -1,13 +1,21 @@
 //! The normalized `Event` shape and the source-agnostic logic that operates
-//! on it — personalized-discovery matching and event deduplication. Neither
-//! needs any Ticketmaster-specific knowledge; the one function that does
-//! (`TmEvent -> EventResponse` mapping) stays in `ticketmaster_stream`.
+//! on it: personalized-discovery matching, event deduplication, and
+//! cross-provider stream orchestration (`merge`/`source`/`stream`) —
+//! merging Ticketmaster and PredictHQ into one chronologically ordered
+//! feed. `ticketmaster_stream`/`predicthq` stay source-specific: raw wire
+//! shapes, HTTP fetching, and (for Ticketmaster) the one place that still
+//! needs to know Ticketmaster's raw shape (`TmEvent -> EventResponse`
+//! mapping). Each satisfies the `EventSource` interface this module
+//! defines (`source::EventSource`) via its own `source` submodule.
 
 pub mod types;
 
+mod merge;
 mod reconcile;
+pub(crate) mod source;
+mod stream;
 
-pub(crate) use reconcile::reconcile_predicthq_events;
+pub(crate) use stream::get_concerts_tm_stream;
 
 use std::collections::HashMap;
 

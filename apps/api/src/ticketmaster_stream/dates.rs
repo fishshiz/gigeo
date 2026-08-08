@@ -4,7 +4,7 @@
 
 use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
 
-pub(super) fn date_windows(start: &str, end: &str) -> Result<Vec<(String, String)>, String> {
+pub(crate) fn date_windows(start: &str, end: &str) -> Result<Vec<(String, String)>, String> {
     let start_dt = DateTime::parse_from_rfc3339(start)
         .map_err(|e| format!("invalid start datetime: {e}"))?
         .with_timezone(&Utc);
