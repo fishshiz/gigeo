@@ -10,315 +10,41 @@
 //!   one place in this module that still needs to know Ticketmaster's raw
 //!   shape; `apply_personalization`/`dedupe_key` live in `crate::events`
 //!   since they only ever touch the normalized shape
+//! - `source`: `TicketmasterSource`, this provider's `crate::events::source::EventSource`
+//!   adapter — the seam `crate::events::merge` merges against. The live
+//!   `/concerts/stream` handler itself lives in `crate::events::stream`
+//!   now, since it's genuinely cross-provider (also depends on
+//!   `crate::predicthq`), not Ticketmaster-specific.
 //!
-//! This file wires those pieces together into two HTTP handlers —
-//! `get_concerts_tm_stream` (incremental ndjson for the map, windowed and
-//! fully paginated) and `get_events_by_attraction` (a JSON array of one
-//! attraction's upcoming shows, fully paginated) — plus `fetch_events_near`,
-//! a non-streaming, non-windowed entry point used by
+//! This file wires those pieces together into `get_events_by_attraction` (a
+//! JSON array of one attraction's upcoming shows, fully paginated) plus
+//! `fetch_events_near`, a non-streaming, non-windowed entry point used by
 //! `services::playlist_builder` to find nearby artists without paying for
 //! the map's full windowed pagination on every playlist build/update
-//! (deliberately Ticketmaster-only — see `get_concerts_tm_stream` for why
-//! PredictHQ isn't part of this path).
-//!
-//! `get_concerts_tm_stream` also reconciles PredictHQ against Ticketmaster:
-//! Ticketmaster streams progressively exactly as it always has, and once
-//! both fetches complete, PredictHQ-sourced enrichment
-//! (`rank`/`predicted_attendance` on a matching Ticketmaster event) and
-//! genuinely new PredictHQ-only events are emitted as a second wave. See
-//! `crate::events::reconcile_predicthq_events` for the matching itself.
+//! (deliberately Ticketmaster-only, same reasoning as always — PredictHQ
+//! reconciliation is only worth it for the map's live browsing view).
 
 mod client;
 mod dates;
 mod normalize;
+pub(crate) mod source;
 mod types;
 
 pub use types::*;
 
+pub(crate) use dates::date_windows;
 pub(crate) use normalize::normalize_event;
 
 use crate::error::AppError;
+use crate::events::dedupe_key;
 use crate::events::types::EventResponse;
-use crate::events::{apply_personalization, dedupe_key, reconcile_predicthq_events};
-use crate::spotify::spotify_handlers::resolve_account_from_cookie_lenient;
 use crate::state::AppState;
 use axum::{
     Json,
-    body::Body,
     extract::{Query, State},
-    http::{StatusCode, header},
-    response::Response,
 };
-use axum_extra::extract::cookie::SignedCookieJar;
-use bytes::Bytes;
 use client::{fetch_tm_attraction_page, fetch_tm_page, should_fetch_next};
-use dates::date_windows;
-use futures::{StreamExt, stream::BoxStream};
-use geohash::{Coord, encode};
-use std::collections::{HashMap, HashSet};
-
-pub async fn get_concerts_tm_stream(
-    State(state): State<AppState>,
-    jar: SignedCookieJar,
-    Query(params): Query<EventsQuery>,
-) -> Result<Response, AppError> {
-    // Personalized discovery is best-effort: no session, no Spotify
-    // connection, or a failed fetch should silently disable it rather than
-    // break event browsing for everyone.
-    let personalization_matches = match resolve_account_from_cookie_lenient(&state, &jar).await {
-        Some(account_id) => {
-            crate::spotify::top_artists::get_personalization_matches(&state, account_id)
-                .await
-                .unwrap_or_else(|err| {
-                    tracing::warn!(
-                        error = %err,
-                        "failed to fetch personalized discovery matches, skipping"
-                    );
-                    HashMap::new()
-                })
-        }
-        None => HashMap::new(),
-    };
-
-    let geo_hash = encode(
-        Coord {
-            x: params.longitude,
-            y: params.latitude,
-        },
-        6,
-    )
-    .map_err(|e| AppError::TicketmasterApi {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("failed to encode geohash: {e}"),
-    })?;
-
-    let windows =
-        date_windows(&params.start, &params.end).map_err(|e| AppError::TicketmasterApi {
-            status: StatusCode::BAD_REQUEST,
-            message: e,
-        })?;
-
-    let client = state.client.clone();
-    let api_key = state.ticketmaster_key.clone();
-    let radius = params.radius;
-
-    // Kicked off now so it runs concurrently with the Ticketmaster windowed
-    // fetch below rather than adding its own round-trip afterward. Absent
-    // entirely (no task spawned) when PREDICTHQ_API_KEY isn't configured —
-    // this whole feature is best-effort and must never hold up or break
-    // Ticketmaster's own results.
-    let predicthq_handle = state.predicthq_api_key.clone().map(|predicthq_key| {
-        let client = state.client.clone();
-        let within = format!("{radius}mi@{},{}", params.latitude, params.longitude);
-        let start_gte = params.start.clone();
-        let start_lte = params.end.clone();
-        tokio::spawn(async move {
-            crate::predicthq::search_concerts(
-                &client,
-                &predicthq_key,
-                &within,
-                &start_gte,
-                &start_lte,
-            )
-            .await
-        })
-    });
-
-    let stream: BoxStream<'static, Result<Bytes, AppError>> = async_stream::try_stream! {
-        let mut seen = HashSet::<String>::new();
-        let mut ticketmaster_events = Vec::<EventResponse>::new();
-
-        for (start, end) in windows {
-            let mut page = 0_u32;
-
-            loop {
-                let body = fetch_tm_page(
-                    &client,
-                    &api_key,
-                    &geo_hash,
-                    radius,
-                    &start,
-                    &end,
-                    page,
-                ).await?;
-
-                if let Some(meta) = &body.page
-                    && meta.totalElements >= 1000
-                {
-                    tracing::warn!(
-                        start = %start,
-                        end = %end,
-                        page = meta.number,
-                        page_size = meta.size,
-                        total_pages = meta.totalPages,
-                        total_elements = meta.totalElements,
-                        "ticketmaster window may exceed deep paging limit"
-                    );
-                }
-
-                let events = body
-                    .embedded
-                    .map(|embedded| embedded.events)
-                    .unwrap_or_default();
-
-                // Deduped first so a page's worth of already-discarded
-                // duplicates don't cost a wasted spot in the batched
-                // lookup below.
-                let mut page_events: Vec<EventResponse> = Vec::new();
-                for raw in events {
-                    let mut event = normalize_event(raw);
-                    apply_personalization(&mut event, &personalization_matches);
-                    if seen.insert(dedupe_key(&event)) {
-                        page_events.push(event);
-                    }
-                }
-
-                // Plain indexed reads, not a call to Apple Music/Spotify —
-                // safe to run inline rather than detached like
-                // `spawn_enrichment` below (see `crate::artists::lookup`).
-                crate::artists::attach_enrichment(&mut page_events, &state.db.pool).await;
-
-                for event in page_events {
-                    let mut line = serde_json::to_vec(&event)
-                        .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
-                    line.push(b'\n');
-                    yield Bytes::from(line);
-                    ticketmaster_events.push(event);
-                }
-
-                let Some(meta) = body.page else {
-                    break;
-                };
-
-                if !should_fetch_next(PageLimit::All, &meta) {
-                    break;
-                }
-
-                page += 1;
-            }
-        }
-
-        // Every performer name seen this request, fed to canonical artist
-        // enrichment at the very end (see below) — collected as we go
-        // rather than re-derived later, since `new_events` below is
-        // consumed by value once PredictHQ personalization is applied to
-        // it.
-        let mut artist_candidates: Vec<crate::artists::ArtistCandidate> = ticketmaster_events
-            .iter()
-            .filter(|event| crate::events::is_music_classified(event))
-            .flat_map(|event| event.performers.iter().flatten())
-            .filter_map(|performer| {
-                performer.name.clone().map(|name| crate::artists::ArtistCandidate {
-                    name,
-                    ticketmaster_attraction_id: performer.id.clone(),
-                })
-            })
-            .collect();
-
-        // Second wave: reconcile PredictHQ against everything Ticketmaster
-        // just streamed. A failed/absent fetch degrades to "no PredictHQ
-        // data this request" rather than an error — this feature is
-        // additive and must never take down event browsing.
-        let predicthq_events = match predicthq_handle {
-            Some(handle) => match handle.await {
-                Ok(Ok(raw_events)) => raw_events
-                    .into_iter()
-                    .map(crate::predicthq::normalize_predicthq_event)
-                    .collect(),
-                Ok(Err(err)) => {
-                    tracing::warn!(error = %err, "failed to fetch PredictHQ events, skipping");
-                    Vec::new()
-                }
-                Err(join_err) => {
-                    tracing::warn!(error = %join_err, "PredictHQ fetch task failed, skipping");
-                    Vec::new()
-                }
-            },
-            None => Vec::new(),
-        };
-
-        if !predicthq_events.is_empty() {
-            let (enrichments, mut new_events) =
-                reconcile_predicthq_events(&ticketmaster_events, predicthq_events);
-
-            for event in enrichments {
-                let mut line = serde_json::to_vec(&event)
-                    .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
-                line.push(b'\n');
-                yield Bytes::from(line);
-            }
-
-            // Best-effort image/link backfill for the PredictHQ-only cards
-            // (a matched event above is already a Ticketmaster clone with
-            // its own real photo/ticket URL, so it's excluded from this).
-            // Absent entirely when Apple Music isn't configured or its
-            // developer token can't be fetched right now — same
-            // never-block-the-feed posture as the PredictHQ fetch itself.
-            if let (Some(am), Some(dev_token_mgr)) =
-                (&state.apple_music_client, &state.apple_dev_token)
-            {
-                match dev_token_mgr.get_token().await {
-                    Ok(token) => {
-                        crate::predicthq::backfill_artwork(
-                            &mut new_events,
-                            am,
-                            &token,
-                            &state.apple_artwork_cache,
-                        )
-                        .await;
-                    }
-                    Err(err) => {
-                        tracing::warn!(
-                            error = %err,
-                            "failed to fetch Apple Music developer token, skipping PredictHQ image/link backfill"
-                        );
-                    }
-                }
-            }
-
-            // PredictHQ performer ids are PredictHQ entity ids, not
-            // Ticketmaster attraction ids — a different namespace, so
-            // `ticketmaster_attraction_id` is always `None` here (see
-            // `crate::predicthq::normalize`). `performer_search_names`
-            // falls back to the event's own title for the ~28% of
-            // PredictHQ events with no structured performer entity at
-            // all, same as the image backfill above.
-            artist_candidates.extend(
-                new_events
-                    .iter()
-                    .filter(|event| crate::events::is_music_classified(event))
-                    .flat_map(|event| {
-                        crate::predicthq::performer_search_names(event)
-                            .into_iter()
-                            .map(|name| crate::artists::ArtistCandidate {
-                                name,
-                                ticketmaster_attraction_id: None,
-                            })
-                    }),
-            );
-
-            crate::artists::attach_enrichment(&mut new_events, &state.db.pool).await;
-
-            for mut event in new_events {
-                apply_personalization(&mut event, &personalization_matches);
-                let mut line = serde_json::to_vec(&event)
-                    .map_err(|e| -> AppError { AppError::TicketmasterApi { status: StatusCode::INTERNAL_SERVER_ERROR, message: e.to_string() } })?;
-                line.push(b'\n');
-                yield Bytes::from(line);
-            }
-        }
-
-        crate::artists::spawn_enrichment(&state, artist_candidates);
-    }
-    .boxed();
-
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .header(header::CACHE_CONTROL, "no-store")
-        .body(Body::from_stream(stream))
-        .unwrap())
-}
+use std::collections::HashSet;
 
 /// `GET /future-events?id=...` — every upcoming event for one attraction,
 /// fully paginated (an artist with many announced shows shouldn't be
@@ -339,10 +65,10 @@ pub async fn get_events_by_attraction(
 }
 
 /// Fetches events within `radius` miles of `geo_hash` over `[start, end]`,
-/// normalized and deduped. Unlike `get_concerts_tm_stream`, this doesn't
-/// window by calendar day — `page_limit` alone controls how far it pages
-/// into the (single) date range, so `PageLimit::First` costs exactly one
-/// Ticketmaster request.
+/// normalized and deduped. Unlike `crate::events::get_concerts_tm_stream`,
+/// this doesn't window by calendar day — `page_limit` alone controls how
+/// far it pages into the (single) date range, so `PageLimit::First` costs
+/// exactly one Ticketmaster request.
 ///
 /// Used by `services::playlist_builder`, which calls this on a 5-minute
 /// timer (the periodic updater) and doesn't need the map stream's full

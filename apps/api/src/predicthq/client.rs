@@ -178,7 +178,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn normalizes_every_real_event_without_panicking() {
-        use crate::predicthq::normalize_predicthq_event;
+        use crate::predicthq::normalize::normalize_predicthq_event;
 
         let api_key = std::env::var("PREDICTHQ_API_KEY")
             .expect("PREDICTHQ_API_KEY must be set to run this test");

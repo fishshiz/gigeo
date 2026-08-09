@@ -148,7 +148,7 @@ pub async fn build_app() -> Result<Router> {
         )
         .route(
             "/concerts/stream",
-            axum::routing::get(ticketmaster_stream::get_concerts_tm_stream),
+            axum::routing::get(events::get_concerts_tm_stream),
         )
         .route(
             "/future-events",
