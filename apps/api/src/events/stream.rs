@@ -123,11 +123,21 @@ pub async fn get_concerts_tm_stream(
                         yield to_ndjson_line(&event)?;
                     }
                 }
-                MergeStep::PredictHqEnrichments(events) => {
-                    // Already-enriched clones of already-personalized
-                    // Ticketmaster events under their original id -- no
-                    // reprocessing, just re-emit as a second-wave update.
-                    for event in events {
+                MergeStep::PredictHqEnrichments(mut events) => {
+                    // These are clones of the *pre-enrichment* Ticketmaster
+                    // events merge_events retained internally for
+                    // reconciliation (see merge.rs's `pending`) -- captured
+                    // before the MergeStep::Ticketmaster branch above ever
+                    // got to mutate its own copy with DB enrichment/
+                    // personalization. Confirmed live: without re-running
+                    // both here, a cross-source-matched event's re-emission
+                    // silently loses performer.enrichment (and any
+                    // matched_artist tag), even though it carries the same
+                    // event id as an already-enriched first-wave emission.
+                    crate::artists::attach_enrichment(&mut events, &state.db.pool).await;
+
+                    for mut event in events {
+                        apply_personalization(&mut event, &personalization_matches);
                         yield to_ndjson_line(&event)?;
                     }
                 }
