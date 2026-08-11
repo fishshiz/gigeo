@@ -1,6 +1,17 @@
 import { type EventResponse, type EventsByDate } from "../hooks/eventsStream"
 import { eventDateKey } from "../lib/dates"
 
+const normalizeVenueName = (name: string): string =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, "")
+
+const performerIdsOverlap = (a: EventResponse, b: EventResponse): boolean => {
+  const aIds = new Set(
+    (a.performers ?? []).flatMap((p) => (p.id ? [p.id] : []))
+  )
+  if (aIds.size === 0) return false
+  return (b.performers ?? []).some((p) => p.id && aIds.has(p.id))
+}
+
 type EventsAction =
   | { type: "RESET_EVENTS" }
   | { type: "UPSERT_STREAMED_EVENT"; payload: EventResponse }
@@ -23,10 +34,26 @@ function sameEvent(a: EventResponse, b: EventResponse): boolean {
   const aPerformer = a.performers?.[0]?.id ?? ""
   const bPerformer = b.performers?.[0]?.id ?? ""
 
-  return (
+  const exactMatch =
     (a.dates ?? "") === (b.dates ?? "") &&
     aVenue === bVenue &&
     aPerformer === bPerformer
+
+  if (exactMatch) return true
+
+  // Safety net for same-source duplicate listings that differ in title (and
+  // therefore in which performer lands first) -- e.g. Ticketmaster's "La
+  // Luz" vs. "La Luz w/ Spacemoth" for the same show. The backend already
+  // collapses these within a date window (see apps/api/src/events/reconcile.rs
+  // merge_same_source_duplicate); this only catches whatever slips past
+  // that, e.g. a duplicate split across two windows.
+  if (!aVenue || !bVenue || normalizeVenueName(aVenue) !== normalizeVenueName(bVenue)) {
+    return false
+  }
+
+  const aDay = eventDateKey(a)
+  return (
+    aDay !== "unknown" && aDay === eventDateKey(b) && performerIdsOverlap(a, b)
   )
 }
 

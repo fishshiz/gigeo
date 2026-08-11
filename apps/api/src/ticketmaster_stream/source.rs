@@ -9,6 +9,7 @@ use super::normalize::normalize_event;
 use super::types::PageLimit;
 use crate::error::AppError;
 use crate::events::dedupe_key;
+use crate::events::reconcile::merge_same_source_duplicate;
 use crate::events::source::{EventSource, Window};
 use crate::events::types::EventResponse;
 
@@ -86,7 +87,13 @@ impl EventSource for TicketmasterSource {
             for raw in events {
                 let event = normalize_event(raw);
                 if self.seen.insert(dedupe_key(&event)) {
-                    out.push(event);
+                    // `dedupe_key` only catches the exact same Ticketmaster
+                    // event reappearing across pagination; a second,
+                    // differently-titled TM listing of the same real show
+                    // (e.g. "La Luz" vs. "La Luz w/ Spacemoth") still needs
+                    // `merge_same_source_duplicate`'s fuzzy venue+day+
+                    // performer match to collapse within this window.
+                    merge_same_source_duplicate(&mut out, event);
                 }
             }
 

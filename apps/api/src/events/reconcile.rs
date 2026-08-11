@@ -1,10 +1,17 @@
-//! Cross-source dedup: deciding whether a PredictHQ event is the same show
-//! as an already-normalized Ticketmaster event, or genuinely new coverage.
+//! Fuzzy same-show matching: deciding whether two independently-sourced
+//! event listings describe the same real-world show. `same_show` is the one
+//! identity check, used two ways — `reconcile_predicthq_events` applies it
+//! cross-source (PredictHQ against already-normalized Ticketmaster events),
+//! `merge_same_source_duplicate` applies it same-source (two differently-titled
+//! Ticketmaster listings of the same show, e.g. "La Luz" vs. "La Luz w/
+//! Spacemoth").
 //!
 //! Deliberately a separate concept from `dedupe_key` — that handles the same
 //! Ticketmaster event reappearing across overlapping date windows (same
-//! source, same identity, literal duplicate). This handles two different
-//! sources' independent listings of what might be the same real-world show.
+//! source, same identity, literal duplicate, matched on exact fields
+//! including title). `same_show` is title-blind and matches on venue +
+//! calendar day + performer overlap instead, because none of its callers can
+//! assume the two sides agree on a title string.
 
 use std::collections::HashSet;
 
@@ -47,9 +54,51 @@ fn find_matching_ticketmaster_event<'a>(
     ticketmaster_events: &'a [EventResponse],
     phq_event: &EventResponse,
 ) -> Option<&'a EventResponse> {
-    ticketmaster_events.iter().find(|tm| {
-        venue_and_date_match(tm, phq_event) && performer_confirms_or_absent(tm, phq_event)
-    })
+    ticketmaster_events.iter().find(|tm| same_show(tm, phq_event))
+}
+
+/// Same venue + same calendar day, confirmed by performer-name overlap
+/// whenever both sides have performer data. The one identity check this
+/// module builds, shared by both directions it's used in: cross-source
+/// (`reconcile_predicthq_events`, above) and same-source
+/// (`merge_same_source_duplicate`, below) — deliberately title-blind, since
+/// neither case can rely on the two sides agreeing on a title string.
+pub(crate) fn same_show(a: &EventResponse, b: &EventResponse) -> bool {
+    venue_and_date_match(a, b) && performer_confirms_or_absent(a, b)
+}
+
+/// Collapses same-source (Ticketmaster) duplicate listings of the same real
+/// show within a single date window into one entry in `out` — e.g.
+/// Ticketmaster listing both "La Luz" and "La Luz w/ Spacemoth" as separate
+/// events for the same venue/date/headliner, one carrying the full bill and
+/// one not (confirmed live in Denver search results). Distinct from
+/// `dedupe_key`, which only catches the exact same Ticketmaster event
+/// reappearing across overlapping pagination windows (same id/fields,
+/// literal duplicate); this catches two different Ticketmaster event ids
+/// that `same_show` agrees describe one real show.
+///
+/// When `event` matches an existing entry, keeps whichever has more
+/// performers listed (the fuller bill), tie-broken by longer title — a
+/// heuristic for "the more complete listing wins", not a guarantee of
+/// picking whichever Ticketmaster considers canonical.
+pub(crate) fn merge_same_source_duplicate(out: &mut Vec<EventResponse>, event: EventResponse) {
+    match out.iter_mut().find(|existing| same_show(existing, &event)) {
+        Some(existing) => {
+            if is_richer(&event, existing) {
+                *existing = event;
+            }
+        }
+        None => out.push(event),
+    }
+}
+
+fn is_richer(a: &EventResponse, b: &EventResponse) -> bool {
+    let a_count = a.performers.as_ref().map_or(0, |p| p.len());
+    let b_count = b.performers.as_ref().map_or(0, |p| p.len());
+    if a_count != b_count {
+        return a_count > b_count;
+    }
+    a.name.len() > b.name.len()
 }
 
 fn venue_and_date_match(a: &EventResponse, b: &EventResponse) -> bool {
@@ -500,6 +549,94 @@ mod tests {
         assert_eq!(enrichments.len(), 1);
         assert_eq!(enrichments[0].id, "tm-1");
         assert!(new_events.is_empty());
+    }
+
+    #[test]
+    fn merge_same_source_duplicate_collapses_a_richer_listing_into_the_plainer_one() {
+        // The confirmed-live bug: Ticketmaster listed the same Denver show
+        // twice under different event ids -- bare "La Luz", and "La Luz w/
+        // Spacemoth" with Spacemoth as an added attraction -- same venue,
+        // same date, same headliner.
+        let mut out = vec![with_performers(
+            event("tm-la-luz", "Bluebird Theater", "2026-08-14T02:00:00Z"),
+            &["La Luz"],
+        )];
+
+        let mut fuller = with_performers(
+            event(
+                "tm-la-luz-spacemoth",
+                "Bluebird Theater",
+                "2026-08-14T02:00:00Z",
+            ),
+            &["La Luz", "Spacemoth"],
+        );
+        fuller.name = "La Luz w/ Spacemoth".to_string();
+
+        merge_same_source_duplicate(&mut out, fuller);
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "La Luz w/ Spacemoth");
+        assert_eq!(out[0].performers.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn merge_same_source_duplicate_keeps_the_richer_entry_when_the_plainer_one_arrives_second() {
+        let mut fuller = with_performers(
+            event(
+                "tm-la-luz-spacemoth",
+                "Bluebird Theater",
+                "2026-08-14T02:00:00Z",
+            ),
+            &["La Luz", "Spacemoth"],
+        );
+        fuller.name = "La Luz w/ Spacemoth".to_string();
+        let mut out = vec![fuller];
+
+        let plainer = with_performers(
+            event("tm-la-luz", "Bluebird Theater", "2026-08-14T02:00:00Z"),
+            &["La Luz"],
+        );
+
+        merge_same_source_duplicate(&mut out, plainer);
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "La Luz w/ Spacemoth");
+    }
+
+    #[test]
+    fn merge_same_source_duplicate_breaks_an_equal_performer_count_tie_on_title_length() {
+        let mut out = vec![with_performers(
+            event("tm-1", "Bluebird Theater", "2026-08-14T02:00:00Z"),
+            &["La Luz"],
+        )];
+
+        let mut fuller_title = with_performers(
+            event("tm-2", "Bluebird Theater", "2026-08-14T02:00:00Z"),
+            &["La Luz"],
+        );
+        fuller_title.name = "La Luz (Doors at 7pm)".to_string();
+
+        merge_same_source_duplicate(&mut out, fuller_title);
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "La Luz (Doors at 7pm)");
+    }
+
+    #[test]
+    fn merge_same_source_duplicate_leaves_genuinely_different_shows_separate() {
+        let mut out = vec![with_performers(
+            event("tm-1", "Bluebird Theater", "2026-08-14T02:00:00Z"),
+            &["La Luz"],
+        )];
+
+        let other = with_performers(
+            event("tm-2", "Bluebird Theater", "2026-08-15T02:00:00Z"),
+            &["Another Band"],
+        );
+
+        merge_same_source_duplicate(&mut out, other);
+
+        assert_eq!(out.len(), 2);
     }
 
     #[test]

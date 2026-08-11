@@ -63,6 +63,80 @@ describe("sameEvent", () => {
     const b = makeEvent({ id: "tm-2", dates: "2026-08-02T20:00:00Z" })
     expect(sameEvent(a, b)).toBe(false)
   })
+
+  it("is true for two Ticketmaster listings of the same show under different titles", () => {
+    // The confirmed-live Denver bug: "La Luz" and "La Luz w/ Spacemoth" are
+    // two different Ticketmaster event ids, same venue/date, but the added
+    // Spacemoth attraction shifts performers[0] on one of them, so the exact
+    // match fails -- this is the fuzzy fallback that should still catch it.
+    const a = makeEvent({
+      id: "tm-la-luz",
+      name: "La Luz",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "Bluebird Theater", images: [] },
+      performers: [{ id: "artist-la-luz" }],
+    })
+    const b = makeEvent({
+      id: "tm-la-luz-spacemoth",
+      name: "La Luz w/ Spacemoth",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "Bluebird Theater", images: [] },
+      performers: [{ id: "artist-spacemoth" }, { id: "artist-la-luz" }],
+    })
+    expect(sameEvent(a, b)).toBe(true)
+  })
+
+  it("is true when venue names differ only in case and punctuation", () => {
+    const a = makeEvent({
+      id: "tm-1",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "The Bluebird Theater", images: [] },
+      performers: [{ id: "artist-1" }],
+    })
+    const b = makeEvent({
+      id: "tm-2",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "the bluebird theater!", images: [] },
+      performers: [{ id: "artist-1" }],
+    })
+    expect(sameEvent(a, b)).toBe(true)
+  })
+
+  it("is false when venue and day match but no performer overlaps", () => {
+    // Guards against merging two genuinely different shows sharing a venue
+    // and day (e.g. a matinee and an evening show).
+    const a = makeEvent({
+      id: "tm-1",
+      dates: "2026-08-14T18:00:00Z",
+      venue: { name: "Bluebird Theater", images: [] },
+      performers: [{ id: "artist-1" }],
+    })
+    const b = makeEvent({
+      id: "tm-2",
+      dates: "2026-08-14T18:00:00Z",
+      venue: { name: "Bluebird Theater", images: [] },
+      performers: [{ id: "artist-2" }],
+    })
+    expect(sameEvent(a, b)).toBe(false)
+  })
+
+  it("is false when neither side has a venue name, even with matching date and overlapping performers", () => {
+    // Different performers[0] (so the exact-match branch can't short-circuit
+    // this before the fuzzy path even runs) but a shared second performer,
+    // and no venue name on either side -- venue absence alone should block
+    // the fuzzy fallback rather than treating "" as a matching venue.
+    const a = makeEvent({
+      id: "tm-1",
+      dates: "2026-08-14T02:00:00Z",
+      performers: [{ id: "artist-2" }, { id: "artist-1" }],
+    })
+    const b = makeEvent({
+      id: "tm-2",
+      dates: "2026-08-14T02:00:00Z",
+      performers: [{ id: "artist-1" }],
+    })
+    expect(sameEvent(a, b)).toBe(false)
+  })
 })
 
 describe("sortEvents", () => {
