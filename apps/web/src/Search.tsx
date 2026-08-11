@@ -148,7 +148,8 @@ const Search = () => {
             name="search"
             value={selectedLocation ? selectedLocation.fullAddress : searchTerm}
             placeholder="Search for a city"
-            className="block w-full grow border-r-1 border-gray-300 p-0 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:outline-none [&>input]:border-none"
+            className="block w-full grow border-r-1 border-gray-300 p-0 outline-none focus:outline-none [&>input]:border-none"
+            inputClassName="truncate text-base text-gray-900 placeholder:text-gray-400"
             onChange={(e) => updateSearchTerm(e)}
             onKeyDown={handleKeyDown}
             onFocus={() => places.length > 1 && setIsSuggestionsOpen(true)}
