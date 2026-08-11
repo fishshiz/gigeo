@@ -54,7 +54,9 @@ fn find_matching_ticketmaster_event<'a>(
     ticketmaster_events: &'a [EventResponse],
     phq_event: &EventResponse,
 ) -> Option<&'a EventResponse> {
-    ticketmaster_events.iter().find(|tm| same_show(tm, phq_event))
+    ticketmaster_events
+        .iter()
+        .find(|tm| same_show(tm, phq_event))
 }
 
 /// Same venue + same calendar day, confirmed by performer-name overlap
