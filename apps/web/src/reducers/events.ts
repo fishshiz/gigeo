@@ -1,8 +1,24 @@
 import { type EventResponse, type EventsByDate } from "../hooks/eventsStream"
 import { eventDateKey } from "../lib/dates"
 
-const normalizeVenueName = (name: string): string =>
-  name.toLowerCase().replace(/[^a-z0-9]+/g, "")
+// Mirrors apps/api/src/events/reconcile.rs's normalize_venue_spelling --
+// folds British/American spelling variants (confirmed live: Ticketmaster's
+// "Bluebird Theatre" vs. PredictHQ's "Bluebird Theater" for the same Denver
+// venue) before stripping punctuation, so this fallback can catch the same
+// case as the backend's cross-source matcher.
+const VENUE_SPELLING_ALIASES: [RegExp, string][] = [
+  [/theatre/g, "theater"],
+  [/centre/g, "center"],
+]
+
+const normalizeVenueName = (name: string): string => {
+  const lower = name.toLowerCase()
+  const aliased = VENUE_SPELLING_ALIASES.reduce(
+    (acc, [variant, canonical]) => acc.replace(variant, canonical),
+    lower
+  )
+  return aliased.replace(/[^a-z0-9]+/g, "")
+}
 
 const performerIdsOverlap = (a: EventResponse, b: EventResponse): boolean => {
   const aIds = new Set(
