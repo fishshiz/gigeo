@@ -47,6 +47,18 @@ pub(super) async fn get_artist(
 /// than overwriting, since `worker.rs` never calls this for a row it
 /// already found matched (see `resolve_one`'s dispatch). Everything else
 /// (artwork, genres, similar artists) is refreshed unconditionally.
+///
+/// `apple_music_id`/`spotify_id`/`ticketmaster_attraction_id` each have
+/// their own partial unique index (`migrations/006_artists.sql`) enforcing
+/// one canonical row per real-world artist identity — deliberate, per
+/// ADR-0001. But more than one `normalized_name` can legitimately resolve
+/// to the *same* identity: e.g. a plain Ticketmaster attraction name
+/// alongside PredictHQ's event-title-as-performer-name fallback for the
+/// same real artist (confirmed live — "LCD Soundsystem" and several others
+/// hit exactly this). `attach_enrichment` looks up by `normalized_name`
+/// only, so a losing name variant still needs *a* row to ever show
+/// enrichment, even though it can't hold the identity field's unique slot
+/// itself — see `upsert_matched`'s retry-without-that-field fallback.
 pub(super) struct MatchedArtist<'a> {
     pub normalized_name: &'a str,
     pub display_name: &'a str,
@@ -63,10 +75,42 @@ pub(super) struct MatchedArtist<'a> {
     pub similar_artists: &'a [SimilarArtist],
 }
 
+/// Upserts a resolved match, retrying with an already-claimed identity
+/// field cleared if it collides with a different `normalized_name`'s row
+/// (see `MatchedArtist`'s doc comment). Bounded to at most one retry per
+/// identity field — `apple_music_id`, then `spotify_id`, then
+/// `ticketmaster_attraction_id` — so this always terminates: each retry
+/// permanently nulls the offending field out of `row` before trying again,
+/// and there are only three such fields to exhaust.
 pub(super) async fn upsert_matched(
     pool: &PgPool,
-    row: MatchedArtist<'_>,
+    mut row: MatchedArtist<'_>,
 ) -> Result<(), sqlx::Error> {
+    loop {
+        match execute_upsert_matched(pool, &row).await {
+            Ok(()) => return Ok(()),
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                match db_err.constraint() {
+                    Some("artists_apple_music_id_idx") if row.apple_music_id.is_some() => {
+                        row.apple_music_id = None;
+                    }
+                    Some("artists_spotify_id_idx") if row.spotify_id.is_some() => {
+                        row.spotify_id = None;
+                    }
+                    Some("artists_ticketmaster_attraction_id_idx")
+                        if row.ticketmaster_attraction_id.is_some() =>
+                    {
+                        row.ticketmaster_attraction_id = None;
+                    }
+                    _ => return Err(sqlx::Error::Database(db_err)),
+                }
+            }
+            Err(err) => return Err(err),
+        }
+    }
+}
+
+async fn execute_upsert_matched(pool: &PgPool, row: &MatchedArtist<'_>) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         insert into artists (
