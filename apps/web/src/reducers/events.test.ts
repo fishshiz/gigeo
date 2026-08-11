@@ -64,10 +64,9 @@ describe("sameEvent", () => {
     expect(sameEvent(a, b)).toBe(false)
   })
 
-  it("is true for two Ticketmaster listings of the same show under different titles", () => {
-    // The confirmed-live Denver bug: "La Luz" and "La Luz w/ Spacemoth" are
-    // two different Ticketmaster event ids, same venue/date, but the added
-    // Spacemoth attraction shifts performers[0] on one of them, so the exact
+  it("is true for two same-source listings of the same show under different titles", () => {
+    // A same-source (e.g. two Ticketmaster) duplicate: same venue/date, but
+    // an added attraction shifts performers[0] on one of them, so the exact
     // match fails -- this is the fuzzy fallback that should still catch it.
     const a = makeEvent({
       id: "tm-la-luz",
@@ -82,6 +81,24 @@ describe("sameEvent", () => {
       dates: "2026-08-14T02:00:00Z",
       venue: { name: "Bluebird Theater", images: [] },
       performers: [{ id: "artist-spacemoth" }, { id: "artist-la-luz" }],
+    })
+    expect(sameEvent(a, b)).toBe(true)
+  })
+
+  it("is true when venue names differ by British/American spelling (Theatre vs Theater)", () => {
+    // The confirmed-live Denver bug: Ticketmaster's "Bluebird Theatre" vs.
+    // PredictHQ's "Bluebird Theater" for the same real venue and show.
+    const a = makeEvent({
+      id: "tm-la-luz",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "Bluebird Theatre", images: [] },
+      performers: [{ id: "artist-la-luz" }, { id: "artist-spacemoth" }],
+    })
+    const b = makeEvent({
+      id: "phq-la-luz",
+      dates: "2026-08-14T02:00:00Z",
+      venue: { name: "Bluebird Theater", images: [] },
+      performers: [{ id: "artist-la-luz" }],
     })
     expect(sameEvent(a, b)).toBe(true)
   })

@@ -1,10 +1,13 @@
 //! Fuzzy same-show matching: deciding whether two independently-sourced
 //! event listings describe the same real-world show. `same_show` is the one
 //! identity check, used two ways — `reconcile_predicthq_events` applies it
-//! cross-source (PredictHQ against already-normalized Ticketmaster events),
-//! `merge_same_source_duplicate` applies it same-source (two differently-titled
-//! Ticketmaster listings of the same show, e.g. "La Luz" vs. "La Luz w/
-//! Spacemoth").
+//! cross-source (PredictHQ against already-normalized Ticketmaster events;
+//! this is the path that caught the confirmed-live Denver bug where
+//! Ticketmaster's "La Luz w/ Spacemoth" at "Bluebird Theatre" and
+//! PredictHQ's "La Luz" at "Bluebird Theater" showed as two cards --
+//! see `normalize_venue_spelling`), `merge_same_source_duplicate` applies
+//! it same-source (two differently-titled Ticketmaster listings of the
+//! same show).
 //!
 //! Deliberately a separate concept from `dedupe_key` — that handles the same
 //! Ticketmaster event reappearing across overlapping date windows (same
@@ -71,13 +74,16 @@ pub(crate) fn same_show(a: &EventResponse, b: &EventResponse) -> bool {
 
 /// Collapses same-source (Ticketmaster) duplicate listings of the same real
 /// show within a single date window into one entry in `out` — e.g.
-/// Ticketmaster listing both "La Luz" and "La Luz w/ Spacemoth" as separate
-/// events for the same venue/date/headliner, one carrying the full bill and
-/// one not (confirmed live in Denver search results). Distinct from
+/// Ticketmaster listing the same show twice under different event ids and
+/// titles, one carrying a fuller bill than the other. Distinct from
 /// `dedupe_key`, which only catches the exact same Ticketmaster event
 /// reappearing across overlapping pagination windows (same id/fields,
 /// literal duplicate); this catches two different Ticketmaster event ids
-/// that `same_show` agrees describe one real show.
+/// that `same_show` agrees describe one real show. (The confirmed-live
+/// Denver "La Luz" duplicate that motivated `same_show` itself turned out to
+/// be cross-source, not same-source -- see `normalize_venue_spelling` --
+/// but the same-source case this function handles is a real, distinct
+/// failure mode of `dedupe_key` and worth guarding independently.)
 ///
 /// When `event` matches an existing entry, keeps whichever has more
 /// performers listed (the fuller bill), tie-broken by longer title — a
@@ -114,7 +120,9 @@ fn venue_and_date_match(a: &EventResponse, b: &EventResponse) -> bool {
 }
 
 /// Venues match on an exact normalized name, e.g. both sources spelling
-/// "Thompson's Point" the same way once case/punctuation is stripped.
+/// "Thompson's Point" the same way once case/punctuation is stripped (and,
+/// per `normalize_venue_spelling`, once British/American word variants like
+/// "Theatre"/"Theater" are folded together).
 ///
 /// Real sources don't always agree on *which* name to use for the same
 /// physical venue, though — observed in Portland, ME testing: PredictHQ
@@ -146,8 +154,33 @@ fn venues_match(a: &EventResponse, b: &EventResponse) -> bool {
 
 fn venue_key(event: &EventResponse) -> Option<String> {
     let name = event.venue.as_ref()?.name.as_deref()?;
-    Some(normalize_artist_name(name))
+    Some(normalize_artist_name(&normalize_venue_spelling(name)))
 }
+
+/// Folds away British/American spelling variants different sources use
+/// inconsistently for the same physical venue -- confirmed live: Ticketmaster's
+/// "Bluebird Theatre" vs. PredictHQ's "Bluebird Theater" for the identical
+/// Denver venue. `normalize_artist_name` only lowercases and strips
+/// punctuation, so without this the two remain genuinely different strings;
+/// this runs first so the exact-name path above can still catch them,
+/// rather than falling through to the geo-proximity fallback, which missed
+/// this same pair -- their geocoding sits ~0.53mi apart, well outside
+/// `VENUE_PROXIMITY_MILES_THRESHOLD`.
+///
+/// Plain substring replacement, not word-boundary-aware -- deliberately
+/// simple, since venue names are proper nouns where an unintended mid-word
+/// collision (e.g. "amphitheatre" also folding to "amphitheater") is not a
+/// realistic false-positive risk, and is in fact still the correct spelling
+/// normalization in that case too.
+fn normalize_venue_spelling(name: &str) -> String {
+    let mut normalized = name.to_lowercase();
+    for (variant, canonical) in VENUE_SPELLING_ALIASES {
+        normalized = normalized.replace(variant, canonical);
+    }
+    normalized
+}
+
+const VENUE_SPELLING_ALIASES: &[(&str, &str)] = &[("theatre", "theater"), ("centre", "center")];
 
 /// Miles within which two differently-named venues are treated as the same
 /// physical complex, provided performer names also confirm the match. Wide
@@ -437,6 +470,47 @@ mod tests {
             "one longfellow square",
             "2026-08-07T23:00:00Z",
             36,
+        )];
+
+        let (enrichments, _) = reconcile_predicthq_events(&tm, phq);
+
+        assert_eq!(enrichments.len(), 1);
+    }
+
+    #[test]
+    fn venue_match_treats_theatre_and_theater_spelling_as_the_same_venue() {
+        // The confirmed-live Denver bug this regression-tests: Ticketmaster's
+        // "La Luz w/ Spacemoth" at "Bluebird Theatre" and PredictHQ's "La
+        // Luz" at "Bluebird Theater" -- same real venue, same night, but the
+        // spelling difference defeated the exact-name match, and the two
+        // providers' own geocoding for it sits ~0.53mi apart (further than
+        // `VENUE_PROXIMITY_MILES_THRESHOLD`), so the geo fallback missed it
+        // too.
+        let tm = vec![with_performers(
+            event("tm-la-luz", "Bluebird Theatre", "2026-08-14T02:00:00Z"),
+            &["La Luz", "Spacemoth"],
+        )];
+        let phq = vec![with_performers(
+            phq_event("phq-la-luz", "Bluebird Theater", "2026-08-14T02:00:00Z", 41),
+            &["La Luz"],
+        )];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert_eq!(enrichments.len(), 1);
+        assert_eq!(enrichments[0].id, "tm-la-luz");
+        assert_eq!(enrichments[0].rank, Some(41));
+        assert!(new_events.is_empty());
+    }
+
+    #[test]
+    fn venue_match_treats_centre_and_center_spelling_as_the_same_venue() {
+        let tm = vec![event("tm-1", "Bell Centre", "2026-08-07T23:00:00Z")];
+        let phq = vec![phq_event(
+            "phq-1",
+            "Bell Center",
+            "2026-08-07T23:00:00Z",
+            50,
         )];
 
         let (enrichments, _) = reconcile_predicthq_events(&tm, phq);
