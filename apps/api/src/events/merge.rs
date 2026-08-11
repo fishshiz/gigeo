@@ -30,8 +30,13 @@ use crate::error::AppError;
 pub(crate) enum MergeStep {
     /// This window's Ticketmaster wave.
     Ticketmaster(Vec<EventResponse>),
-    /// PredictHQ enrichments for one calendar day (clones of already-
-    /// emitted Ticketmaster events with rank/predicted_attendance set).
+    /// PredictHQ enrichments for one calendar day: clones of the
+    /// already-emitted Ticketmaster events with rank/predicted_attendance
+    /// set. Cloned from the *pre-enrichment* snapshot this module retains
+    /// internally (`pending`, below) -- callers still need to run their own
+    /// DB enrichment/personalization steps on these, same as any other
+    /// step, despite the shared event id with an already-processed
+    /// first-wave emission.
     PredictHqEnrichments(Vec<EventResponse>),
     /// New PredictHQ-only events for one calendar day, pre-artwork-backfill.
     PredictHqNew(Vec<EventResponse>),
