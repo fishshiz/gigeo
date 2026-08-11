@@ -11,7 +11,7 @@
 pub mod types;
 
 mod merge;
-mod reconcile;
+pub(crate) mod reconcile;
 pub(crate) mod source;
 mod stream;
 
