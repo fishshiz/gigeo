@@ -1,4 +1,6 @@
 import type { AmArtistFull, ExternalLinks } from "./lib/types"
+import { useDateFormatter } from "react-aria"
+import { parseAbsolute } from "@internationalized/date"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
@@ -21,7 +23,7 @@ import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
-import { formatTime } from "./lib/dates"
+import { formatDate, formatTime } from "./lib/dates"
 import { ticketmasterAttractionIds } from "./lib/performers"
 
 /** PredictHQ never provides a ticket purchase link -- when `url` is set on
@@ -39,7 +41,11 @@ const venueLine = (venue: EventResponse["venue"]) =>
     .filter(Boolean)
     .join(", ") || "—"
 
-const formatPriceRange = (range: { currency: string; min: number; max: number }) => {
+const formatPriceRange = (range: {
+  currency: string
+  min: number
+  max: number
+}) => {
   const formatter = new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: range.currency,
@@ -98,7 +104,10 @@ const EventDetails = ({
       })
       .then((events: EventResponse[]) => {
         if (!isMountedRef.current) return
-        setFutureEvents((prev) => ({ ...prev, [id]: { status: "loaded", events } }))
+        setFutureEvents((prev) => ({
+          ...prev,
+          [id]: { status: "loaded", events },
+        }))
       })
       .catch((e) => {
         console.error("Failed to fetch future events", e)
@@ -161,11 +170,16 @@ const EventDetails = ({
         {showStickyHeader && (
           <motion.div
             key="sticky-header"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            initial={
+              shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }
+            }
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
-            className="sticky top-0 z-sticky flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 pe-14 ps-3 text-xs text-slate-100 backdrop-blur"
+            transition={{
+              duration: MOTION_DURATION.base,
+              ease: MOTION_EASE.out,
+            }}
+            className="sticky top-0 z-sticky flex items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-950/90 py-2 ps-3 pe-14 text-xs text-slate-100 backdrop-blur"
           >
             <div className="flex min-w-0 items-center">
               {/* bg-(--surface-secondary) is repeated under dark: because Button's
@@ -174,11 +188,14 @@ const EventDetails = ({
                   the unprefixed override (confirmed empirically, not assumed). */}
               <Button
                 aria-label="Back to events"
-                className="z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+                className="z-10 touch-manipulation bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary)"
                 variant="secondary"
                 onClick={() => selectEvents([])}
               >
-                <ArrowLeftIcon aria-hidden className="h-4 w-4 rtl:-scale-x-100" />
+                <ArrowLeftIcon
+                  aria-hidden
+                  className="h-4 w-4 rtl:-scale-x-100"
+                />
               </Button>
               <div className="ms-2 flex min-w-0 flex-col">
                 <div className="truncate font-semibold">{eventData.name}</div>
@@ -186,7 +203,9 @@ const EventDetails = ({
                   <span dir="ltr" className="truncate">
                     {eventData.datesPretty}
                   </span>
-                  <span className="truncate">· {eventData.venue?.name ?? "—"}</span>
+                  <span className="truncate">
+                    · {eventData.venue?.name ?? "—"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -216,14 +235,19 @@ const EventDetails = ({
         {!showStickyHeader && (
           <motion.div
             key="hero-back"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            initial={
+              shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }
+            }
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
+            transition={{
+              duration: MOTION_DURATION.base,
+              ease: MOTION_EASE.out,
+            }}
           >
             <Button
               aria-label="Back to events"
-              className="absolute top-2 start-2 z-10 touch-manipulation bg-(--surface-secondary) dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+              className="absolute start-2 top-2 z-10 touch-manipulation bg-(--surface-secondary) max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] dark:border-(--color-border-subtle-dark-200) dark:bg-(--surface-secondary)"
               variant="secondary"
               onClick={() => selectEvents([])}
             >
@@ -237,14 +261,19 @@ const EventDetails = ({
         {!showStickyHeader && eventData.url && (
           <motion.div
             key="hero-tickets"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            initial={
+              shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }
+            }
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE.out }}
+            transition={{
+              duration: MOTION_DURATION.base,
+              ease: MOTION_EASE.out,
+            }}
           >
             <Link
               variant="button"
-              className="absolute top-2 end-14 z-10 touch-manipulation bg-(--accent-bg) text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+              className="absolute end-14 top-2 z-10 touch-manipulation bg-(--accent-bg) text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               href={eventData.url}
               target="_blank"
             >
@@ -255,13 +284,13 @@ const EventDetails = ({
       </AnimatePresence>
 
       <div className="relative">
-        <div className="absolute top-0 start-0 z-[1] h-full w-full bg-gradient-to-t from-(--surface-scrim) to-transparent opacity-85" />
+        <div className="absolute start-0 top-0 z-[1] h-full w-full bg-gradient-to-t from-(--surface-scrim) to-transparent opacity-85" />
         <ResponsiveImage
           sources={eventData.images}
           alt={eventData.name}
           loading="eager"
         />
-        <h3 className="absolute bottom-2 start-2 end-2 z-[2] line-clamp-2 text-2xl font-semibold text-(--text-on-scrim)">
+        <h3 className="absolute start-2 end-2 bottom-2 z-[2] line-clamp-2 text-2xl font-semibold text-(--text-on-scrim)">
           {eventData.name}
         </h3>
       </div>
@@ -411,7 +440,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       // shadow rule -- bgColor is a dynamic per-artist value, so a fixed
       // neutral white-overlay ring (not a specific brand-hued border
       // primitive) is the one that won't clash with it.
-      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:border dark:border-white/10 dark:shadow-none dark:text-(--color-text-secondary-600)"
+      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:border dark:border-white/10 dark:text-(--color-text-secondary-600) dark:shadow-none"
       style={{ backgroundColor: bgColor }}
     >
       {/* Artwork block with bgColor */}
@@ -459,7 +488,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
       </div>
 
       {/* Text / metadata */}
-      <div className="min-w-0 flex flex-1 flex-col justify-between">
+      <div className="flex min-w-0 flex-1 flex-col justify-between">
         {similarArtists.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xs tracking-wide text-slate-400 uppercase">
@@ -569,6 +598,10 @@ const UpcomingEventsSkeleton = () => (
 const UpcomingEvents = (
   props: FutureEventsState & { onRetry?: () => void }
 ) => {
+  const dateFormatter = useDateFormatter({
+    month: "short",
+    day: "numeric",
+  })
   const { status, onRetry } = props
   const events = status === "loaded" ? props.events : []
   const loadingPhase = useLoadingPhase(status === "loading")
@@ -608,7 +641,9 @@ const UpcomingEvents = (
             {...fade}
             className="mt-1 flex items-center justify-between gap-2 text-sm"
           >
-            <span className="text-slate-400">Couldn't load upcoming events.</span>
+            <span className="text-slate-400">
+              Couldn't load upcoming events.
+            </span>
             {onRetry && (
               <button
                 type="button"
@@ -629,12 +664,18 @@ const UpcomingEvents = (
                   return (
                     <li
                       key={e.id}
-                      className="flex items-start gap-2 border-b border-slate-700/50 pb-2 last:border-b-0"
+                      className="grid grid-cols-6 gap-4 border-b border-slate-700/50 pb-2 last:border-b-0"
                     >
                       <span dir="ltr" className="shrink-0">
-                        {e.datesPretty}
+                        {e.dates
+                          ? e.dates.includes("T")
+                            ? dateFormatter.format(
+                                parseAbsolute(e.dates, "UTC").toDate()
+                              )
+                            : formatDate(e.dates)
+                          : e.datesPretty}
                       </span>
-                      <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="col-start-2 col-end-6 flex min-w-0 flex-1 flex-col">
                         <span className="truncate font-semibold text-slate-600">
                           {e.name}
                         </span>
