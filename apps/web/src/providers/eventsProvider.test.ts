@@ -57,25 +57,15 @@ describe("matchedPerformerGenres", () => {
     expect(matchedPerformerGenres(makeEvent())).toEqual([])
   })
 
-  it("returns the matched performer's enrichment genres", () => {
+  it("returns the matched performer's genres", () => {
     const event = makeEvent({
       matchedArtist: "Role Model",
-      performers: [
-        {
-          name: "Role Model",
-          enrichment: {
-            name: "Role Model",
-            id: "am-1",
-            genres: ["Pop", "Indie"],
-            similar_artists: [],
-          },
-        },
-      ],
+      performers: [{ name: "Role Model", genres: ["Pop", "Indie"] }],
     })
     expect(matchedPerformerGenres(event)).toEqual(["Pop", "Indie"])
   })
 
-  it("returns an empty array when the matched performer has no enrichment yet", () => {
+  it("returns an empty array when the matched performer has no genres yet", () => {
     const event = makeEvent({
       matchedArtist: "Role Model",
       performers: [{ name: "Role Model" }],
@@ -117,20 +107,10 @@ describe("matchesForYouFilter", () => {
     ).toBe(false)
   })
 
-  it("matches on a selected genre from the matched performer's enrichment", () => {
+  it("matches on a selected genre from the matched performer's genres", () => {
     const event = makeEvent({
       matchedArtist: "Role Model",
-      performers: [
-        {
-          name: "Role Model",
-          enrichment: {
-            name: "Role Model",
-            id: "am-1",
-            genres: ["Pop"],
-            similar_artists: [],
-          },
-        },
-      ],
+      performers: [{ name: "Role Model", genres: ["Pop"] }],
     })
     expect(matchesForYouFilter(event, new Set(), new Set(["Pop"]))).toBe(true)
   })
@@ -138,17 +118,7 @@ describe("matchesForYouFilter", () => {
   it("doesn't match a selected genre the matched performer doesn't have", () => {
     const event = makeEvent({
       matchedArtist: "Role Model",
-      performers: [
-        {
-          name: "Role Model",
-          enrichment: {
-            name: "Role Model",
-            id: "am-1",
-            genres: ["Pop"],
-            similar_artists: [],
-          },
-        },
-      ],
+      performers: [{ name: "Role Model", genres: ["Pop"] }],
     })
     expect(matchesForYouFilter(event, new Set(), new Set(["Rock"]))).toBe(
       false

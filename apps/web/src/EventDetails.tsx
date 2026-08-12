@@ -21,6 +21,7 @@ import SpotifyLogo from "@/assets/Primary_Logo_Green_CMYK.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
+import { amArtistFullSchema, type Performer } from "./hooks/eventsStreamSchema"
 import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatDate, formatTime } from "./lib/dates"
@@ -64,6 +65,18 @@ type FutureEventsState =
   | { status: "loaded"; events: EventResponse[] }
 
 const NO_FUTURE_EVENTS: FutureEventsState = { status: "loaded", events: [] }
+
+/** Per-performer state for the on-demand `/api/artists/enrichment`
+ * lookup -- fetched here rather than attached backend-side to every
+ * streamed event, see `Performer.genres`'s doc comment
+ * (apps/api/src/events/types.rs) for why. `{ status: "loaded", artist: null }`
+ * is a genuine "no confident match" result, kept distinct from `"error"`
+ * (the request itself failed) even though both render the same plain
+ * fallback today -- see EventDetails' own render logic. */
+type PerformerEnrichmentState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "loaded"; artist: AmArtistFull | null }
 
 const EventDetails = ({
   eventData,
@@ -123,15 +136,70 @@ const EventDetails = ({
   const futureEventsFor = (id: string | null | undefined): FutureEventsState =>
     (id && futureEvents[id]) || NO_FUTURE_EVENTS
 
-  // Performers already matched to a canonical artist -- attached
-  // backend-side (see apps/api/src/artists/lookup.rs) rather than fetched
-  // on demand from here, as this used to. The type predicate narrows
-  // `enrichment` to non-null for every consumer below, rather than each
-  // one needing its own `!` assertion.
-  const enrichedPerformers = (performers ?? []).filter(
-    (performer): performer is typeof performer & { enrichment: AmArtistFull } =>
-      Boolean(performer.enrichment)
+  // Full canonical-artist enrichment (artwork/similar-artists/display
+  // name/provider urls) for this event's performers, fetched on demand --
+  // the stream only ever carries `performer.genres` eagerly, see
+  // `Performer.genres`'s doc comment (apps/api/src/events/types.rs).
+  // Keyed by performer name, same as the `/api/artists/enrichment` lookup
+  // itself is.
+  const [performerEnrichment, setPerformerEnrichment] = useState<
+    Record<string, PerformerEnrichmentState>
+  >({})
+
+  const fetchPerformerEnrichment = useCallback(
+    (name: string, ticketmasterAttractionId?: string | null) => {
+      setPerformerEnrichment((prev) => ({
+        ...prev,
+        [name]: { status: "loading" },
+      }))
+      const params = new URLSearchParams({ name })
+      if (ticketmasterAttractionId) {
+        params.set("ticketmasterAttractionId", ticketmasterAttractionId)
+      }
+      fetch(`/api/artists/enrichment?${params}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Request failed")
+          return res.json()
+        })
+        .then((json: unknown) => {
+          if (!isMountedRef.current) return
+          const result = amArtistFullSchema.nullable().safeParse(json)
+          if (!result.success) {
+            console.error(
+              "Artist enrichment response didn't match the expected schema -- backend/frontend drift?",
+              result.error,
+              json
+            )
+            setPerformerEnrichment((prev) => ({
+              ...prev,
+              [name]: { status: "error" },
+            }))
+            return
+          }
+          setPerformerEnrichment((prev) => ({
+            ...prev,
+            [name]: { status: "loaded", artist: result.data },
+          }))
+        })
+        .catch((e) => {
+          console.error("Failed to fetch artist enrichment", e)
+          if (!isMountedRef.current) return
+          setPerformerEnrichment((prev) => ({
+            ...prev,
+            [name]: { status: "error" },
+          }))
+        })
+    },
+    []
   )
+
+  useEffect(() => {
+    for (const performer of performers ?? []) {
+      if (performer.name) {
+        fetchPerformerEnrichment(performer.name, performer.id)
+      }
+    }
+  }, [eventData, performers, fetchPerformerEnrichment])
 
   // scroll handler for the pane -- this component's own root never
   // overflows itself (it's exactly as tall as its content), so the pane
@@ -365,35 +433,22 @@ const EventDetails = ({
         </div>
       )}
 
-      {enrichedPerformers.length
-        ? enrichedPerformers.map((performer) => {
-            const performerId = performer.id
-            return (
-              <ArtistCard
-                key={performer.enrichment.id || performerId || performer.name}
-                artist={performer.enrichment}
-                similarArtists={performer.enrichment.similar_artists}
-                externalLinks={performer.externalLinks ?? undefined}
-                futureEvents={futureEventsFor(performerId)}
-                onRetryFutureEvents={
-                  performerId ? () => fetchFutureEvents(performerId) : undefined
-                }
-              />
-            )
-          })
-        : performers?.map((performer) => {
-            if (!performer.id) return null
-            const id = performer.id
-            return (
-              <div key={id}>
-                <h4 className="text-lg font-semibold">{performer.name}</h4>
-                <UpcomingEvents
-                  {...futureEventsFor(id)}
-                  onRetry={() => fetchFutureEvents(id)}
-                />
-              </div>
-            )
-          })}
+      {performers?.map((performer, i) => (
+        <PerformerDetails
+          // Performer name isn't guaranteed unique on a bill (two "TBA"
+          // openers, say) -- index breaks the tie without needing a
+          // fabricated id.
+          key={performer.id ?? `${performer.name}-${i}`}
+          performer={performer}
+          state={performer.name ? performerEnrichment[performer.name] : undefined}
+          futureEvents={futureEventsFor(performer.id)}
+          onRetryFutureEvents={
+            performer.id
+              ? () => fetchFutureEvents(performer.id as string)
+              : undefined
+          }
+        />
+      ))}
     </div>
   )
 }
@@ -509,6 +564,70 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
 
         <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
       </div>
+    </div>
+  )
+}
+
+/** A rough silhouette of `ArtistCard`'s own layout (artwork block + name +
+ * genre lines) -- shown only past `useLoadingPhase`'s ~200ms delay, same
+ * gate `UpcomingEventsSkeleton` uses, so a fast on-demand enrichment fetch
+ * never flashes it. */
+const ArtistCardSkeleton = () => (
+  <div
+    aria-hidden
+    className="grid gap-4 p-4 dark:border dark:border-white/10"
+  >
+    <div className="flex min-w-0 shrink-0 gap-4">
+      <span className="h-[200px] w-[200px] shrink-0 animate-pulse rounded-2xl bg-slate-700/50" />
+      <div className="min-w-0 flex-1 py-1">
+        <span className="block h-5 w-2/3 animate-pulse rounded bg-slate-700/50" />
+        <span className="mt-2 block h-3.5 w-1/3 animate-pulse rounded bg-slate-700/40" />
+      </div>
+    </div>
+  </div>
+)
+
+/** One performer's slot in the details view: the rich `ArtistCard` once
+ * its on-demand enrichment resolves to a real match, a skeleton while
+ * that's in flight, or the plain name-plus-upcoming-events fallback
+ * otherwise (no match found, the fetch errored, or the performer has no
+ * name to look up at all). A real component (not inlined in the parent's
+ * `.map`) because `useLoadingPhase` is a hook -- can't call one
+ * conditionally per array item outside a component boundary. */
+const PerformerDetails = ({
+  performer,
+  state,
+  futureEvents,
+  onRetryFutureEvents,
+}: {
+  performer: Performer
+  state: PerformerEnrichmentState | undefined
+  futureEvents: FutureEventsState
+  onRetryFutureEvents?: () => void
+}) => {
+  const loadingPhase = useLoadingPhase(state?.status === "loading")
+
+  if (state?.status === "loaded" && state.artist) {
+    return (
+      <ArtistCard
+        artist={state.artist}
+        similarArtists={state.artist.similar_artists}
+        externalLinks={performer.externalLinks ?? undefined}
+        futureEvents={futureEvents}
+        onRetryFutureEvents={onRetryFutureEvents}
+      />
+    )
+  }
+
+  if (state?.status === "loading") {
+    return loadingPhase !== null ? <ArtistCardSkeleton /> : null
+  }
+
+  if (!performer.id) return null
+  return (
+    <div>
+      <h4 className="text-lg font-semibold">{performer.name}</h4>
+      <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
     </div>
   )
 }

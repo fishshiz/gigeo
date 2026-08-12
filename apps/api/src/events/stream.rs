@@ -115,7 +115,10 @@ pub async fn get_concerts_tm_stream(
                     // Plain indexed reads, not a call to Apple Music/Spotify --
                     // safe to run inline rather than detached like
                     // `spawn_enrichment` below (see `crate::artists::lookup`).
-                    crate::artists::attach_enrichment(&mut events, &state.db.pool).await;
+                    // Genres only -- the rest of a performer's canonical-
+                    // artist data is fetched on demand instead, see
+                    // `Performer::genres`'s doc comment.
+                    crate::artists::attach_genres(&mut events, &state.db.pool).await;
                     artist_candidates.extend(candidates_from(&events));
 
                     for mut event in events {
@@ -131,10 +134,10 @@ pub async fn get_concerts_tm_stream(
                     // got to mutate its own copy with DB enrichment/
                     // personalization. Confirmed live: without re-running
                     // both here, a cross-source-matched event's re-emission
-                    // silently loses performer.enrichment (and any
-                    // matched_artist tag), even though it carries the same
-                    // event id as an already-enriched first-wave emission.
-                    crate::artists::attach_enrichment(&mut events, &state.db.pool).await;
+                    // silently loses performer.genres (and any matched_artist
+                    // tag), even though it carries the same event id as an
+                    // already-enriched first-wave emission.
+                    crate::artists::attach_genres(&mut events, &state.db.pool).await;
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);
@@ -197,7 +200,7 @@ pub async fn get_concerts_tm_stream(
                             }),
                     );
 
-                    crate::artists::attach_enrichment(&mut events, &state.db.pool).await;
+                    crate::artists::attach_genres(&mut events, &state.db.pool).await;
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);

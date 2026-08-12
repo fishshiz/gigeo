@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { eventResponseSchema } from "./eventsStreamSchema"
+import { amArtistFullSchema, eventResponseSchema } from "./eventsStreamSchema"
 
 function minimalEvent(overrides: Record<string, unknown> = {}) {
   return {
@@ -78,58 +78,74 @@ describe("eventResponseSchema", () => {
     }
   })
 
-  it("parses a performer with enrichment and a null artwork", () => {
-    // A canonical artist matched via Spotify with no image found (see
-    // apps/api/src/artists/worker.rs) -- artwork is genuinely absent, not
-    // just missing from a partial response.
+  it("parses a performer's genres -- the only canonical-artist data the stream carries eagerly", () => {
+    // The rest (artwork, similar artists, display name, provider urls) is
+    // fetched on demand instead -- see amArtistFullSchema's own tests
+    // below for that shape.
     const result = eventResponseSchema.safeParse(
       minimalEvent({
         performers: [
           {
             id: "K123",
             name: "Role Model",
-            enrichment: {
-              name: "Role Model",
-              id: "sp-1",
-              apple_music_url: null,
-              spotify_url: "https://open.spotify.com/artist/sp-1",
-              artwork: null,
-              genres: ["Pop"],
-              similar_artists: [],
-            },
+            genres: ["Pop"],
           },
         ],
       })
     )
     expect(result.success).toBe(true)
     if (result.success) {
-      const performer = result.data.performers?.[0]
-      expect(performer?.enrichment?.artwork).toBeUndefined()
-      expect(performer?.enrichment?.genres).toEqual(["Pop"])
-      expect(performer?.enrichment?.apple_music_url).toBeUndefined()
-      expect(performer?.enrichment?.spotify_url).toBe(
+      expect(result.data.performers?.[0].genres).toEqual(["Pop"])
+    }
+  })
+
+  it("normalizes an absent genres field to undefined rather than requiring it", () => {
+    const result = eventResponseSchema.safeParse(
+      minimalEvent({ performers: [{ id: "K123", name: "Role Model" }] })
+    )
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.performers?.[0].genres).toBeUndefined()
+    }
+  })
+})
+
+describe("amArtistFullSchema", () => {
+  // The on-demand /artists/enrichment response shape (apps/web/src/EventDetails.tsx),
+  // parsed standalone now rather than nested inside a performer.
+  it("parses a match with a null artwork", () => {
+    // A canonical artist matched via Spotify with no image found (see
+    // apps/api/src/artists/worker.rs) -- artwork is genuinely absent, not
+    // just missing from a partial response.
+    const result = amArtistFullSchema.safeParse({
+      name: "Role Model",
+      id: "sp-1",
+      apple_music_url: null,
+      spotify_url: "https://open.spotify.com/artist/sp-1",
+      artwork: null,
+      genres: ["Pop"],
+      similar_artists: [],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.artwork).toBeUndefined()
+      expect(result.data.genres).toEqual(["Pop"])
+      expect(result.data.apple_music_url).toBeUndefined()
+      expect(result.data.spotify_url).toBe(
         "https://open.spotify.com/artist/sp-1"
       )
     }
   })
 
-  it("rejects a performer whose enrichment has the wrong type for a required field", () => {
+  it("rejects a match with the wrong type for a required field", () => {
     // Guards against exactly the kind of backend/frontend drift this
     // schema exists to catch loudly -- id must be a string.
-    const result = eventResponseSchema.safeParse(
-      minimalEvent({
-        performers: [
-          {
-            enrichment: {
-              name: "Role Model",
-              id: 12345,
-              genres: [],
-              similar_artists: [],
-            },
-          },
-        ],
-      })
-    )
+    const result = amArtistFullSchema.safeParse({
+      name: "Role Model",
+      id: 12345,
+      genres: [],
+      similar_artists: [],
+    })
     expect(result.success).toBe(false)
   })
 })
