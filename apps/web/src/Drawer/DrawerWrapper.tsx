@@ -188,7 +188,7 @@ const DrawerWrapper = () => {
       {!isDesktop && (
         <TabList
           aria-label="Content sections"
-          className="flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 pt-1 pr-12 pb-2 dark:border-white/10"
+          className="my-1 flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
             <Tab

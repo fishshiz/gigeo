@@ -38,7 +38,7 @@ export function DateRangePicker<T extends DateValue>({
   ...props
 }: DateRangePickerProps<T>) {
   const monthDayFormat = useDateFormatter({
-    month: "long",
+    month: "short",
     day: "numeric",
   })
 
@@ -66,9 +66,9 @@ export function DateRangePicker<T extends DateValue>({
       <FieldGroup className="disabled:cursor-default max-md:h-11! max-md:items-stretch!">
         <FieldButton
           aria-label={triggerLabel}
-          className="mr-1 w-full cursor-pointer outline-offset-0"
+          className="w-full cursor-pointer outline-offset-0"
         >
-          <div className="flex w-fit flex-1 items-center overflow-x-auto overflow-y-clip [scrollbar-width:none]">
+          <div className="flex w-fit flex-1 [scrollbar-width:none] items-center overflow-x-auto overflow-y-clip">
             {start && (
               <span className="w-max ps-3 pe-2 text-sm">
                 {monthDayFormat.format(start?.toDate(getLocalTimeZone()))}
@@ -93,7 +93,7 @@ export function DateRangePicker<T extends DateValue>({
               </>
             )}
           </div>
-          <CalendarIcon aria-hidden className="h-4 w-4" />
+          <CalendarIcon aria-hidden className="sm:display hidden h-4 w-4" />
         </FieldButton>
       </FieldGroup>
       {description && <Description>{description}</Description>}
