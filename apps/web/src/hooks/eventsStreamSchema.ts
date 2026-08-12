@@ -5,8 +5,17 @@ import { z } from "zod"
 // what's "always" present. Parsed (not just cast) at the wire boundary in
 // providers/eventsProvider.tsx, so a real shape mismatch fails loudly
 // there instead of silently dropping fields or throwing deep inside a
-// component. See apps/api/docs/adr/0001-canonical-artist-model.md for why
-// `enrichment` below can be absent even for a Music-classified event.
+// component.
+//
+// `performerSchema.genres` is the *only* canonical-artist data the stream
+// carries eagerly -- just enough for the "for you" genre filter
+// (providers/eventsProvider.tsx's `matchedPerformerGenres`). The rest
+// (artwork, similar artists, display name, provider urls -- the
+// `amArtistFullSchema` shape below) is fetched on demand, per performer,
+// only for a selected event's detail view -- see apps/web/src/EventDetails.tsx
+// and apps/api/src/artists/mod.rs's `get_performer_enrichment`. See
+// apps/api/docs/adr/0001-canonical-artist-model.md for why even that
+// on-demand fetch can still come back with no match (yet, or at all).
 
 /** Rust's serde serializes `Option::None` as JSON `null` by default (the
  * key is present, not omitted) -- wrapping every optional field in this
@@ -81,10 +90,11 @@ const performerSchema = z.object({
   classifications: optional(z.array(classificationSchema)),
   externalLinks: optional(externalLinksSchema),
   images: optional(z.array(z.unknown())),
-  /** Persisted canonical-artist data, attached backend-side when this
-   * performer has been matched -- absent when not matched (yet, or at
-   * all). */
-  enrichment: optional(amArtistFullSchema),
+  /** Persisted canonical-artist genres, attached backend-side when this
+   * performer has been matched -- absent (or empty) when not matched (yet,
+   * or at all). See the module doc comment above for why this is the only
+   * canonical-artist data the stream carries. */
+  genres: optional(z.array(z.string())),
 })
 
 const imagesSchema = z.object({
@@ -160,6 +170,7 @@ type AmArtistFull = z.infer<typeof amArtistFullSchema>
 
 export {
   eventResponseSchema,
+  amArtistFullSchema,
   type EventResponse,
   type Performer,
   type Classification,

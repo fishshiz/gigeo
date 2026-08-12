@@ -51,18 +51,18 @@ function parseStreamedEvent(raw: string) {
 }
 
 /** The genres of the performer that triggered `event.matchedArtist`, read
- * off that performer's already-attached canonical-artist enrichment (see
- * `apps/api/src/artists/lookup.rs`) rather than any personalization-
- * specific data -- there isn't any, the "for you" match pipeline only ever
- * tracks a name. Empty when unmatched, or when that performer's
- * enrichment hasn't resolved yet (best-effort, same as everywhere else
- * `enrichment` is read). */
+ * off that performer's already-attached canonical-artist genres (see
+ * `apps/api/src/artists/lookup.rs`'s `attach_genres`) rather than any
+ * personalization-specific data -- there isn't any, the "for you" match
+ * pipeline only ever tracks a name. Empty when unmatched, or when that
+ * performer's genres haven't resolved yet (best-effort, same as everywhere
+ * else canonical-artist data is read). */
 export function matchedPerformerGenres(event: EventResponse): string[] {
   if (!event.matchedArtist) return []
   const performer = event.performers?.find(
     (p) => p.name === event.matchedArtist
   )
-  return performer?.enrichment?.genres ?? []
+  return performer?.genres ?? []
 }
 
 export function matchesClassificationFilter(

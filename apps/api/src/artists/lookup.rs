@@ -27,13 +27,18 @@ struct EnrichmentRow {
     similar_artists: Json<Vec<SimilarArtist>>,
 }
 
-/// Attaches persisted canonical-artist data (see ADR-0001) to every
-/// performer in `events` that has a matched row. Best-effort throughout:
-/// a performer with no row (not yet resolved, or resolved to no match), or
-/// a DB error, is simply left with `enrichment: None` — this must never
-/// fail or slow down event streaming, matching every other step in this
-/// pipeline.
-pub(crate) async fn attach_enrichment(events: &mut [EventResponse], pool: &PgPool) {
+/// Attaches persisted genres (see ADR-0001) to every performer in `events`
+/// that has a matched row -- the list/map stream's own trimmed need (the
+/// "for you" genre filter, `apps/web/src/providers/eventsProvider.tsx`'s
+/// `matchedPerformerGenres`), not the full `ArtistEnrichment` (artwork,
+/// similar artists, display name, provider urls), which now comes from the
+/// on-demand `/artists/enrichment` endpoint instead (`fetch_one`, below),
+/// fetched only when a user actually opens an event's details. Best-effort
+/// throughout: a performer with no row (not yet resolved, or resolved to no
+/// match), or a DB error, is simply left with empty `genres` — this must
+/// never fail or slow down event streaming, matching every other step in
+/// this pipeline.
+pub(crate) async fn attach_genres(events: &mut [EventResponse], pool: &PgPool) {
     let mut names_by_normalized: HashMap<String, ()> = HashMap::new();
     for event in events.iter() {
         for performer in event.performers.iter().flatten() {
@@ -60,29 +65,41 @@ pub(crate) async fn attach_enrichment(events: &mut [EventResponse], pool: &PgPoo
         }
     };
 
-    let by_normalized: HashMap<String, ArtistEnrichment> = rows
+    let genres_by_normalized: HashMap<String, Vec<String>> = rows
         .iter()
-        .map(|row| (row.normalized_name.clone(), to_response(row)))
+        .map(|row| (row.normalized_name.clone(), row.genres.clone()))
         .collect();
 
-    merge_enrichment(events, &by_normalized);
+    merge_genres(events, &genres_by_normalized);
 }
 
-/// Splits out from `attach_enrichment` so the merge itself (as opposed to
-/// the DB round-trip) is testable without a live database.
-fn merge_enrichment(
-    events: &mut [EventResponse],
-    by_normalized: &HashMap<String, ArtistEnrichment>,
-) {
+/// Splits out from `attach_genres` so the merge itself (as opposed to the
+/// DB round-trip) is testable without a live database.
+fn merge_genres(events: &mut [EventResponse], genres_by_normalized: &HashMap<String, Vec<String>>) {
     for event in events.iter_mut() {
         for performer in event.performers.iter_mut().flatten() {
             let Some(name) = &performer.name else {
                 continue;
             };
             let normalized = normalize_artist_name(name);
-            performer.enrichment = by_normalized.get(&normalized).cloned();
+            performer.genres = genres_by_normalized
+                .get(&normalized)
+                .cloned()
+                .unwrap_or_default();
         }
     }
+}
+
+/// Reads back one performer's full persisted enrichment, if matched — the
+/// read half of the on-demand `/artists/enrichment` endpoint
+/// (`artists::get_performer_enrichment`), called after `worker::resolve_one`
+/// (and, for a still-missing similar-artists list,
+/// `worker::backfill_similar_artists`) have ensured the row is as complete
+/// as it can be made right now.
+pub(crate) async fn fetch_one(pool: &PgPool, normalized_name: &str) -> Option<ArtistEnrichment> {
+    let names = [normalized_name.to_string()];
+    let rows = fetch_rows(pool, &names).await.ok()?;
+    rows.first().map(to_response)
 }
 
 async fn fetch_rows(
@@ -230,7 +247,7 @@ mod tests {
             classifications: None,
             external_links: None,
             images: None,
-            enrichment: None,
+            genres: vec![],
         }
     }
 
@@ -266,46 +283,37 @@ mod tests {
     }
 
     #[test]
-    fn merge_enrichment_matches_by_normalized_name() {
+    fn merge_genres_matches_by_normalized_name() {
         let mut events = vec![event_with_performers(&["Role Model"])];
         let mut by_normalized = HashMap::new();
-        by_normalized.insert("rolemodel".to_string(), to_response(&row("rolemodel")));
+        by_normalized.insert("rolemodel".to_string(), vec!["Pop".to_string()]);
 
-        merge_enrichment(&mut events, &by_normalized);
+        merge_genres(&mut events, &by_normalized);
 
-        assert!(
-            events[0].performers.as_ref().unwrap()[0]
-                .enrichment
-                .is_some()
+        assert_eq!(
+            events[0].performers.as_ref().unwrap()[0].genres,
+            vec!["Pop".to_string()]
         );
     }
 
     #[test]
-    fn merge_enrichment_leaves_unmatched_performers_untouched() {
+    fn merge_genres_leaves_unmatched_performers_empty() {
         let mut events = vec![event_with_performers(&["Someone Else"])];
         let mut by_normalized = HashMap::new();
-        by_normalized.insert("rolemodel".to_string(), to_response(&row("rolemodel")));
+        by_normalized.insert("rolemodel".to_string(), vec!["Pop".to_string()]);
 
-        merge_enrichment(&mut events, &by_normalized);
+        merge_genres(&mut events, &by_normalized);
 
-        assert!(
-            events[0].performers.as_ref().unwrap()[0]
-                .enrichment
-                .is_none()
-        );
+        assert!(events[0].performers.as_ref().unwrap()[0].genres.is_empty());
     }
 
     #[test]
-    fn merge_enrichment_skips_performers_with_no_name_without_panicking() {
+    fn merge_genres_skips_performers_with_no_name_without_panicking() {
         let mut events = vec![event_with_performers(&[])];
         events[0].performers = Some(vec![performer(None)]);
 
-        merge_enrichment(&mut events, &HashMap::new());
+        merge_genres(&mut events, &HashMap::new());
 
-        assert!(
-            events[0].performers.as_ref().unwrap()[0]
-                .enrichment
-                .is_none()
-        );
+        assert!(events[0].performers.as_ref().unwrap()[0].genres.is_empty());
     }
 }

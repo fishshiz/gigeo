@@ -70,13 +70,20 @@ pub struct Performer {
     #[serde(rename = "externalLinks")]
     pub external_links: Option<ExternalLinks>,
     pub images: Option<Vec<Images>>,
-    /// Persisted canonical-artist data (see
+    /// Persisted canonical-artist genres (see
     /// `docs/adr/0001-canonical-artist-model.md`), attached by
-    /// `crate::artists::attach_enrichment` right before an event is sent
-    /// to a client. `None` when the performer hasn't been matched to an
-    /// artist yet (or at all) — see `crate::artists::worker` for how/when
-    /// a match is attempted.
-    pub enrichment: Option<ArtistEnrichment>,
+    /// `crate::artists::attach_genres` right before an event is sent to a
+    /// client — the list/map stream's only eager enrichment need (the "for
+    /// you" genre filter, `apps/web/src/providers/eventsProvider.tsx`'s
+    /// `matchedPerformerGenres`). Empty when the performer hasn't been
+    /// matched to an artist yet (or at all), or has no genre data. The rest
+    /// of a performer's canonical-artist data (artwork, similar artists,
+    /// display name, provider urls) is deliberately *not* sent here — it's
+    /// fetched on demand, only for a selected event's performers, via
+    /// `GET /artists/enrichment` (see `crate::artists::get_performer_enrichment`
+    /// and `apps/web/src/EventDetails.tsx`).
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 /// Persisted canonical-artist data for one performer — the read-side

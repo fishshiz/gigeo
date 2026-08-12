@@ -34,10 +34,70 @@ mod matching_eval;
 mod spotify_backfill;
 mod worker;
 
-pub(crate) use lookup::attach_enrichment;
+pub(crate) use lookup::attach_genres;
 pub(crate) use worker::spawn_enrichment;
 
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 use serde::{Deserialize, Serialize};
+
+use crate::events::types::ArtistEnrichment;
+use crate::spotify::client::normalize_artist_name;
+use crate::state::AppState;
+
+#[derive(Deserialize)]
+pub struct PerformerEnrichmentQuery {
+    pub name: String,
+    #[serde(rename = "ticketmasterAttractionId")]
+    pub ticketmaster_attraction_id: Option<String>,
+}
+
+/// `GET /artists/enrichment?name=...&ticketmasterAttractionId=...` —
+/// resolves and returns one performer's full canonical-artist enrichment
+/// right now, awaiting the same Apple Music/Spotify match `spawn_enrichment`
+/// runs in the background for the live list/map stream (a cheap read for
+/// an already-matched artist; a real provider lookup, same as any other
+/// first sighting, for a brand-new one). Also backfills similar artists if
+/// they're still missing — see `worker::backfill_similar_artists` for why
+/// that's not already there for an artist matched via the background path.
+///
+/// Meant to be called once per performer on a selected event's detail view
+/// (a handful of calls), not batched across a whole search's worth of
+/// performers — see `apps/web/src/EventDetails.tsx`. `None` covers both "no
+/// confident match" and any DB/provider error along the way — best-effort,
+/// same as everywhere else in this module.
+pub async fn get_performer_enrichment(
+    State(state): State<AppState>,
+    Query(query): Query<PerformerEnrichmentQuery>,
+) -> Json<Option<ArtistEnrichment>> {
+    let normalized = normalize_artist_name(&query.name);
+    if normalized.is_empty() {
+        return Json(None);
+    }
+
+    worker::resolve_one(
+        &state,
+        ArtistCandidate {
+            name: query.name,
+            ticketmaster_attraction_id: query.ticketmaster_attraction_id,
+        },
+    )
+    .await;
+
+    let enrichment = lookup::fetch_one(&state.db.pool, &normalized).await;
+
+    let needs_similar_artists = enrichment
+        .as_ref()
+        .is_some_and(|e| e.similar_artists.is_empty());
+    if needs_similar_artists {
+        worker::backfill_similar_artists(&state, &normalized).await;
+        return Json(lookup::fetch_one(&state.db.pool, &normalized).await);
+    }
+
+    Json(enrichment)
+}
 
 /// One performer name seen in a live request, with a Ticketmaster
 /// attraction id when the source event carried one. Not every sighting has

@@ -155,6 +155,10 @@ pub async fn build_app() -> Result<Router> {
             axum::routing::get(ticketmaster_stream::get_events_by_attraction),
         )
         .route(
+            "/artists/enrichment",
+            axum::routing::get(artists::get_performer_enrichment),
+        )
+        .route(
             "/spotify/playlist",
             axum::routing::post(spotify::spotify_handlers::create_playlist),
         )

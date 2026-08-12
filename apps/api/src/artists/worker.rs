@@ -4,7 +4,7 @@ use chrono::{Duration, Utc};
 use futures::{StreamExt, stream};
 
 use super::cleaning;
-use super::db::{self, MatchedArtist};
+use super::db::{self, MatchedArtist, SimilarArtistsStatus};
 use super::{ArtistCandidate, SimilarArtist};
 use crate::apple_music::client::ArtistAttributes;
 use crate::auth::ClientCredentialsManager;
@@ -79,7 +79,7 @@ fn dedupe_candidates(candidates: Vec<ArtistCandidate>) -> Vec<ArtistCandidate> {
     by_key.into_values().collect()
 }
 
-async fn resolve_one(state: &AppState, candidate: ArtistCandidate) {
+pub(super) async fn resolve_one(state: &AppState, candidate: ArtistCandidate) {
     let normalized = normalize_artist_name(&candidate.name);
     if normalized.is_empty() {
         return;
@@ -126,7 +126,12 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
     );
 
     if let Some((apple_music_id, attrs)) = apple_match {
-        let similar = fetch_similar_artists(state, &apple_music_id).await;
+        // Similar-artists is deliberately NOT fetched at first-match time --
+        // an extra Apple Music call for every newly-seen candidate, most of
+        // which nobody ever opens event details for. Backfilled lazily by
+        // `backfill_similar_artists`, called only from the on-demand
+        // `/artists/enrichment` endpoint when a selected event's performer
+        // actually needs it.
         let artwork_url = attrs
             .artwork
             .as_ref()
@@ -149,7 +154,7 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
                     .as_ref()
                     .and_then(|a| a.external_urls.spotify.as_deref()),
                 genres: &attrs.genre_names,
-                similar_artists: &similar,
+                similar_artists: &[],
             },
         )
         .await;
@@ -254,6 +259,45 @@ async fn refresh_dynamic_fields(state: &AppState, normalized_name: &str, row: &d
             }
         }
         _ => {}
+    }
+}
+
+/// Fetches and persists similar-artists for `normalized_name` if it's
+/// Apple-Music-matched and doesn't have any yet -- the on-demand
+/// counterpart to the fetch `resolve_fresh` deliberately skips at
+/// first-match time (see that function's comment). A no-op for a
+/// Spotify-only match (similar artists only ever come from Apple Music,
+/// same as `resolve_fresh`), an unmatched row, or one that already has
+/// similar artists (from an earlier on-demand call, or the periodic
+/// dynamic-field refresh in `refresh_dynamic_fields`, which still fetches
+/// both together on its own much rarer 30-day cadence).
+///
+/// Doesn't retry a genuinely-empty result (a real artist with no similar-
+/// artists data, or a transient fetch failure) on every subsequent detail-
+/// view open -- best-effort, same as everywhere else in this module.
+pub(super) async fn backfill_similar_artists(state: &AppState, normalized_name: &str) {
+    let existing_similar = match db::get_similar_artists(&state.db.pool, normalized_name).await {
+        Ok(existing) => existing,
+        Err(err) => {
+            tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to read similar-artists status, skipping backfill");
+            return;
+        }
+    };
+    let Some(SimilarArtistsStatus {
+        apple_music_id: Some(apple_music_id),
+        has_similar_artists: false,
+    }) = existing_similar
+    else {
+        return;
+    };
+
+    let similar = fetch_similar_artists(state, &apple_music_id).await;
+    if similar.is_empty() {
+        return;
+    }
+
+    if let Err(err) = db::attach_similar_artists(&state.db.pool, normalized_name, &similar).await {
+        tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to backfill similar artists");
     }
 }
 

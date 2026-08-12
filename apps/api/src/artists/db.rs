@@ -159,6 +159,58 @@ async fn execute_upsert_matched(pool: &PgPool, row: &MatchedArtist<'_>) -> Resul
     .map(|_| ())
 }
 
+pub(super) struct SimilarArtistsStatus {
+    pub apple_music_id: Option<String>,
+    pub has_similar_artists: bool,
+}
+
+/// Whether `normalized_name` already has similar artists persisted, and
+/// its Apple Music id to fetch them with if not -- `None` when the row
+/// doesn't exist or wasn't matched via Apple Music (similar artists only
+/// ever come from Apple, see `worker::resolve_fresh`). Backs
+/// `worker::backfill_similar_artists`.
+pub(super) async fn get_similar_artists(
+    pool: &PgPool,
+    normalized_name: &str,
+) -> Result<Option<SimilarArtistsStatus>, sqlx::Error> {
+    sqlx::query_as!(
+        SimilarArtistsStatus,
+        r#"
+        select
+            apple_music_id,
+            similar_artists != '[]'::jsonb as "has_similar_artists!"
+        from artists
+        where normalized_name = $1 and matched_via = 'apple_music'::music_provider
+        "#,
+        normalized_name
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Persists a similar-artists backfill without touching genres or bumping
+/// `enrichment_refreshed_at` -- deliberately narrower than `refresh_dynamic`,
+/// since this only fills a gap `resolve_fresh` left on purpose rather than
+/// refreshing an already-complete row on its normal TTL.
+pub(super) async fn attach_similar_artists(
+    pool: &PgPool,
+    normalized_name: &str,
+    similar_artists: &[SimilarArtist],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        update artists
+        set similar_artists = $2, last_attempted_at = now()
+        where normalized_name = $1
+        "#,
+        normalized_name,
+        Json(similar_artists) as _,
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
 /// Records a no-confident-match attempt (an artwork-cache-style "cache the
 /// miss too", so a noisy PredictHQ title isn't re-searched on every
 /// request that includes it) — see `worker::UNMATCHED_RETRY_COOLDOWN` for
