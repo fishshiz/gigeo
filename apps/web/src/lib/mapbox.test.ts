@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   buildEventFeatureCollection,
-  eventIconImageExpression,
+  eventIconColorExpression,
   resolveEventsByIds,
 } from "./mapbox"
 import type { EventResponse, EventsByDate } from "../hooks/eventsStream"
@@ -86,18 +86,24 @@ describe("buildEventFeatureCollection", () => {
   })
 })
 
-describe("eventIconImageExpression", () => {
+describe("eventIconColorExpression", () => {
   it("matches a selected event by id", () => {
-    const expression = eventIconImageExpression([makeEvent({ id: "e1" })])
-    // ["case", ["in", ["get", "id"], ["literal", [...ids]]], "marker-yellow", ...]
+    const expression = eventIconColorExpression(
+      [makeEvent({ id: "e1" })],
+      "red",
+      "yellow"
+    )
+    // ["case", ["in", ["get", "id"], ["literal", [...ids]]], selectedColor, ...]
     expect(expression[1]).toEqual(["in", ["get", "id"], ["literal", ["e1"]]])
-    expect(expression[2]).toBe("marker-yellow")
+    expect(expression[2]).toBe("yellow")
   })
 
   it("matches by shared venue name for cluster highlighting", () => {
-    const expression = eventIconImageExpression([
-      makeEvent({ id: "e1", venue: { name: "Shared Venue", images: [] } }),
-    ])
+    const expression = eventIconColorExpression(
+      [makeEvent({ id: "e1", venue: { name: "Shared Venue", images: [] } })],
+      "red",
+      "yellow"
+    )
     expect(expression[3]).toEqual([
       "in",
       ["get", "clusterVenue"],
@@ -105,9 +111,9 @@ describe("eventIconImageExpression", () => {
     ])
   })
 
-  it("falls back to marker-red when nothing is selected", () => {
-    const expression = eventIconImageExpression([])
-    expect(expression[expression.length - 1]).toBe("marker-red")
+  it("falls back to the default color when nothing is selected", () => {
+    const expression = eventIconColorExpression([], "red", "yellow")
+    expect(expression[expression.length - 1]).toBe("red")
     expect(expression[1]).toEqual(["in", ["get", "id"], ["literal", []]])
   })
 })
