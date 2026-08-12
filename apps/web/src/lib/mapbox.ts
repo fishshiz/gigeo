@@ -77,31 +77,66 @@ export function buildEventFeatureCollection(
   return dataSource
 }
 
-/** The "events" layer's `icon-image` expression: yellow for the selected
- * event(s) or any marker sharing a selected venue (so a cluster containing
- * a selected show also highlights), red otherwise.
+/** The "events" layer's `icon-color` expression: `selectedColor` for the
+ * selected event(s) or any marker sharing a selected venue (so a cluster
+ * containing a selected show also highlights), `defaultColor` otherwise.
  *
  * Consolidates two expressions that had quietly drifted apart: layer
  * creation matched *any* selected id (`"in"`), while the reactive
  * selection-change update only ever matched `selectedEvents[0]`'s id
  * (`"=="`) -- so a multi-event selection (e.g. from clicking a cluster)
  * only highlighted one marker after the first update. This is the "in"
- * behavior, used everywhere now. */
-export function eventIconImageExpression(
-  selectedEvents: EventResponse[]
+ * behavior, used everywhere now.
+ *
+ * Colors are passed in rather than hardcoded so this stays a pure,
+ * DOM-free function -- see `resolveCssColor` for how the caller resolves
+ * the app's actual accent tokens at runtime. */
+export function eventIconColorExpression(
+  selectedEvents: EventResponse[],
+  defaultColor: string,
+  selectedColor: string
 ): ExpressionSpecification {
   return [
     "case",
     ["in", ["get", "id"], ["literal", selectedEvents.map((e) => e.id)]],
-    "marker-yellow",
+    selectedColor,
     [
       "in",
       ["get", "clusterVenue"],
       ["literal", selectedEvents.map((e) => e.venue?.name)],
     ],
-    "marker-yellow",
-    "marker-red",
+    selectedColor,
+    defaultColor,
   ] as unknown as ExpressionSpecification
+}
+
+/** Resolves a CSS custom property (e.g. "--accent-bg") to a plain
+ * `rgba()` string, honoring whichever of .light/.dark is currently on
+ * <html> -- Mapbox GL expressions need a real color, and these tokens are
+ * defined in OKLCH, which its color parser can't read directly.
+ *
+ * Not `getComputedStyle(el).color`: modern browsers increasingly preserve
+ * the original color syntax there (returning the oklch() string back
+ * unchanged) rather than always normalizing to rgb(), which is exactly
+ * the syntax Mapbox can't parse. Painting onto a canvas and reading the
+ * pixel back sidesteps that -- canvas `fillStyle` accepts any CSS color
+ * syntax, and `getImageData` always returns concrete 0-255 sRGB bytes
+ * regardless of how the color was originally specified. */
+export function resolveCssColor(varName: string): string {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(varName)
+    .trim()
+
+  const canvas = document.createElement("canvas")
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return raw
+
+  ctx.fillStyle = raw
+  ctx.fillRect(0, 0, 1, 1)
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+  return `rgba(${r}, ${g}, ${b}, ${a / 255})`
 }
 
 /** Resolves Mapbox feature ids (from a click or `getClusterChildren`) back
