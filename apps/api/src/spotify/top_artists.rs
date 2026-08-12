@@ -1,20 +1,28 @@
 //! Per-account cache of personalized-discovery matches, used to power the
 //! "for you" match against nearby Ticketmaster events (see
 //! `ticketmaster_stream`). Two tiers, from two providers:
-//! - `Direct`: exact-normalized name match against the account's Spotify top
-//!   artists (~6 month window).
+//! - `Direct`: exact-normalized name match against the account's own
+//!   Spotify artists — the union of top artists across all three of
+//!   Spotify's own time ranges (~4 weeks, ~6 months, several years) plus
+//!   the artists the account follows outright (a separate, non-listening-
+//!   based signal — an artist you care about but don't stream heavily
+//!   wouldn't show up in "top artists" at all). Each of the four sources
+//!   degrades independently to "contributes nothing" if the connected
+//!   token predates the scope it needs, rather than disabling
+//!   personalization entirely — see `fetch_seed_source`.
 //! - `Similar`: exact-normalized name match against Apple Music's
-//!   similar-artists view for each top artist — widens the net beyond
-//!   artists the account actually listens to. Spotify deprecated its own
-//!   related-artists endpoint for all apps without pre-existing extended
-//!   quota access (Nov 2024); Apple's catalog equivalent needs no user auth
-//!   and is already used elsewhere in this app (`apple_music::handlers`).
+//!   similar-artists view for each seed artist from the above — widens the
+//!   net beyond artists the account actually listens to or follows.
+//!   Spotify deprecated its own related-artists endpoint for all apps
+//!   without pre-existing extended quota access (Nov 2024); Apple's
+//!   catalog equivalent needs no user auth and is already used elsewhere
+//!   in this app (`apple_music::handlers`).
 //!
-//! Fetching either provider on every `/concerts/stream` request would be
+//! Fetching any provider on every `/concerts/stream` request would be
 //! wasteful and slow — that endpoint fires on every map pan/zoom — so
 //! results are cached per account on a TTL instead.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
@@ -23,7 +31,7 @@ use sqlx::types::Json;
 
 use crate::apple_music::client::AppleMusicClient;
 use crate::error::AppError;
-use crate::spotify::client::{TopArtistsTimeRange, normalize_artist_name};
+use crate::spotify::client::{Artist, TopArtistsTimeRange, normalize_artist_name};
 use crate::state::AppState;
 
 const CACHE_TTL: Duration = Duration::hours(24);
@@ -84,34 +92,39 @@ pub(crate) async fn get_personalization_matches(
         Err(err) => return Err(err),
     };
 
-    let top_artists = match state
-        .spotify
-        .get_top_artists(&user_token, TopArtistsTimeRange::Medium, 50)
-        .await
-    {
-        Ok(artists) => artists,
-        Err(AppError::SpotifyApi {
-            status: StatusCode::FORBIDDEN,
-            ..
-        }) => {
-            // Token predates the `user-top-read` scope (added after this
-            // account connected). Cache the empty result so we don't retry
-            // Spotify — and warn on every request — until the account
-            // reconnects, which clears this cache immediately (see
-            // `upsert_spotify_account`).
-            tracing::info!(
-                %account_id,
-                "spotify token missing user-top-read scope, disabling personalization until reconnect"
-            );
-            cache_matches(state, account_id, &MatchMap::new()).await?;
-            return Ok(MatchMap::new());
-        }
-        Err(err) => return Err(err),
-    };
+    // All four seed sources are independent, read-only lookups against the
+    // same token -- concurrent, same reasoning as every other multi-call
+    // fetch in this codebase (e.g. `artists::worker::resolve_fresh`).
+    let (short, medium, long, followed) = tokio::join!(
+        state
+            .spotify
+            .get_top_artists(&user_token, TopArtistsTimeRange::Short, 50),
+        state
+            .spotify
+            .get_top_artists(&user_token, TopArtistsTimeRange::Medium, 50),
+        state
+            .spotify
+            .get_top_artists(&user_token, TopArtistsTimeRange::Long, 50),
+        state.spotify.get_followed_artists(&user_token, 50),
+    );
+
+    let short = fetch_seed_source(short, account_id, "user-top-read").await?;
+    let medium = fetch_seed_source(medium, account_id, "user-top-read").await?;
+    let long = fetch_seed_source(long, account_id, "user-top-read").await?;
+    let followed = fetch_seed_source(followed, account_id, "user-follow-read").await?;
 
     let mut matches: MatchMap = MatchMap::new();
-    for artist in &top_artists {
-        matches.insert(normalize_artist_name(&artist.name), MatchReason::Direct);
+    let mut seen_normalized: HashSet<String> = HashSet::new();
+    let mut seed_artists: Vec<Artist> = Vec::new();
+    for artist in short.into_iter().chain(medium).chain(long).chain(followed) {
+        let normalized = normalize_artist_name(&artist.name);
+        matches.insert(normalized.clone(), MatchReason::Direct);
+        // Dedup before the similar-artist expansion below -- the same
+        // artist showing up in, say, both short- and long-term top artists
+        // (common) shouldn't cost a second Apple Music lookup for it.
+        if seen_normalized.insert(normalized) {
+            seed_artists.push(artist);
+        }
     }
 
     if let (Some(am), Some(dev_token_mgr)) = (
@@ -120,7 +133,7 @@ pub(crate) async fn get_personalization_matches(
     ) {
         match dev_token_mgr.get_token().await {
             Ok(dev_token) => {
-                expand_via_similar_artists(am, &dev_token, &top_artists, &mut matches).await;
+                expand_via_similar_artists(am, &dev_token, &seed_artists, &mut matches).await;
             }
             Err(err) => {
                 tracing::warn!(
@@ -136,18 +149,51 @@ pub(crate) async fn get_personalization_matches(
     Ok(matches)
 }
 
-/// For each Spotify top artist, looks up its Apple Music catalog match and
-/// folds in that artist's similar-artists names — under `Similar { seed }`,
-/// where `seed` is the top artist's display name — unless a name is already
-/// present (a `Direct` entry always wins; whichever `Similar` seed is found
-/// first wins over another, since neither is more authoritative).
+/// Degrades a single seed source to "contributes nothing" when the
+/// connected token predates the scope it needs (e.g. an account that
+/// connected before `user-follow-read` was added), rather than failing the
+/// whole personalization fetch over one missing scope — reconnecting
+/// clears the cache immediately regardless (see `upsert_spotify_account`),
+/// so this just means that source stays empty until then. Any other error
+/// still propagates: a genuine API failure shouldn't get cached as "this
+/// account simply has no artists" for the TTL's full 24 hours.
+async fn fetch_seed_source(
+    result: Result<Vec<Artist>, AppError>,
+    account_id: uuid::Uuid,
+    scope: &str,
+) -> Result<Vec<Artist>, AppError> {
+    match result {
+        Ok(artists) => Ok(artists),
+        Err(AppError::SpotifyApi {
+            status: StatusCode::FORBIDDEN,
+            ..
+        }) => {
+            tracing::info!(
+                %account_id,
+                scope,
+                "spotify token missing scope, skipping this seed source until reconnect"
+            );
+            Ok(Vec::new())
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// For each seed artist (the deduped union of the account's top artists
+/// across all three Spotify time ranges plus its followed artists — see
+/// `get_personalization_matches`), looks up its Apple Music catalog match
+/// and folds in that artist's similar-artists names — under
+/// `Similar { seed }`, where `seed` is the seed artist's display name —
+/// unless a name is already present (a `Direct` entry always wins;
+/// whichever `Similar` seed is found first wins over another, since
+/// neither is more authoritative).
 async fn expand_via_similar_artists(
     am: &AppleMusicClient,
     dev_token: &str,
-    top_artists: &[crate::spotify::client::Artist],
+    seed_artists: &[Artist],
     matches: &mut MatchMap,
 ) {
-    let seeds: Vec<&str> = top_artists.iter().map(|a| a.name.as_str()).collect();
+    let seeds: Vec<&str> = seed_artists.iter().map(|a| a.name.as_str()).collect();
 
     // Chunked (rather than `stream::buffer_unordered`, which doesn't play
     // well with closures borrowing `am`/`dev_token` across an await point)
@@ -226,4 +272,70 @@ async fn cache_matches(
     .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn artist(name: &str) -> Artist {
+        Artist {
+            id: "1".to_string(),
+            name: name.to_string(),
+            uri: String::new(),
+            href: String::new(),
+            external_urls: crate::spotify::client::ExternalUrls { spotify: None },
+            images: vec![],
+            artist_type: None,
+            genres: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_seed_source_passes_through_a_successful_result() {
+        let result = fetch_seed_source(
+            Ok(vec![artist("Role Model")]),
+            uuid::Uuid::nil(),
+            "user-top-read",
+        )
+        .await;
+
+        assert_eq!(result.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn fetch_seed_source_degrades_a_missing_scope_to_an_empty_vec() {
+        // A token that predates the scope this source needs (e.g. an
+        // account connected before `user-follow-read` was added) must not
+        // fail the whole personalization fetch over one missing scope.
+        let result = fetch_seed_source(
+            Err(AppError::SpotifyApi {
+                status: StatusCode::FORBIDDEN,
+                message: "insufficient scope".to_string(),
+            }),
+            uuid::Uuid::nil(),
+            "user-follow-read",
+        )
+        .await;
+
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn fetch_seed_source_propagates_a_non_forbidden_error() {
+        // A genuine API failure (rate limit, outage) must not get cached
+        // as "this account simply has no artists" for the TTL's full 24
+        // hours -- see this function's own doc comment.
+        let result = fetch_seed_source(
+            Err(AppError::SpotifyApi {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "spotify is down".to_string(),
+            }),
+            uuid::Uuid::nil(),
+            "user-top-read",
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
 }

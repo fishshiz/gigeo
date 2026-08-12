@@ -122,6 +122,21 @@ pub struct SearchArtistsResponse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct FollowedArtistsResponse {
+    pub artists: FollowedArtistsPage,
+}
+
+/// `GET /me/following?type=artist`'s cursor-paginated shape -- distinct
+/// from `Paging<T>`'s offset-based one used elsewhere in this client.
+/// Only `items` is read; a single page (see `get_followed_artists`'s own
+/// `limit`) is enough for personalization seeding, so `cursors`/`next`
+/// aren't modeled.
+#[derive(Debug, Deserialize)]
+pub struct FollowedArtistsPage {
+    pub items: Vec<Artist>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ArtistTracksResponse {
     pub tracks: Vec<Track>,
 }
@@ -309,6 +324,21 @@ impl SpotifyClient {
         self.get_json::<Paging<Artist>>(user_token, &url)
             .await
             .map(|p| p.items)
+    }
+
+    /// `GET /me/following?type=artist&limit={limit}` — non-deprecated.
+    /// Scopes: `user-follow-read`. First page only, same "good enough for
+    /// a seed pool" reasoning `get_top_artists` already applies to its own
+    /// 50-artist cap — see `spotify::top_artists`.
+    pub async fn get_followed_artists(
+        &self,
+        user_token: &str,
+        limit: u8,
+    ) -> Result<Vec<Artist>, AppError> {
+        let url = format!("{BASE}/me/following?type=artist&limit={limit}");
+        self.get_json::<FollowedArtistsResponse>(user_token, &url)
+            .await
+            .map(|r| r.artists.items)
     }
 
     // -- Playlists (require user-scoped token) ------------------------------
