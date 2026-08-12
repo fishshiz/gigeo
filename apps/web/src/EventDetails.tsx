@@ -194,11 +194,13 @@ const EventDetails = ({
   )
 
   useEffect(() => {
-    for (const performer of performers ?? []) {
-      if (performer.name) {
+    ;(performers ?? [])
+      .filter((performer): performer is Performer & { name: string } =>
+        Boolean(performer.name)
+      )
+      .forEach((performer) =>
         fetchPerformerEnrichment(performer.name, performer.id)
-      }
-    }
+      )
   }, [eventData, performers, fetchPerformerEnrichment])
 
   // scroll handler for the pane -- this component's own root never
