@@ -716,6 +716,12 @@ const UpcomingEventsSkeleton = () => (
   </ul>
 )
 
+/** Keeps a single artist's upcoming-events list from dwarfing the rest of
+ * the performer card -- most artists on tour have far more than this many
+ * future dates, and printing all of them push everything else below the
+ * fold. */
+const UPCOMING_EVENTS_VISIBLE_COUNT = 5
+
 const UpcomingEvents = (
   props: FutureEventsState & { onRetry?: () => void }
 ) => {
@@ -727,6 +733,11 @@ const UpcomingEvents = (
   const events = status === "loaded" ? props.events : []
   const loadingPhase = useLoadingPhase(status === "loading")
   const shouldReduceMotion = useReducedMotion()
+  const [expanded, setExpanded] = useState(false)
+  const visibleEvents =
+    expanded || events.length <= UPCOMING_EVENTS_VISIBLE_COUNT
+      ? events
+      : events.slice(0, UPCOMING_EVENTS_VISIBLE_COUNT)
   // Simple opacity crossfade between statuses -- this is a small utility
   // list, not a hero moment, so no spatial motion, per the dashboard-tier
   // motion budget (micro-interactions only). mode="wait" avoids the old
@@ -781,7 +792,7 @@ const UpcomingEvents = (
           <motion.div key="loaded" {...fade}>
             {events.length ? (
               <ul className="mt-1 flex flex-col gap-2 text-sm">
-                {events.map((e) => {
+                {visibleEvents.map((e) => {
                   return (
                     <li
                       key={e.id}
@@ -819,6 +830,15 @@ const UpcomingEvents = (
               </ul>
             ) : (
               <p className="mt-1 text-sm text-slate-500">No upcoming events</p>
+            )}
+            {!expanded && events.length > UPCOMING_EVENTS_VISIBLE_COUNT && (
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="mt-2 text-sm text-(--text-link) underline underline-offset-2"
+              >
+                Show {events.length - UPCOMING_EVENTS_VISIBLE_COUNT} more
+              </button>
             )}
           </motion.div>
         )}
