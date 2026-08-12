@@ -73,10 +73,12 @@ const amArtistSchema = z.object({
 /** `spotify_url` is on the *full* schema, not `amArtistSchema` above --
  * similar artists only ever come from Apple Music's similar-artists view
  * (see apps/api/src/artists/worker.rs module docs), so they never carry
- * one. Also asymmetric with `apple_music_url`: an artist matched via Apple
- * Music (the common case) never gets a Spotify lookup at all, so
- * `spotify_url` being absent doesn't mean Spotify has no page for them --
- * see apps/api/src/events/types.rs's `ArtistEnrichment::spotify_url` doc
+ * one. Both providers are always searched concurrently regardless of which
+ * one ends up winning identity/display fields (see
+ * apps/api/src/artists/worker.rs's `resolve_fresh`), so `spotify_url` being
+ * absent just means Spotify's own catalog search found no confident match --
+ * not that Spotify has no page for them -- see
+ * apps/api/src/events/types.rs's `ArtistEnrichment::spotify_url` doc
  * comment. */
 const amArtistFullSchema = amArtistSchema.extend({
   spotify_url: optional(z.string()),

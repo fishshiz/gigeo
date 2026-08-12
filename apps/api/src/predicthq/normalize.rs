@@ -88,6 +88,18 @@ pub(crate) fn normalize_predicthq_event(e: PredictHqEvent) -> EventResponse {
         dates_pretty,
         local_calendar_day,
         classifications: Some(build_classifications(e.phq_labels.as_deref())),
+        // Deliberately left `None` rather than falling back to the event
+        // title here (unlike `performer_search_names`'s own title fallback,
+        // used for artwork/enrichment lookups) -- `reconcile_predicthq_events`
+        // runs on this same normalized event next, and its performer-name
+        // confirmation step treats "neither side has performer data" as
+        // permission to match on venue+date alone (the real-world case this
+        // guards: an act with no structured PredictHQ entity, still the same
+        // show as its Ticketmaster listing). A synthetic title-derived
+        // performer here would silently demand an exact name match instead,
+        // breaking that case. See `events::stream`'s `MergeStep::PredictHqNew`
+        // handling for where the title fallback is applied instead, once
+        // reconciliation has already run.
         performers,
         url: None,
         price_ranges: None,

@@ -200,6 +200,28 @@ pub async fn get_concerts_tm_stream(
                             }),
                     );
 
+                    // These events already survived `reconcile_predicthq_events`
+                    // (that's what makes them "new" rather than a Ticketmaster
+                    // enrichment), so it's safe to backfill `performers` from
+                    // the title now for the same ~28%-with-no-structured-
+                    // entity case `performer_search_names` covers above -- see
+                    // `predicthq::backfill_title_performer`'s doc comment for
+                    // why this must not run any earlier. Without this, an
+                    // event in that ~28% has no `performers` for the
+                    // frontend's on-demand `/artists/enrichment` fetch (and
+                    // this branch's own `attach_genres` call below) to key
+                    // off at all, even though `spawn_enrichment` above
+                    // already resolves and persists full canonical-artist
+                    // data (Spotify included) for it under the same
+                    // title-derived name -- data the frontend then has no
+                    // way to ask for.
+                    for event in events
+                        .iter_mut()
+                        .filter(|event| is_music_classified(event))
+                    {
+                        crate::predicthq::backfill_title_performer(event);
+                    }
+
                     crate::artists::attach_genres(&mut events, &state.db.pool).await;
 
                     for mut event in events {
