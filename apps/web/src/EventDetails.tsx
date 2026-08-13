@@ -7,13 +7,14 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { MOTION_DURATION, MOTION_EASE } from "@workspace/ui/lib/motion"
 import { useCallback, useEffect, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
+import AppleMusicLogo from "./assets/Apple_Music_Icon_RGB_lg_073120.svg"
+
 import {
   ArrowLeftIcon,
   GlobeIcon,
   MapPinIcon,
   DollarSignIcon,
   ClockIcon,
-  MusicIcon,
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
@@ -26,13 +27,6 @@ import { useEventsContext } from "./providers/eventsProvider"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatDate, formatTime } from "./lib/dates"
 import { ticketmasterAttractionIds } from "./lib/performers"
-
-/** PredictHQ never provides a ticket purchase link -- when `url` is set on
- * a PredictHQ-sourced event, it's the backend's Apple Music artist-page
- * backfill instead (see `predicthq::artwork::backfill_artwork`). Labeling
- * that link "Tickets" would wrongly suggest it's a place to buy tickets. */
-const eventLinkLabel = (event: Pick<EventResponse, "source">) =>
-  event.source === "predicthq" ? "Listen" : "Tickets"
 
 /** "Venue Name, City, ST" -- venue name plus a short city/state locator,
  * used anywhere a venue is referenced inline (the hero details line and
@@ -287,7 +281,7 @@ const EventDetails = ({
                 variant="button"
                 className="ms-2 shrink-0 touch-manipulation rounded-full bg-(--accent-bg) px-2 py-1 text-[11px] font-medium text-(--text-on-accent) no-underline max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
               >
-                {eventLinkLabel(eventData)}
+                Tickets
               </Link>
             )}
           </motion.div>
@@ -347,7 +341,7 @@ const EventDetails = ({
               href={eventData.url}
               target="_blank"
             >
-              {eventLinkLabel(eventData)}
+              Tickets
             </Link>
           </motion.div>
         )}
@@ -426,7 +420,7 @@ const EventDetails = ({
                     target="_blank"
                     className="text-(--text-link) no-underline dark:text-(--text-link)"
                   >
-                    {eventLinkLabel(showtime)}
+                    Tickets
                   </Link>
                 )}
               </li>
@@ -442,7 +436,9 @@ const EventDetails = ({
           // fabricated id.
           key={performer.id ?? `${performer.name}-${i}`}
           performer={performer}
-          state={performer.name ? performerEnrichment[performer.name] : undefined}
+          state={
+            performer.name ? performerEnrichment[performer.name] : undefined
+          }
           futureEvents={futureEventsFor(performer.id)}
           onRetryFutureEvents={
             performer.id
@@ -575,10 +571,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
  * gate `UpcomingEventsSkeleton` uses, so a fast on-demand enrichment fetch
  * never flashes it. */
 const ArtistCardSkeleton = () => (
-  <div
-    aria-hidden
-    className="grid gap-4 p-4 dark:border dark:border-white/10"
-  >
+  <div aria-hidden className="grid gap-4 p-4 dark:border dark:border-white/10">
     <div className="flex min-w-0 shrink-0 gap-4">
       <span className="h-[200px] w-[200px] shrink-0 animate-pulse rounded-2xl bg-slate-700/50" />
       <div className="min-w-0 flex-1 py-1">
@@ -655,7 +648,19 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
             beforeInjection={(svg) => svg.setAttribute("aria-hidden", "true")}
           />
         ) : label === "Apple Music" ? (
-          <MusicIcon aria-hidden className="me-[4px] h-[24px] w-[24px]" />
+          <ReactSVG
+            className="me-[4px] h-[24px] w-[24px]"
+            beforeInjection={(svg) => {
+              svg.setAttribute("width", String("24"))
+              svg.setAttribute("height", String("24"))
+              svg.setAttribute(
+                "viewBox",
+                svg.getAttribute("viewBox") || "0 0 24 24"
+              )
+              svg.setAttribute("aria-hidden", "true")
+            }}
+            src={AppleMusicLogo}
+          />
         ) : label === "Spotify" ? (
           <ReactSVG
             className="me-[4px] h-[24px] w-[24px]"
@@ -821,7 +826,7 @@ const UpcomingEvents = (
                           target="_blank"
                           className="ms-auto shrink-0 text-(--text-link) no-underline dark:text-(--text-link)"
                         >
-                          {eventLinkLabel(e)}
+                          Tickets
                         </Link>
                       )}
                     </li>

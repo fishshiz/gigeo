@@ -1,14 +1,14 @@
-//! Backfills images/url for PredictHQ-only events using the same Apple
-//! Music catalog artist lookup `crate::artists::worker` uses for canonical
-//! artist enrichment — see `crate::apple_music::artwork_cache` for the
+//! Backfills images for PredictHQ-only events using the same Apple Music
+//! catalog artist lookup `crate::artists::worker` uses for canonical artist
+//! enrichment — see `crate::apple_music::artwork_cache` for the
 //! caching/name-verification rules this relies on. Candidate names come
 //! from `super::performer_search_names`, which falls back to the event's
 //! own title when there's no structured performer entity at all.
 //!
 //! Deliberately scoped to *unmatched* PredictHQ events (the `new_events`
 //! half of `reconcile_predicthq_events`'s output): a matched event is a
-//! clone of its Ticketmaster counterpart, which already has a real photo
-//! and ticket URL, so backfilling there would just be wasted API calls.
+//! clone of its Ticketmaster counterpart, which already has a real photo,
+//! so backfilling there would just be wasted API calls.
 
 use futures::{StreamExt, stream};
 
@@ -34,14 +34,14 @@ const ARTWORK_SIZE_PX: u32 = 1200;
 /// serial lookups without provoking the limiter in the first place.
 const MAX_CONCURRENT_LOOKUPS: usize = 4;
 
-/// Populates `images`/`url` on `events` in place from the first performer
-/// with a usable Apple Music match, looking up a bounded number of events
+/// Populates `images` on `events` in place from the first performer with a
+/// usable Apple Music match, looking up a bounded number of events
 /// concurrently (see `MAX_CONCURRENT_LOOKUPS`) rather than either fully
 /// serially or all at once.
 ///
 /// Best-effort throughout: an event with no performer name, no confident
-/// Apple Music match, or that already has its own image/url, is left
-/// exactly as PredictHQ gave it rather than showing something misleading.
+/// Apple Music match, or that already has its own image, is left exactly as
+/// PredictHQ gave it rather than showing something misleading.
 pub(crate) async fn backfill_artwork(
     events: &mut [EventResponse],
     am: &AppleMusicClient,
@@ -57,7 +57,7 @@ pub(crate) async fn backfill_artwork(
     let candidate_names: Vec<Vec<String>> = events
         .iter()
         .map(|event| {
-            if !event.images.is_empty() && event.url.is_some() {
+            if !event.images.is_empty() {
                 return Vec::new();
             }
             super::performer_search_names(event)
@@ -97,10 +97,6 @@ pub(crate) async fn backfill_artwork(
                 // images already use.
                 fallback: Some(true),
             }];
-        }
-
-        if event.url.is_none() {
-            event.url = found.apple_music_url;
         }
     }
 }
@@ -158,7 +154,7 @@ mod tests {
     // `predicthq::tests::performer_search_names_falls_back_to_event_title_when_no_performers`.
 
     #[tokio::test]
-    async fn skips_events_that_already_have_an_image_and_url() {
+    async fn skips_events_that_already_have_an_image() {
         let mut event = phq_event("phq-1", Some("Role Model"));
         event.images = vec![Images {
             url: "https://example.com/real.jpg".to_string(),
@@ -167,7 +163,6 @@ mod tests {
             ratio: None,
             fallback: None,
         }];
-        event.url = Some("https://tickets.example.com".to_string());
         let mut events = vec![event];
 
         let am = AppleMusicClient::new(reqwest::Client::new(), "us".to_string());
@@ -176,9 +171,5 @@ mod tests {
         backfill_artwork(&mut events, &am, "unused-token", &cache).await;
 
         assert_eq!(events[0].images[0].url, "https://example.com/real.jpg");
-        assert_eq!(
-            events[0].url.as_deref(),
-            Some("https://tickets.example.com")
-        );
     }
 }
