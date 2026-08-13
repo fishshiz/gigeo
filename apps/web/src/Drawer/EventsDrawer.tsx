@@ -5,7 +5,7 @@ import { useEventsContext } from "../providers/eventsProvider"
 import { useSearchProvider } from "@/providers/searchProvider"
 import type { Ref } from "react"
 import { formatDate, formatDateTime } from "../lib/dates"
-import { EventFilter } from "../EventFilter"
+import { EventFilter, EventFilterChips } from "../EventFilter"
 import { groupEvents } from "../lib/groupEvents"
 
 type RegisterItem = (id: string) => Ref<HTMLDivElement>
@@ -46,7 +46,7 @@ export const EventsDrawer = ({
   return (
     <div className="px-4">
       {entries.length ? (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 pb-4">
           {entries.map(([date, events]) => (
             <div key={date}>
               <DateAnchor date={date} ref={registerItem(date)} />
@@ -105,19 +105,22 @@ export const EventsDrawerHeader = ({
 
   return (
     <>
-      <div className="mb-2 flex w-full items-center justify-between">
-        <h2 className="text-xl font-bold">
-          {selectedLocation?.cityName
-            ? `Events in ${selectedLocation.cityName}`
-            : "Events"}
-        </h2>
-        {radiusExpanded && searchRadius && (
-          <span className="text-xs text-gray-500">
-            Showing events within {searchRadius}mi
-          </span>
-        )}
+      <div className="mb-2 flex w-full items-start justify-between md:pr-10">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-left text-xl font-bold">
+            {selectedLocation?.cityName
+              ? `Events in ${selectedLocation.cityName}`
+              : "Events"}
+          </h2>
+          {radiusExpanded && searchRadius && (
+            <span className="text-left text-xs text-gray-500">
+              Showing events within {searchRadius}mi
+            </span>
+          )}
+        </div>
         <EventFilter />
       </div>
+      <EventFilterChips />
       <DateSlider
         dates={entries.map(([key]) => key)}
         activeDateId={topMostId}

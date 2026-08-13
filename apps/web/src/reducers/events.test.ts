@@ -213,6 +213,7 @@ describe("eventsReducer", () => {
       isStreaming: true,
       selectedEvents: [makeEvent()],
       error: "boom",
+      searchRadius: 150,
     }
     expect(eventsReducer(dirty, { type: "RESET_EVENTS" })).toEqual(
       initialEventsState

@@ -228,7 +228,7 @@ const EventDetails = ({
     // viewport, just scrolled away like normal content. Caught via
     // getBoundingClientRect() during animation verification, not visible
     // from a colors-only check.
-    <div ref={scrollRef} className="relative">
+    <div ref={scrollRef} className="relative pb-4">
       {/* sticky compact header inside the pane */}
       <AnimatePresence>
         {showStickyHeader && (

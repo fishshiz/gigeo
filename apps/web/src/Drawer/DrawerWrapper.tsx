@@ -209,7 +209,7 @@ const DrawerWrapper = () => {
       <TabPanels>
         <TabPanel id="explore" className="p-0">
           {!selectedEvents.length && entries.length > 0 && (
-            <DrawerHeader className="sticky top-0 z-10 my-2 w-full bg-background">
+            <DrawerHeader className="sticky top-0 z-10 mt-0 w-full bg-background sm:my-2">
               <EventsDrawerHeader
                 topMostId={topMostId}
                 onSelect={scrollToDate}
@@ -218,7 +218,7 @@ const DrawerWrapper = () => {
           )}
           <DrawerBody
             ref={eventsScrollRef}
-            className="h-full flex-1 overflow-y-auto scroll-smooth p-0"
+            className="h-full flex-1 overflow-y-auto p-0"
           >
             {selectedGroups.length === 1 ? (
               <EventDetails

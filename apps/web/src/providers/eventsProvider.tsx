@@ -118,8 +118,6 @@ type EventsContextValue = EventsState & {
    * changed, just their location. Unlike useNavigateToLocation, this
    * doesn't reset the selected-location label or date range. */
   searchThisArea: (coordinates: [number, number]) => void
-  /** The radius (miles) the current/last search actually used. */
-  searchRadius: number | null
   /** Whether searchRadius went beyond the base tier to find results. */
   radiusExpanded: boolean
   /** `eventsByDate` narrowed by the active filters (classification + For
@@ -185,7 +183,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     activeForYouArtists,
     activeForYouGenres,
   ])
-  const [searchRadius, setSearchRadius] = React.useState<number | null>(null)
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort()
@@ -195,7 +192,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   const resetEvents = useCallback(() => {
     dispatch({ type: "RESET_EVENTS" })
-    setSearchRadius(null)
   }, [])
 
   const selectEvents = useCallback((events: EventResponse[]) => {
@@ -268,7 +264,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
-  //FIXME commenting these setState lines out as they violate lint rules https://react.dev/learn/you-might-not-need-an-effect. Need to fix
   const streamEvents = useCallback(
     async (params: StreamConcertsInput) => {
       abortRef.current?.abort()
@@ -278,7 +273,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "RESET_EVENTS" })
       dispatch({ type: "STREAM_STATUS", payload: { isStreaming: true } })
-      // setSearchRadius(null)
 
       const startRadius = params.startRadius ?? BASE_RADIUS
       const tiers = RADIUS_TIERS.filter((radius) => radius >= startRadius)
@@ -294,7 +288,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
             controller.signal
           )
           totalCount += tierCount
-          // setSearchRadius(radius)
+          dispatch({ type: "SET_SEARCH_RADIUS", payload: radius })
 
           if (totalCount > 0) break
         }
@@ -318,7 +312,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     [runStream]
   )
 
-  const radiusExpanded = searchRadius !== null && searchRadius > BASE_RADIUS
+  const radiusExpanded =
+    state.searchRadius !== null && state.searchRadius > BASE_RADIUS
 
   // Reactively (re-)runs the search whenever the selected location or date
   // range changes. Lives here rather than in MapWrapper: neither
@@ -340,7 +335,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     (coordinates: [number, number]) => {
       setSelectedCoordinates(coordinates)
     },
-    [searchRadius, setSelectedCoordinates]
+    [setSelectedCoordinates]
   )
 
   const { latitude, longitude, start, end } = {
@@ -367,7 +362,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       resetEvents,
       selectEvents,
       searchThisArea,
-      searchRadius,
       radiusExpanded,
       visibleEventsByDate,
       activeClassifications,
@@ -384,7 +378,6 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       resetEvents,
       selectEvents,
       searchThisArea,
-      searchRadius,
       radiusExpanded,
       visibleEventsByDate,
       activeClassifications,

@@ -34,12 +34,15 @@ type EventsAction =
   | { type: "STREAM_ERROR"; payload: string }
   | { type: "STREAM_STATUS"; payload: { isStreaming: boolean } }
   | { type: "SELECT_EVENTS"; payload: EventResponse[] }
+  | { type: "SET_SEARCH_RADIUS"; payload: number | null }
 
 type EventsState = {
   eventsByDate: EventsByDate
   isStreaming: boolean
   selectedEvents: EventResponse[]
   error: string | null
+  /** The radius (miles) the current/last search actually used. */
+  searchRadius: number | null
 }
 
 function sameEvent(a: EventResponse, b: EventResponse): boolean {
@@ -91,12 +94,19 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
         isStreaming: false,
         selectedEvents: [],
         error: null,
+        searchRadius: null,
       }
 
     case "STREAM_STATUS":
       return {
         ...state,
         isStreaming: action.payload.isStreaming,
+      }
+
+    case "SET_SEARCH_RADIUS":
+      return {
+        ...state,
+        searchRadius: action.payload,
       }
 
     case "STREAM_ERROR":
@@ -156,6 +166,7 @@ const initialEventsState: EventsState = {
   isStreaming: false,
   selectedEvents: [],
   error: null,
+  searchRadius: null,
 }
 
 export {
