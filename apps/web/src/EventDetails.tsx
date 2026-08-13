@@ -487,16 +487,27 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
 
   return (
     <div
-      // Shadows are close to invisible on a near-black surface (no contrast
+      // Card surface is now a fixed token (bg-(--surface-scrim)) instead of
+      // the artist's own artwork color -- see EventDetails' bgColor removal.
+      // dark:border swaps in a ring instead of relying on a shadow, since
+      // shadows are close to invisible on a near-black surface (no contrast
       // between a black-on-black shadow and the background it's cast on).
-      // Dark mode swaps the shadow for a border ring instead, per the
-      // shadow rule -- bgColor is a dynamic per-artist value, so a fixed
-      // neutral white-overlay ring (not a specific brand-hued border
-      // primitive) is the one that won't clash with it.
-      className="grid gap-4 p-4 text-slate-50 shadow-lg dark:border dark:border-white/10 dark:text-(--color-text-secondary-600) dark:shadow-none"
-      style={{ backgroundColor: bgColor }}
+      className="grid gap-4 bg-(--surface-scrim) p-4 text-(--text-on-scrim) shadow-lg dark:border dark:border-white/10 dark:shadow-none"
     >
-      {/* Artwork block with bgColor */}
+      {/* Artwork tile: bgColor is scoped to just this small block (fill
+          behind any transparent artwork edges, plus a soft glow) rather
+          than the whole card, so a light/washed-out artist palette never
+          has to carry body-text contrast. shadow-[${bgColor}] (a previous
+          attempt at this) never rendered, for two independent reasons:
+          Tailwind's JIT scanner only generates arbitrary-value classes it
+          can see as a literal string in source -- a runtime template
+          literal like `shadow-[${bgColor}]` isn't one, so no CSS rule for
+          it ever gets generated at build time. And even if it had, a bare
+          color is invalid for the box-shadow property, which requires at
+          least an x/y offset -- `box-shadow: #1a2b3c` alone is dropped by
+          the browser as invalid. Set as an inline boxShadow instead: it's
+          a genuinely per-artist runtime value, and inline style is the
+          one place Tailwind's static scanning was never going to apply. */}
       <div className="relative flex min-w-0 shrink-0 gap-4">
         {imgUrl && (
           <div
@@ -505,6 +516,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
               width: artworkSize,
               height: artworkSize,
               backgroundColor: bgColor,
+              boxShadow: `0 6px 12px -4px ${bgColor}80`,
             }}
           >
             <ResponsiveImage
@@ -633,7 +645,7 @@ const ExternalLink = ({ url, label }: { url: string; label: string }) => {
       <Link
         href={url}
         target="_blank"
-        className="my-1 flex items-center fill-(--text-link) text-(--text-link) no-underline dark:fill-(--text-link) dark:text-(--text-link)"
+        className="my-1 flex items-center fill-(--text-on-scrim) text-(--text-on-scrim) no-underline dark:fill-(--text-on-scrim) dark:text-(--text-on-scrim)"
       >
         {label === "Wikipedia" ? (
           <ReactSVG
