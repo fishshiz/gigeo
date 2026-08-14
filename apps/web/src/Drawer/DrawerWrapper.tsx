@@ -229,7 +229,11 @@ const DrawerWrapper = () => {
       className={
         isDesktop
           ? "z-10 flex h-full w-[26rem] flex-col overflow-hidden"
-          : "z-10 flex h-full w-full flex-col overflow-hidden"
+          : // pointer-events-auto counters the outer Tabs root's
+            // pointer-events-none below -- this is the box that actually
+            // tracks the visible sheet position (via DrawerContent's own
+            // y-transform), so it's the one that should catch touches.
+            "z-10 flex h-full w-full flex-col overflow-hidden pointer-events-auto"
       }
     >
       {isDesktop && (
@@ -315,8 +319,18 @@ const DrawerWrapper = () => {
       // renders this inside the map's own relative container) sized to
       // the "full" snap height -- DrawerContent's drag/spring then
       // translates within that fixed box rather than the box itself
-      // resizing per snap point.
-      className={isDesktop ? "h-full shrink-0" : "absolute inset-x-0 bottom-0"}
+      // resizing per snap point. This box itself never moves, so it's
+      // pointer-events-none -- without that, its static, transparent
+      // "reserved for full height" area would sit on top of the map and
+      // swallow every tap/drag even where the sheet has slid away and the
+      // map is visibly showing through (peek/half). DrawerContent's own
+      // className below opts back into pointer-events-auto, since *that*
+      // box is the one whose position actually matches what's on screen.
+      className={
+        isDesktop
+          ? "h-full shrink-0"
+          : "pointer-events-none absolute inset-x-0 bottom-0"
+      }
       style={isDesktop ? undefined : { height: snapPointsPx[2] }}
       selectedKey={activeTab}
       onSelectionChange={(t) => handleDestinationTab(t)}
