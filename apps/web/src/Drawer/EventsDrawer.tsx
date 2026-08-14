@@ -23,14 +23,10 @@ export const EventsDrawer = ({
     searchRadius,
     radiusExpanded,
     activeClassifications,
-    activeForYouArtists,
-    activeForYouGenres,
+    forYouOnly,
   } = useEventsContext()
   const entries = Object.entries(visibleEventsByDate).sort()
-  const hasActiveFilters =
-    activeClassifications.size > 0 ||
-    activeForYouArtists.size > 0 ||
-    activeForYouGenres.size > 0
+  const hasActiveFilters = activeClassifications.size > 0 || forYouOnly
   const filteredEverythingOut =
     hasActiveFilters && !entries.length && Object.keys(eventsByDate).length > 0
 

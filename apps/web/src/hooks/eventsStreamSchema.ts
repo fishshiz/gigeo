@@ -8,8 +8,8 @@ import { z } from "zod"
 // component.
 //
 // `performerSchema.genres` is the *only* canonical-artist data the stream
-// carries eagerly -- just enough for the "for you" genre filter
-// (providers/eventsProvider.tsx's `matchedPerformerGenres`). The rest
+// carries eagerly (see `Performer.genres`'s doc comment in
+// apps/api/src/events/types.rs for why). The rest
 // (artwork, similar artists, display name, provider urls -- the
 // `amArtistFullSchema` shape below) is fetched on demand, per performer,
 // only for a selected event's detail view -- see apps/web/src/EventDetails.tsx

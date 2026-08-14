@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-  matchedPerformerGenres,
-  matchesClassificationFilter,
-  matchesForYouFilter,
-} from "./eventsProvider"
+import { matchesClassificationFilter, matchesForYouFilter } from "./eventsProvider"
 import type { EventResponse } from "../hooks/eventsStream"
 
 function makeEvent(overrides: Partial<EventResponse> = {}): EventResponse {
@@ -52,76 +48,17 @@ describe("matchesClassificationFilter", () => {
   })
 })
 
-describe("matchedPerformerGenres", () => {
-  it("returns an empty array when the event has no matchedArtist", () => {
-    expect(matchedPerformerGenres(makeEvent())).toEqual([])
-  })
-
-  it("returns the matched performer's genres", () => {
-    const event = makeEvent({
-      matchedArtist: "Role Model",
-      performers: [{ name: "Role Model", genres: ["Pop", "Indie"] }],
-    })
-    expect(matchedPerformerGenres(event)).toEqual(["Pop", "Indie"])
-  })
-
-  it("returns an empty array when the matched performer has no genres yet", () => {
-    const event = makeEvent({
-      matchedArtist: "Role Model",
-      performers: [{ name: "Role Model" }],
-    })
-    expect(matchedPerformerGenres(event)).toEqual([])
-  })
-
-  it("returns an empty array when no performer name matches matchedArtist", () => {
-    const event = makeEvent({
-      matchedArtist: "Role Model",
-      performers: [{ name: "Someone Else" }],
-    })
-    expect(matchedPerformerGenres(event)).toEqual([])
-  })
-})
-
 describe("matchesForYouFilter", () => {
-  it("passes everything when no For You filter is active", () => {
-    expect(matchesForYouFilter(makeEvent(), new Set(), new Set())).toBe(true)
+  it("passes everything when the For You toggle is off", () => {
+    expect(matchesForYouFilter(makeEvent(), false)).toBe(true)
   })
 
-  it("excludes an unmatched event once a For You filter is active", () => {
-    expect(
-      matchesForYouFilter(makeEvent(), new Set(["Role Model"]), new Set())
-    ).toBe(false)
+  it("excludes an unmatched event once the For You toggle is on", () => {
+    expect(matchesForYouFilter(makeEvent(), true)).toBe(false)
   })
 
-  it("matches on the selected artist", () => {
+  it("includes a matched event once the For You toggle is on", () => {
     const event = makeEvent({ matchedArtist: "Role Model" })
-    expect(
-      matchesForYouFilter(event, new Set(["Role Model"]), new Set())
-    ).toBe(true)
-  })
-
-  it("doesn't match a different selected artist", () => {
-    const event = makeEvent({ matchedArtist: "Role Model" })
-    expect(
-      matchesForYouFilter(event, new Set(["Someone Else"]), new Set())
-    ).toBe(false)
-  })
-
-  it("matches on a selected genre from the matched performer's genres", () => {
-    const event = makeEvent({
-      matchedArtist: "Role Model",
-      performers: [{ name: "Role Model", genres: ["Pop"] }],
-    })
-    expect(matchesForYouFilter(event, new Set(), new Set(["Pop"]))).toBe(true)
-  })
-
-  it("doesn't match a selected genre the matched performer doesn't have", () => {
-    const event = makeEvent({
-      matchedArtist: "Role Model",
-      performers: [{ name: "Role Model", genres: ["Pop"] }],
-    })
-    expect(matchesForYouFilter(event, new Set(), new Set(["Rock"]))).toBe(
-      false
-    )
+    expect(matchesForYouFilter(event, true)).toBe(true)
   })
 })

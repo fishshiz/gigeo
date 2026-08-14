@@ -1,16 +1,14 @@
 import { TagGroup, TagList, type Key } from "react-aria-components"
 import { Tag as FilterChip } from "@workspace/ui/components/ui/TagGroup"
+import { ToggleButton } from "@workspace/ui/components/ui/ToggleButton"
 import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { Button } from "@workspace/ui/components/ui/Button"
 import { Popover } from "@workspace/ui/components/ui/Popover"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { MOTION_DURATION, MOTION_EASE } from "@workspace/ui/lib/motion"
-import {
-  useEventsContext,
-  matchedPerformerGenres,
-} from "./providers/eventsProvider"
+import { useEventsContext } from "./providers/eventsProvider"
 import { type Classification } from "./lib/types"
-import { FilterIcon } from "lucide-react"
+import { FilterIcon, Sparkles } from "lucide-react"
 import { DialogTrigger, Heading } from "react-aria-components"
 
 const toKeySet = (keys: "all" | Set<Key>) =>
@@ -22,21 +20,15 @@ const EventFilter = () => {
     visibleEventsByDate,
     activeClassifications,
     setActiveClassifications,
-    activeForYouArtists,
-    setActiveForYouArtists,
-    activeForYouGenres,
-    setActiveForYouGenres,
+    forYouOnly,
+    setForYouOnly,
   } = useEventsContext()
 
-  const totalSelected =
-    activeClassifications.size +
-    activeForYouArtists.size +
-    activeForYouGenres.size
+  const totalSelected = activeClassifications.size + (forYouOnly ? 1 : 0)
 
   const clearFilters = () => {
     setActiveClassifications(new Set())
-    setActiveForYouArtists(new Set())
-    setActiveForYouGenres(new Set())
+    setForYouOnly(false)
   }
 
   const allEvents = Object.values(eventsByDate).flat()
@@ -64,31 +56,10 @@ const EventFilter = () => {
       {}
     )
 
-  // "For You" tag options are scoped to currently-matched events only --
-  // this is a personalization filter, not a general performer/genre
-  // browser (see Phase 1 plan). Empty when nothing's matched (not
-  // connected, or no match in the current search results).
-  const matchedEvents = allEvents.filter((e) => e.matchedArtist)
-
-  const matchedArtists = matchedEvents.reduce(
-    (acc: Record<string, number>, e) => {
-      const name = e.matchedArtist!
-      acc[name] = (acc[name] ?? 0) + 1
-      return acc
-    },
-    {}
-  )
-
-  const matchedGenres = matchedEvents
-    .flatMap(matchedPerformerGenres)
-    .reduce((acc: Record<string, number>, genre) => {
-      acc[genre] = (acc[genre] ?? 0) + 1
-      return acc
-    }, {})
-
-  const hasForYouOptions =
-    Object.keys(matchedArtists).length > 0 ||
-    Object.keys(matchedGenres).length > 0
+  // A single "show me my matches" toggle, not a per-artist/genre browser
+  // (see Phase 1 plan) -- scoped to currently-matched events only, zero
+  // when nothing's matched (not connected, or no match in this search).
+  const matchedEventCount = allEvents.filter((e) => e.matchedArtist).length
 
   return (
     <>
@@ -160,63 +131,23 @@ const EventFilter = () => {
                 </TagGroup>
               </div>
 
-              {hasForYouOptions && (
+              {matchedEventCount > 0 && (
                 <div className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/10">
                   <Heading className="text-xs font-semibold text-muted-foreground uppercase">
                     For You
                   </Heading>
-                  {Object.keys(matchedArtists).length > 0 && (
-                    <TagGroup
-                      aria-label="Filter by matched artist"
-                      selectionMode="multiple"
-                      selectedKeys={activeForYouArtists}
-                      onSelectionChange={(keys) =>
-                        setActiveForYouArtists(toKeySet(keys))
-                      }
-                      escapeKeyBehavior="none"
-                    >
-                      <TagList className="flex flex-wrap gap-1.5">
-                        {Object.entries(matchedArtists).map(([name, count]) => (
-                          <FilterChip
-                            key={name}
-                            id={name}
-                            textValue={`${name} - ${count}`}
-                          >
-                            {name}
-                            <span className="tabular-nums opacity-60">
-                              {count}
-                            </span>
-                          </FilterChip>
-                        ))}
-                      </TagList>
-                    </TagGroup>
-                  )}
-                  {Object.keys(matchedGenres).length > 0 && (
-                    <TagGroup
-                      aria-label="Filter by matched genre"
-                      selectionMode="multiple"
-                      selectedKeys={activeForYouGenres}
-                      onSelectionChange={(keys) =>
-                        setActiveForYouGenres(toKeySet(keys))
-                      }
-                      escapeKeyBehavior="none"
-                    >
-                      <TagList className="flex flex-wrap gap-1.5">
-                        {Object.entries(matchedGenres).map(([genre, count]) => (
-                          <FilterChip
-                            key={genre}
-                            id={genre}
-                            textValue={`${genre} - ${count}`}
-                          >
-                            {genre}
-                            <span className="tabular-nums opacity-60">
-                              {count}
-                            </span>
-                          </FilterChip>
-                        ))}
-                      </TagList>
-                    </TagGroup>
-                  )}
+                  <ToggleButton
+                    aria-label={`Only show events matched to your taste (${matchedEventCount})`}
+                    isSelected={forYouOnly}
+                    onChange={setForYouOnly}
+                    className="flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 selected:border-transparent selected:bg-(--accent-bg) selected:text-(--text-on-accent) dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-500"
+                  >
+                    <Sparkles aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                    For You
+                    <span className="tabular-nums opacity-70">
+                      {matchedEventCount}
+                    </span>
+                  </ToggleButton>
                 </div>
               )}
             </div>
@@ -240,17 +171,12 @@ const EventFilterChips = () => {
   const {
     activeClassifications,
     setActiveClassifications,
-    activeForYouArtists,
-    setActiveForYouArtists,
-    activeForYouGenres,
-    setActiveForYouGenres,
+    forYouOnly,
+    setForYouOnly,
   } = useEventsContext()
   const shouldReduceMotion = useReducedMotion()
 
-  const totalSelected =
-    activeClassifications.size +
-    activeForYouArtists.size +
-    activeForYouGenres.size
+  const totalSelected = activeClassifications.size + (forYouOnly ? 1 : 0)
 
   const collapsed = { height: 0, opacity: 0 }
   const expanded = { height: "auto", opacity: 1 }
@@ -291,42 +217,19 @@ const EventFilterChips = () => {
                 </TagGroup>
               </motion.div>
             )}
-            {activeForYouArtists.size > 0 && (
+            {forYouOnly && (
               <motion.div layout="position" transition={transition}>
                 <TagGroup
-                  aria-label="Active artist filters"
-                  onRemove={(keys) => {
-                    const next = new Set(activeForYouArtists)
-                    keys.forEach((key) => next.delete(String(key)))
-                    setActiveForYouArtists(next)
-                  }}
+                  aria-label="Active For You filter"
+                  onRemove={() => setForYouOnly(false)}
                 >
                   <TagList className="flex flex-wrap gap-1.5">
-                    {[...activeForYouArtists].map((name) => (
-                      <FilterChip key={name} id={name}>
-                        {name}
-                      </FilterChip>
-                    ))}
-                  </TagList>
-                </TagGroup>
-              </motion.div>
-            )}
-            {activeForYouGenres.size > 0 && (
-              <motion.div layout="position" transition={transition}>
-                <TagGroup
-                  aria-label="Active genre filters"
-                  onRemove={(keys) => {
-                    const next = new Set(activeForYouGenres)
-                    keys.forEach((key) => next.delete(String(key)))
-                    setActiveForYouGenres(next)
-                  }}
-                >
-                  <TagList className="flex flex-wrap gap-1.5">
-                    {[...activeForYouGenres].map((genre) => (
-                      <FilterChip key={genre} id={genre}>
-                        {genre}
-                      </FilterChip>
-                    ))}
+                    <FilterChip
+                      id="for-you"
+                      className="border-transparent bg-(--accent-bg) text-(--text-on-accent)"
+                    >
+                      For You
+                    </FilterChip>
                   </TagList>
                 </TagGroup>
               </motion.div>

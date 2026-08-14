@@ -50,21 +50,6 @@ function parseStreamedEvent(raw: string) {
   return result.data
 }
 
-/** The genres of the performer that triggered `event.matchedArtist`, read
- * off that performer's already-attached canonical-artist genres (see
- * `apps/api/src/artists/lookup.rs`'s `attach_genres`) rather than any
- * personalization-specific data -- there isn't any, the "for you" match
- * pipeline only ever tracks a name. Empty when unmatched, or when that
- * performer's genres haven't resolved yet (best-effort, same as everywhere
- * else canonical-artist data is read). */
-export function matchedPerformerGenres(event: EventResponse): string[] {
-  if (!event.matchedArtist) return []
-  const performer = event.performers?.find(
-    (p) => p.name === event.matchedArtist
-  )
-  return performer?.genres ?? []
-}
-
 export function matchesClassificationFilter(
   event: EventResponse,
   active: Set<string>
@@ -75,15 +60,14 @@ export function matchesClassificationFilter(
   )
 }
 
+/** A single "show me my matches" toggle, not a per-artist/genre browser --
+ * matches the one consolidated For You chip in EventFilter.tsx. */
 export function matchesForYouFilter(
   event: EventResponse,
-  activeArtists: Set<string>,
-  activeGenres: Set<string>
+  forYouOnly: boolean
 ): boolean {
-  if (activeArtists.size === 0 && activeGenres.size === 0) return true
-  if (!event.matchedArtist) return false
-  if (activeArtists.has(event.matchedArtist)) return true
-  return matchedPerformerGenres(event).some((g) => activeGenres.has(g))
+  if (!forYouOnly) return true
+  return Boolean(event.matchedArtist)
 }
 
 // Search radii (miles) tried in order until one returns events. Lets
@@ -127,10 +111,8 @@ type EventsContextValue = EventsState & {
   visibleEventsByDate: EventsByDate
   activeClassifications: Set<string>
   setActiveClassifications: (classifications: Set<string>) => void
-  activeForYouArtists: Set<string>
-  setActiveForYouArtists: (artists: Set<string>) => void
-  activeForYouGenres: Set<string>
-  setActiveForYouGenres: (genres: Set<string>) => void
+  forYouOnly: boolean
+  setForYouOnly: (value: boolean) => void
 }
 
 function buildConcertStreamUrl(params: StreamConcertsParams) {
@@ -152,18 +134,9 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [activeClassifications, setActiveClassifications] = useState<
     Set<string>
   >(new Set())
-  const [activeForYouArtists, setActiveForYouArtists] = useState<Set<string>>(
-    new Set()
-  )
-  const [activeForYouGenres, setActiveForYouGenres] = useState<Set<string>>(
-    new Set()
-  )
+  const [forYouOnly, setForYouOnly] = useState(false)
   const visibleEventsByDate = useMemo(() => {
-    if (
-      activeClassifications.size === 0 &&
-      activeForYouArtists.size === 0 &&
-      activeForYouGenres.size === 0
-    ) {
+    if (activeClassifications.size === 0 && !forYouOnly) {
       return state.eventsByDate
     }
 
@@ -172,17 +145,12 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       const filtered = events.filter(
         (event) =>
           matchesClassificationFilter(event, activeClassifications) &&
-          matchesForYouFilter(event, activeForYouArtists, activeForYouGenres)
+          matchesForYouFilter(event, forYouOnly)
       )
       if (filtered.length) result[date] = filtered
     }
     return result
-  }, [
-    state.eventsByDate,
-    activeClassifications,
-    activeForYouArtists,
-    activeForYouGenres,
-  ])
+  }, [state.eventsByDate, activeClassifications, forYouOnly])
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort()
@@ -366,10 +334,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       visibleEventsByDate,
       activeClassifications,
       setActiveClassifications,
-      activeForYouArtists,
-      setActiveForYouArtists,
-      activeForYouGenres,
-      setActiveForYouGenres,
+      forYouOnly,
+      setForYouOnly,
     }),
     [
       state,
@@ -381,8 +347,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       radiusExpanded,
       visibleEventsByDate,
       activeClassifications,
-      activeForYouArtists,
-      activeForYouGenres,
+      forYouOnly,
     ]
   )
 
