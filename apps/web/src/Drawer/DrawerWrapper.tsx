@@ -207,7 +207,7 @@ const DrawerWrapper = () => {
       )}
 
       <TabPanels>
-        <TabPanel id="explore" className="p-0">
+        <TabPanel id="explore" className="flex flex-col p-0">
           {!selectedEvents.length && entries.length > 0 && (
             <DrawerHeader className="sticky top-0 z-10 mt-0 w-full bg-background sm:my-2">
               <EventsDrawerHeader
