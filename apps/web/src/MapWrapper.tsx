@@ -123,7 +123,7 @@ const MapWrapper = () => {
   useResizeFix(mapRef, mapContainer)
   useMapViewSync(mapRef)
   const camera = useMapCamera(mapRef)
-  useEventLayer(mapRef, visibleEventsByDate, selectedEvents, selectEvents)
+  useEventLayer(mapRef, visibleEventsByDate, selectedEvents)
   useClusterSelection(mapRef, visibleEventsByDate, selectEvents)
 
   const handleCollapseDrawer = useCallback(

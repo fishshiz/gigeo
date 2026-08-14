@@ -48,8 +48,7 @@ function ensureMarkerImage(map: MapboxMap): Promise<void> {
 export function useEventLayer(
   mapRef: RefObject<MapboxMap | null>,
   eventsByDate: EventsByDate,
-  selectedEvents: EventResponse[],
-  selectEvents: (events: EventResponse[]) => void
+  selectedEvents: EventResponse[]
 ) {
   // Guards the one-time addSource+addLayer setup below against a race:
   // ensureMarkerImage is async, and this effect can re-run many times in
@@ -64,8 +63,6 @@ export function useEventLayer(
 
   useEffect(() => {
     const markEvents = () => {
-      selectEvents([])
-
       const dataSource = buildEventFeatureCollection(eventsByDate)
 
       // This effect re-runs on every streamed-in event (it depends on
@@ -169,14 +166,14 @@ export function useEventLayer(
     }
 
     markEvents()
-    // selectedEvents intentionally omitted: this effect calls selectEvents([])
-    // itself (inside markEvents), so including selectedEvents here would
-    // make the effect re-trigger the state change that re-runs it — an
-    // infinite loop. The effect below already patches icon-color via
-    // setPaintProperty when the selection changes, so rebuilding the whole
-    // layer/source here on every click isn't needed either.
+    // selectedEvents intentionally omitted: it's only read here for the
+    // layer's one-time initial paint color (addLayer, above), and
+    // including it would rebuild the whole layer/source on every
+    // selection change instead of just repainting. The effect below
+    // already patches icon-color via setPaintProperty when the selection
+    // changes, so that's the only sync this needs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventsByDate, selectEvents])
+  }, [eventsByDate])
 
   useEffect(() => {
     // Only updates when there's a selected event with a venue location --
