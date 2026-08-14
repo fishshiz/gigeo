@@ -1,5 +1,5 @@
 import { EventDetails } from "../EventDetails"
-import { XIcon } from "lucide-react"
+import { XIcon, ChevronDown, ChevronUp } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 import {
   DrawerBody,
@@ -244,6 +244,22 @@ const DrawerWrapper = () => {
           onClick={() => setIsDrawerOpen(false)}
         >
           <XIcon />
+        </DrawerClose>
+      )}
+
+      {/* Mobile has no true "closed" state -- peek is the floor -- so this
+          toggles between minimizing (from half/full) and expanding (from
+          peek) rather than just closing. Gives the drag notch and
+          tap-open-map collapse (useCollapseDrawerOnMapTap) an explicit,
+          discoverable equivalent -- gestures alone aren't discoverable. */}
+      {!isDesktop && (
+        <DrawerClose
+          aria-label={snapPoint === "peek" ? "Expand drawer" : "Minimize drawer"}
+          className="absolute top-3 right-3 z-20 touch-manipulation max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
+          variant="quiet"
+          onClick={() => setSnapPoint(snapPoint === "peek" ? "half" : "peek")}
+        >
+          {snapPoint === "peek" ? <ChevronUp /> : <ChevronDown />}
         </DrawerClose>
       )}
 
