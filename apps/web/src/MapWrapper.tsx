@@ -11,16 +11,19 @@ import { useResizeFix } from "./hooks/useResizeFix"
 import { useMapCamera } from "./hooks/useMapCamera"
 import { useEventLayer } from "./hooks/useEventLayer"
 import { useClusterSelection } from "./hooks/useClusterSelection"
+import { useCollapseDrawerOnMapTap } from "./hooks/useCollapseDrawerOnMapTap"
 import { locationFromFeature } from "./lib/mapbox"
 import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { SearchThisAreaButton } from "./SearchThisAreaButton"
 import { useIsMobile } from "./providers/Breakpoint"
+import { useDrawerProvider } from "./providers/drawerProvider"
 import "mapbox-gl/dist/mapbox-gl.css"
 import "./App.css"
 
 const MapWrapper = () => {
   const { selectedCoordinates, setSelectedLocation } = useSearchProvider()
   const { mapView, isRestoredMapView } = useMapViewProvider()
+  const { setSnapPoint } = useDrawerProvider()
   const navigateToLocation = useNavigateToLocation()
   const [rendered, setRendered] = useState(false)
   useEffect(() => {
@@ -123,6 +126,12 @@ const MapWrapper = () => {
   useEventLayer(mapRef, visibleEventsByDate, selectedEvents, selectEvents)
   useClusterSelection(mapRef, visibleEventsByDate, selectEvents)
 
+  const handleCollapseDrawer = useCallback(
+    () => setSnapPoint("peek"),
+    [setSnapPoint]
+  )
+  useCollapseDrawerOnMapTap(mapRef, useIsMobile(), handleCollapseDrawer)
+
   useEffect(() => {
     // Only flies when there's a selected event with a venue location --
     // matches useEventLayer's icon-highlight guard, since both come from
@@ -154,13 +163,14 @@ const MapWrapper = () => {
     <>
       <div className="relative flex min-h-0 flex-1">
         {!useIsMobile() && <DrawerWrapper />}
-        <div className="relative h-full w-full">
+        <div className="relative h-full w-full overflow-hidden">
           <div
             ref={mapContainer}
             id="map-container"
             className="h-full w-full"
           />
           <SearchThisAreaButton onSearchThisArea={handleSearchThisArea} />
+          {useIsMobile() && <DrawerWrapper />}
         </div>
       </div>
     </>

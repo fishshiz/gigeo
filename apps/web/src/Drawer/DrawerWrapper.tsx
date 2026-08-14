@@ -14,8 +14,18 @@ import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
 import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
 import type { Key } from "react-aria-components/Tabs"
-import { useDrawerProvider } from "@/providers/drawerProvider"
+import { useDrawerProvider, type DrawerSnapPoint } from "@/providers/drawerProvider"
 import { groupEvents } from "../lib/groupEvents"
+
+// Matches AppHeader's h-16 (apps/web/src/Header.tsx) -- kept as a constant
+// here rather than measured, since the header's own height never changes.
+const HEADER_HEIGHT_PX = 64
+const SNAP_FRACTIONS: Record<DrawerSnapPoint, number> = {
+  peek: 0.15,
+  half: 0.5,
+  full: 0.88,
+}
+const SNAP_ORDER: DrawerSnapPoint[] = ["peek", "half", "full"]
 
 const PlaylistsDrawerBody = lazy(() =>
   import("./PlaylistsDrawer").then((m) => ({ default: m.PlaylistsDrawerBody }))
@@ -89,8 +99,10 @@ const DestinationIcon = ({
 
 const DrawerWrapper = () => {
   const { eventsByDate, selectedEvents, isStreaming } = useEventsContext()
-  const { isDrawerOpen, setIsDrawerOpen } = useDrawerProvider()
+  const { isDrawerOpen, setIsDrawerOpen, snapPoint, setSnapPoint } =
+    useDrawerProvider()
   const shouldReduceMotion = useReducedMotion()
+  const isDesktop = !useIsMobile()
 
   const [activeTab, setActiveTab] = useState<Key>("explore")
   const eventsScrollRef = useRef<HTMLDivElement>(null)
@@ -98,6 +110,13 @@ const DrawerWrapper = () => {
     eventsScrollRef,
     { offsetTop: 0 }
   )
+
+  const entries = Object.entries(eventsByDate).sort()
+  // A single group means selectedEvents is either one event, or several
+  // showtimes of the *same* event (selected via a GroupedEventCard) — both
+  // go to EventDetails. More than one group means genuinely distinct events
+  // (e.g. a venue-marker click), which go to VenueDetails.
+  const selectedGroups = groupEvents(selectedEvents)
 
   const handleDestinationTab = useCallback(
     (tab: Key) => {
@@ -116,13 +135,16 @@ const DrawerWrapper = () => {
     // Syncs drawer visibility/active tab to event selection, which is owned
     // by a different provider (eventsProvider) — not derivable at render
     // time without lifting that state up or touching every selectEvents()
-    // call site (map marker clicks, drawer list clicks, etc.).
+    // call site (map marker clicks, drawer list clicks, etc.). Mobile also
+    // jumps to "full" so the just-selected event/venue is actually readable
+    // rather than left at whatever height the sheet happened to be at.
     if (selectedEvents.length) {
       setIsDrawerOpen(true)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab("explore")
+      if (!isDesktop) setSnapPoint("full")
     }
-  }, [selectedEvents, setIsDrawerOpen])
+  }, [selectedEvents, setIsDrawerOpen, isDesktop, setSnapPoint])
 
   // Switches to the Explore tab when a new search starts (e.g. the caller
   // is on the Spotify/Apple Music tab, then moves the map or changes the
@@ -135,23 +157,52 @@ const DrawerWrapper = () => {
   // dozens of times over the course of a single search -- switching tabs
   // on every one of those would be exactly the kind of repeated,
   // twitchy interruption this behavior is meant to avoid, not cause.
+  //
+  // Mobile also drives the sheet's height off the same transition: peek
+  // the moment a search starts (keep the map visible while results are
+  // still uncertain), then rise to half once streaming finishes with
+  // results and nothing's selected (selection, handled above, wins if
+  // both land in the same commit).
   const wasStreamingRef = useRef(isStreaming)
   useEffect(() => {
-    const searchJustStarted = isStreaming && !wasStreamingRef.current
+    const wasStreaming = wasStreamingRef.current
     wasStreamingRef.current = isStreaming
-    if (searchJustStarted) {
+    if (isStreaming && !wasStreaming) {
       handleDestinationTab("explore")
+      if (!isDesktop) setSnapPoint("peek")
+    } else if (!isStreaming && wasStreaming) {
+      if (!isDesktop && entries.length > 0 && selectedGroups.length === 0) {
+        setSnapPoint("half")
+      }
     }
-  }, [isStreaming, handleDestinationTab])
+  }, [
+    isStreaming,
+    handleDestinationTab,
+    isDesktop,
+    setSnapPoint,
+    entries.length,
+    selectedGroups.length,
+  ])
 
-  const isDesktop = !useIsMobile()
+  // Mirrors Breakpoint.tsx's own resize-listener pattern rather than a
+  // ResizeObserver -- this only needs the window's own size, not any
+  // particular element's.
+  const [viewportHeight, setViewportHeight] = useState(
+    () => window.innerHeight
+  )
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
 
-  const entries = Object.entries(eventsByDate).sort()
-  // A single group means selectedEvents is either one event, or several
-  // showtimes of the *same* event (selected via a GroupedEventCard) — both
-  // go to EventDetails. More than one group means genuinely distinct events
-  // (e.g. a venue-marker click), which go to VenueDetails.
-  const selectedGroups = groupEvents(selectedEvents)
+  // Pixel snap points for the mobile bottom sheet, ascending
+  // [peek, half, full]. Desktop never reads these.
+  const sheetContainerHeightPx = viewportHeight - HEADER_HEIGHT_PX
+  const snapPointsPx = SNAP_ORDER.map((point) =>
+    Math.round(sheetContainerHeightPx * SNAP_FRACTIONS[point])
+  )
+  const activeSnapIndex = SNAP_ORDER.indexOf(snapPoint)
 
   // Kept in lockstep with the DrawerContent slide transition in the shared
   // Drawer component, so the reserved layout width and the visible slide
@@ -165,9 +216,16 @@ const DrawerWrapper = () => {
   const drawerContent = (
     <DrawerContent
       isOpen={isDrawerOpen}
-      closeDrawer={() => setIsDrawerOpen(false)}
-      notch={false}
+      closeDrawer={
+        isDesktop ? () => setIsDrawerOpen(false) : () => setSnapPoint("peek")
+      }
+      notch={!isDesktop}
       side={isDesktop ? "left" : "bottom"}
+      snapPointsPx={isDesktop ? undefined : snapPointsPx}
+      activeSnapIndex={isDesktop ? undefined : activeSnapIndex}
+      onSnapChange={
+        isDesktop ? undefined : (i: number) => setSnapPoint(SNAP_ORDER[i])
+      }
       className={
         isDesktop
           ? "z-10 flex h-full w-[26rem] flex-col overflow-hidden"
@@ -188,7 +246,7 @@ const DrawerWrapper = () => {
       {!isDesktop && (
         <TabList
           aria-label="Content sections"
-          className="my-1 flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 dark:border-white/10"
+          className="mt-4 mb-1 flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
             <Tab
@@ -252,7 +310,14 @@ const DrawerWrapper = () => {
   return (
     <Tabs
       orientation={isDesktop ? "vertical" : "horizontal"}
-      className="h-[60vh] shrink-0 md:h-full"
+      // Desktop: unchanged, a normal flex sidebar item. Mobile: an
+      // absolutely-positioned overlay (see MapWrapper.tsx, which now
+      // renders this inside the map's own relative container) sized to
+      // the "full" snap height -- DrawerContent's drag/spring then
+      // translates within that fixed box rather than the box itself
+      // resizing per snap point.
+      className={isDesktop ? "h-full shrink-0" : "absolute inset-x-0 bottom-0"}
+      style={isDesktop ? undefined : { height: snapPointsPx[2] }}
       selectedKey={activeTab}
       onSelectionChange={(t) => handleDestinationTab(t)}
     >

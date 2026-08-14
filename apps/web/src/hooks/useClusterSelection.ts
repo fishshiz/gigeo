@@ -19,7 +19,15 @@ export function useClusterSelection(
     map.addInteraction("event-click-interaction", {
       type: "click",
       target: { layerId: "events" },
-      handler: ({ feature }: InteractionEvent) => {
+      handler: (interactionEvent: InteractionEvent) => {
+        // Stops this click from also reaching the untargeted map-tap
+        // interaction that collapses the drawer to peek
+        // (useCollapseDrawerOnMapTap) -- interactions are a stack, not
+        // automatically mutually exclusive by target, so without this a
+        // marker/cluster tap would select the event *and* collapse the
+        // sheet in the same gesture.
+        interactionEvent.preventDefault()
+        const { feature } = interactionEvent
         const [event] = resolveEventsByIds(eventsByDate, [feature?.id])
         if (event) {
           selectEvents([event])
