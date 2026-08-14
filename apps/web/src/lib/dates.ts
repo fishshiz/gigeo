@@ -2,6 +2,8 @@ import {
   parseAbsolute,
   DateFormatter,
   getLocalTimeZone,
+  startOfWeek,
+  endOfWeek,
   type CalendarDate,
 } from "@internationalized/date"
 import type { EventResponse } from "../hooks/eventsStream"
@@ -158,14 +160,46 @@ const dateRangeToApiParams = (
   end: end.add({ days: 1 }).toDate(timeZone).toISOString(),
 })
 
-const groupDatesByWeek = (dates: string[]): string[][] => {
-  const groups: string[][] = []
+export type DayCellState = "has-events" | "empty" | "out-of-range"
 
-  for (let i = 0; i < dates.length; i += 7) {
-    groups.push(dates.slice(i, i + 7))
+/** Real, locale-aware Monday-Sunday calendar weeks covering `start`..`end`
+ * inclusive, extended to full 7-day weeks at both ends when `start`/`end`
+ * themselves fall mid-week -- lets a calendar-grid UI (DateSlider) render a
+ * fixed 7-wide layout uniformly, with `dayCellState` marking whichever
+ * leading/trailing days fall outside the actual searched range. */
+const buildCalendarWeeks = (
+  start: CalendarDate,
+  end: CalendarDate,
+  locale: string
+): CalendarDate[][] => {
+  const gridStart = startOfWeek(start, locale, "mon")
+  const gridEnd = endOfWeek(end, locale, "mon")
+
+  const weeks: CalendarDate[][] = []
+  let cursor = gridStart
+  while (cursor.compare(gridEnd) <= 0) {
+    const week: CalendarDate[] = []
+    for (let i = 0; i < 7; i++) {
+      week.push(cursor)
+      cursor = cursor.add({ days: 1 })
+    }
+    weeks.push(week)
   }
+  return weeks
+}
 
-  return groups
+/** Where a single grid cell stands relative to the searched date range and
+ * the events actually found within it: outside `start`..`end` entirely
+ * (calendar-alignment filler from buildCalendarWeeks), inside the range
+ * with no events, or inside the range with at least one. */
+const dayCellState = (
+  day: CalendarDate,
+  start: CalendarDate,
+  end: CalendarDate,
+  eventDates: ReadonlySet<string>
+): DayCellState => {
+  if (day.compare(start) < 0 || day.compare(end) > 0) return "out-of-range"
+  return eventDates.has(day.toString()) ? "has-events" : "empty"
 }
 
 export {
@@ -173,6 +207,7 @@ export {
   formatDateTime,
   formatDate,
   formatTime,
-  groupDatesByWeek,
+  buildCalendarWeeks,
+  dayCellState,
   dateRangeToApiParams,
 }

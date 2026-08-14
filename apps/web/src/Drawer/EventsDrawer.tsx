@@ -3,6 +3,7 @@ import { DateSlider } from "../DateSlider"
 
 import { useEventsContext } from "../providers/eventsProvider"
 import { useSearchProvider } from "@/providers/searchProvider"
+import { useMemo } from "react"
 import type { Ref } from "react"
 import { formatDate, formatDateTime } from "../lib/dates"
 import { EventFilter, EventFilterChips } from "../EventFilter"
@@ -100,8 +101,12 @@ export const EventsDrawerHeader = ({
 }) => {
   const { visibleEventsByDate, searchRadius, radiusExpanded } =
     useEventsContext()
-  const { selectedLocation } = useSearchProvider()
+  const { selectedLocation, dateRange } = useSearchProvider()
   const entries = Object.entries(visibleEventsByDate).sort()
+  const eventDates = useMemo(
+    () => new Set(entries.map(([key]) => key)),
+    [entries]
+  )
 
   return (
     <>
@@ -122,7 +127,8 @@ export const EventsDrawerHeader = ({
       </div>
       <EventFilterChips />
       <DateSlider
-        dates={entries.map(([key]) => key)}
+        dateRange={dateRange}
+        eventDates={eventDates}
         activeDateId={topMostId}
         onSelect={onSelect}
       />
