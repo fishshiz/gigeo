@@ -24,6 +24,8 @@ import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
 import { amArtistFullSchema, type Performer } from "./hooks/eventsStreamSchema"
 import { useEventsContext } from "./providers/eventsProvider"
+import { useIsMobile } from "./providers/Breakpoint"
+import { useCarouselIndex } from "./hooks/useCarouselIndex"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatDate, formatTime } from "./lib/dates"
 import { ticketmasterAttractionIds } from "./lib/performers"
@@ -90,6 +92,7 @@ const EventDetails = ({
   const isMountedRef = useRef(true)
   const { selectEvents } = useEventsContext()
   const shouldReduceMotion = useReducedMotion()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     // Explicitly re-arm on setup (not just the useRef(true) initializer) --
@@ -429,24 +432,124 @@ const EventDetails = ({
         </div>
       )}
 
-      {performers?.map((performer, i) => (
-        <PerformerDetails
-          // Performer name isn't guaranteed unique on a bill (two "TBA"
-          // openers, say) -- index breaks the tie without needing a
-          // fabricated id.
-          key={performer.id ?? `${performer.name}-${i}`}
-          performer={performer}
-          state={
-            performer.name ? performerEnrichment[performer.name] : undefined
-          }
-          futureEvents={futureEventsFor(performer.id)}
-          onRetryFutureEvents={
-            performer.id
-              ? () => fetchFutureEvents(performer.id as string)
-              : undefined
-          }
+      {isMobile && performers && performers.length > 1 ? (
+        <PerformerCarousel
+          performers={performers}
+          performerEnrichment={performerEnrichment}
+          futureEventsFor={futureEventsFor}
+          fetchFutureEvents={fetchFutureEvents}
         />
-      ))}
+      ) : (
+        performers?.map((performer, i) => (
+          <PerformerDetails
+            // Performer name isn't guaranteed unique on a bill (two "TBA"
+            // openers, say) -- index breaks the tie without needing a
+            // fabricated id.
+            key={performer.id ?? `${performer.name}-${i}`}
+            performer={performer}
+            state={
+              performer.name ? performerEnrichment[performer.name] : undefined
+            }
+            futureEvents={futureEventsFor(performer.id)}
+            onRetryFutureEvents={
+              performer.id
+                ? () => fetchFutureEvents(performer.id as string)
+                : undefined
+            }
+          />
+        ))
+      )}
+    </div>
+  )
+}
+
+/** Mobile-only alternative to the plain vertical stack: a single
+ * full-width, horizontally snap-scrolling row (one performer per
+ * "page") instead of stacking every performer's full ArtistCard
+ * top-to-bottom -- a 4-5 act bill was a lot of scroll depth inside an
+ * already height-constrained sheet. Desktop keeps the vertical stack
+ * (more room, nothing to hide behind a swipe there). Only rendered when
+ * there's more than one performer -- a single-performer bill has
+ * nothing to carousel through. */
+const PerformerCarousel = ({
+  performers,
+  performerEnrichment,
+  futureEventsFor,
+  fetchFutureEvents,
+}: {
+  performers: Performer[]
+  performerEnrichment: Record<string, PerformerEnrichmentState>
+  futureEventsFor: (id: string | null | undefined) => FutureEventsState
+  fetchFutureEvents: (id: string) => void
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const { activeIndex, scrollToIndex } = useCarouselIndex(containerRef)
+
+  return (
+    <div>
+      {/* Dots sit above the track, not below it -- a below-the-fold "1 of
+          4" under a full-height ArtistCard needed scrolling past the
+          whole card just to notice the bill had more than one performer.
+          Up top, it's the first thing visible and doubles as a "this
+          swipes" cue, which plain text never was. Each dot is also a
+          jump-to-slide control, not just an indicator. */}
+      <div
+        role="tablist"
+        aria-label="Performers"
+        className="flex items-center justify-center gap-2 pb-2"
+      >
+        {performers.map((performer, i) => (
+          <button
+            key={performer.id ?? `${performer.name}-${i}`}
+            type="button"
+            role="tab"
+            aria-selected={i === activeIndex}
+            aria-label={performer.name ?? `Performer ${i + 1}`}
+            onClick={() => scrollToIndex(i)}
+            className="relative touch-manipulation p-1.5 before:absolute before:-inset-1 before:content-['']"
+          >
+            <span
+              aria-hidden
+              className={
+                i === activeIndex
+                  ? "block h-1.5 w-4 rounded-full bg-(--accent-bg) transition-all"
+                  : "block h-1.5 w-1.5 rounded-full bg-slate-600 transition-all"
+              }
+            />
+          </button>
+        ))}
+      </div>
+      <div
+        ref={containerRef}
+        role="region"
+        aria-label="Performer details"
+        tabIndex={0}
+        className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {performers.map((performer, i) => (
+          <div
+            // See the vertical-stack fallback above for why index breaks
+            // the tie on performer.id.
+            key={performer.id ?? `${performer.name}-${i}`}
+            className="w-full shrink-0 snap-center"
+          >
+            <PerformerDetails
+              performer={performer}
+              state={
+                performer.name
+                  ? performerEnrichment[performer.name]
+                  : undefined
+              }
+              futureEvents={futureEventsFor(performer.id)}
+              onRetryFutureEvents={
+                performer.id
+                  ? () => fetchFutureEvents(performer.id as string)
+                  : undefined
+              }
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
