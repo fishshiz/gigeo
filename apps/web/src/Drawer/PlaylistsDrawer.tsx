@@ -32,12 +32,19 @@ import { Label } from "@workspace/ui/components/ui/Field"
 import { useSearchProvider } from "@/providers/searchProvider"
 import { MapPin, Lock, Unlock } from "lucide-react"
 import { TextField } from "@workspace/ui/components/ui/TextField"
-import { ToggleButton } from "@workspace/ui/components/ui/ToggleButton"
+import { Switch } from "@workspace/ui/components/ui/Switch"
 import { useState } from "react"
+import type { ReactNode } from "react"
 import { PlaylistButtons } from "../PlaylistButtons"
 import { getRandomPlaylistName } from "@/lib/playlistNames"
+import { useDrawerProvider } from "@/providers/drawerProvider"
+import { useIsMobile } from "@/providers/Breakpoint"
 
-import { DrawerBody, DrawerHeader } from "@workspace/ui/components/ui/Drawer"
+import {
+  DrawerBody,
+  DrawerHeader,
+  DrawerFooter,
+} from "@workspace/ui/components/ui/Drawer"
 import { Modal } from "@workspace/ui/components/ui/Modal"
 import { Dialog } from "@workspace/ui/components/ui/Dialog"
 import { AlertDialog } from "@workspace/ui/components/ui/AlertDialog"
@@ -59,10 +66,21 @@ export const PlaylistsDrawerBody = () => {
   const { spotifyPlaylists } = usePlaylistContext()
   const { status } = useSpotifyAuth()
   const isConnected = Boolean(status?.spotify_connected)
+  const { setSnapPoint } = useDrawerProvider()
+  const isMobile = useIsMobile()
 
   return (
     <DrawerBody>
-      <Tabs>
+      <Tabs
+        className="flex-1 min-h-0"
+        onSelectionChange={(key) => {
+          // The create form is tall enough that peek/half heights mostly
+          // just show its first field -- jump straight to full so the
+          // whole form is usable as soon as it's opened, same treatment
+          // as selecting an event/venue in DrawerWrapper.tsx.
+          if (isMobile && key === "add-playlist") setSnapPoint("full")
+        }}
+      >
         <TabList aria-label="Playlist actions" className="mb-2">
           <Tab id="playlists" className="gap-1.5">
             <ListMusic size={15} />
@@ -92,7 +110,12 @@ export const PlaylistsDrawerBody = () => {
               </div>
             )}
           </TabPanel>
-          <TabPanel id="add-playlist">
+          {/* flex flex-col (not in TabPanel's own base styles -- see the
+              identical fix on DrawerWrapper.tsx's "explore" TabPanel) is
+              what lets CreatePlaylistForm's own h-full below actually mean
+              something, instead of colliding with -- or being ignored
+              relative to -- shrink-to-fit ancestors. */}
+          <TabPanel id="add-playlist" className="flex flex-col">
             <CreatePlaylistForm />
           </TabPanel>
         </TabPanels>
@@ -100,6 +123,62 @@ export const PlaylistsDrawerBody = () => {
     </DrawerBody>
   )
 }
+
+/** A visually distinct block for one group of related fields -- used
+ * instead of one flat vertical list so a form reads as a handful of
+ * decisions (location, name, privacy, schedule) rather than an
+ * undifferentiated wall of controls. */
+const FormSection = ({
+  label,
+  children,
+}: {
+  label?: string
+  children: ReactNode
+}) => (
+  <div className="flex flex-col gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10">
+    {label && (
+      <span className="text-xs font-semibold text-muted-foreground uppercase">
+        {label}
+      </span>
+    )}
+    {children}
+  </div>
+)
+
+/** A single labeled on/off row -- replaces a separate icon ToggleButton
+ * plus a "Public"/"Private" paragraph next to it (two visually distinct
+ * elements for one decision) with the one control most people already
+ * recognize for a binary setting. */
+const PrivacyToggle = ({
+  isPrivate,
+  onChange,
+}: {
+  isPrivate: boolean
+  onChange: (isPrivate: boolean) => void
+}) => (
+  <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center gap-2.5">
+      {isPrivate ? (
+        <Lock size={16} className="shrink-0 text-muted-foreground" />
+      ) : (
+        <Unlock size={16} className="shrink-0 text-muted-foreground" />
+      )}
+      <div>
+        <div className="text-sm font-medium text-primary">
+          {isPrivate ? "Private" : "Public"}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isPrivate
+            ? "Only you can see this playlist"
+            : "Anyone with the link can see this playlist"}
+        </p>
+      </div>
+    </div>
+    <Switch isSelected={isPrivate} onChange={onChange}>
+      <span className="sr-only">Make playlist private</span>
+    </Switch>
+  </div>
+)
 
 const cadenceToFrequencyValue = (cadence: 7 | 30 | 60) =>
   cadence === 60 ? "bimonthly" : cadence === 7 ? "weekly" : "monthly"
@@ -249,70 +328,74 @@ const EditPlaylistForm = ({
         name="privacy"
         value={isPrivate ? "private" : "public"}
       />
-      <TextField
-        label="Playlist Name"
-        isRequired
-        name="playlistName"
-        defaultValue={playlist.name}
-      />
-      <Label>Playlist privacy</Label>
-      <ToggleButton
-        aria-label="Make playlist private"
-        isSelected={isPrivate}
-        onChange={setIsPrivate}
-      >
-        {isPrivate ? <Lock size={18} /> : <Unlock size={18} />}
-      </ToggleButton>
-      <p>{isPrivate ? "Private" : "Public"}</p>
+      <FormSection label="Name">
+        <TextField
+          label="Playlist Name"
+          isRequired
+          name="playlistName"
+          defaultValue={playlist.name}
+        />
+      </FormSection>
 
-      <Label>Update frequency</Label>
-      <RadioGroup
-        aria-label="Playlist update frequency"
-        value={selectedFrequency}
-        onChange={setSelectedFrequency}
-        orientation="horizontal"
-        className="flex w-full gap-2.5"
-        name="cadence"
-        isRequired
-      >
-        {updateFrequencyOptions.map((option) => (
-          <RadioCard
-            key={option.value}
-            value={option.value}
-            title={option.title}
-            description={option.description}
-          />
-        ))}
-      </RadioGroup>
-      <Label>Update behavior</Label>
-      <RadioGroup
-        aria-label="Playlist update behavior"
-        value={selectedBehavior}
-        onChange={(value) =>
-          setSelectedBehavior(value as "additive" | "destructive")
-        }
-        orientation="horizontal"
-        className="flex w-full gap-2.5"
-        name="behavior"
-        isRequired
-      >
-        {updateBehaviorOptions.map((option) => (
-          <RadioCard
-            key={option.value}
-            value={option.value}
-            title={option.title}
-            description={option.description}
-          />
-        ))}
-      </RadioGroup>
-      {showDestructiveWarning && (
-        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-          <TriangleAlert size={14} className="mt-0.5 shrink-0" />
-          Switching to "Replace tracks" may remove tracks you've kept.
-          Changes apply on the playlist's next scheduled update, not
-          immediately.
-        </p>
-      )}
+      <FormSection label="Privacy">
+        <PrivacyToggle isPrivate={isPrivate} onChange={setIsPrivate} />
+      </FormSection>
+
+      <FormSection label="Schedule">
+        <div className="flex flex-col gap-2">
+          <Label>Update frequency</Label>
+          <RadioGroup
+            aria-label="Playlist update frequency"
+            value={selectedFrequency}
+            onChange={setSelectedFrequency}
+            orientation="horizontal"
+            className="flex w-full gap-2.5"
+            name="cadence"
+            isRequired
+          >
+            {updateFrequencyOptions.map((option) => (
+              <RadioCard
+                key={option.value}
+                value={option.value}
+                title={option.title}
+                description={option.description}
+              />
+            ))}
+          </RadioGroup>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label>Update behavior</Label>
+          <RadioGroup
+            aria-label="Playlist update behavior"
+            value={selectedBehavior}
+            onChange={(value) =>
+              setSelectedBehavior(value as "additive" | "destructive")
+            }
+            orientation="horizontal"
+            className="flex w-full gap-2.5"
+            name="behavior"
+            isRequired
+          >
+            {updateBehaviorOptions.map((option) => (
+              <RadioCard
+                key={option.value}
+                value={option.value}
+                title={option.title}
+                description={option.description}
+              />
+            ))}
+          </RadioGroup>
+        </div>
+        {showDestructiveWarning && (
+          <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+            Switching to "Replace tracks" may remove tracks you've kept.
+            Changes apply on the playlist's next scheduled update, not
+            immediately.
+          </p>
+        )}
+      </FormSection>
+
       {error && <p className="text-xs text-red-500">{error}</p>}
       <Button type="submit">Save changes</Button>
     </Form>
@@ -388,105 +471,117 @@ export const CreatePlaylistForm = () => {
   const [success, setSuccess] = useState<CreatePlaylistOutput | null>(null)
 
   return (
-    <div className="flex flex-col items-center justify-center">
-      <Form
-        className="w-full p-0!"
-        action={async (formData) => {
-          setError(null)
-          setSuccess(null)
-          setIsSubmitting(true)
-          try {
-            const result = await createPlaylist(formData)
-            setSuccess(result)
-          } catch (err) {
-            setError(
-              err instanceof Error ? err.message : "Failed to create playlist"
-            )
-          } finally {
-            setIsSubmitting(false)
-          }
-        }}
-      >
-        <input
-          type="hidden"
-          name="location"
-          value={selectedLocation?.fullAddress ?? ""}
-        />
-        <input
-          type="hidden"
-          name="privacy"
-          value={isPrivate ? "private" : "public"}
-        />
-        <Label>Playlist location</Label>
-        <Button
-          aria-label="Playlist location"
-          variant="secondary"
-          className="relative flex w-full! justify-start gap-2 p-4! text-left"
-          onClick={() => focusSearchInput()}
-          name="location"
-        >
-          <MapPin
-            className="lucide lucide-map-pin pointer-events-none text-muted-foreground"
-            size={15}
-          />
-          {selectedLocation?.fullAddress || emptyLocationString}
-        </Button>
-        <TextField
-          label="Playlist Name"
-          placeholder={placeholder}
-          isRequired
-          validate={(value) => (value === "admin" ? "Nice try." : null)}
-          name="playlistName"
-          defaultValue={placeholder}
-        />
-        <Label>Playlist privacy</Label>
-        <ToggleButton
-          aria-label="Make playlist private"
-          isSelected={isPrivate}
-          onChange={setIsPrivate}
-        >
-          {isPrivate ? <Lock size={18} /> : <Unlock size={18} />}
-        </ToggleButton>
-        <p>{isPrivate ? "Private" : "Public"}</p>
+    <Form
+      className="flex h-full flex-col gap-0 p-0!"
+      action={async (formData) => {
+        setError(null)
+        setSuccess(null)
+        setIsSubmitting(true)
+        try {
+          const result = await createPlaylist(formData)
+          setSuccess(result)
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "Failed to create playlist"
+          )
+        } finally {
+          setIsSubmitting(false)
+        }
+      }}
+    >
+      <input
+        type="hidden"
+        name="location"
+        value={selectedLocation?.fullAddress ?? ""}
+      />
+      <input
+        type="hidden"
+        name="privacy"
+        value={isPrivate ? "private" : "public"}
+      />
 
-        <Label>Update frequency</Label>
-        <RadioGroup
-          aria-label="Playlist update frequency"
-          value={selectedFrequency}
-          onChange={setSelectedFrequency}
-          orientation="horizontal"
-          className="flex w-full gap-2.5"
-          name="cadence"
-          isRequired
-        >
-          {updateFrequencyOptions.map((option) => (
-            <RadioCard
-              key={option.value}
-              value={option.value}
-              title={option.title}
-              description={option.description}
+      {/* The one part of this form that scrolls -- the submit button
+          below stays pinned in view via DrawerFooter regardless of how
+          tall this gets (long location names, a validation message,
+          etc.), rather than requiring a scroll to find it. */}
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto pb-2">
+        <FormSection label="Location">
+          <Label>Playlist location</Label>
+          <Button
+            aria-label="Playlist location"
+            variant="secondary"
+            className="relative flex w-full! justify-start gap-2 p-4! text-left"
+            onClick={() => focusSearchInput()}
+            name="location"
+          >
+            <MapPin
+              className="lucide lucide-map-pin pointer-events-none text-muted-foreground"
+              size={15}
             />
-          ))}
-        </RadioGroup>
-        <Label>Update behavior</Label>
-        <RadioGroup
-          aria-label="Playlist update behavior"
-          value={selectedBehavior}
-          onChange={setSelectedBehavior}
-          orientation="horizontal"
-          className="flex w-full gap-2.5"
-          name="behavior"
-          isRequired
-        >
-          {updateBehaviorOptions.map((option) => (
-            <RadioCard
-              key={option.value}
-              value={option.value}
-              title={option.title}
-              description={option.description}
-            />
-          ))}
-        </RadioGroup>
+            {selectedLocation?.fullAddress || emptyLocationString}
+          </Button>
+        </FormSection>
+
+        <FormSection label="Name">
+          <TextField
+            label="Playlist Name"
+            placeholder={placeholder}
+            isRequired
+            validate={(value) => (value === "admin" ? "Nice try." : null)}
+            name="playlistName"
+            defaultValue={placeholder}
+          />
+        </FormSection>
+
+        <FormSection label="Privacy">
+          <PrivacyToggle isPrivate={isPrivate} onChange={setIsPrivate} />
+        </FormSection>
+
+        <FormSection label="Schedule">
+          <div className="flex flex-col gap-2">
+            <Label>Update frequency</Label>
+            <RadioGroup
+              aria-label="Playlist update frequency"
+              value={selectedFrequency}
+              onChange={setSelectedFrequency}
+              orientation="horizontal"
+              className="flex w-full gap-2.5"
+              name="cadence"
+              isRequired
+            >
+              {updateFrequencyOptions.map((option) => (
+                <RadioCard
+                  key={option.value}
+                  value={option.value}
+                  title={option.title}
+                  description={option.description}
+                />
+              ))}
+            </RadioGroup>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Update behavior</Label>
+            <RadioGroup
+              aria-label="Playlist update behavior"
+              value={selectedBehavior}
+              onChange={setSelectedBehavior}
+              orientation="horizontal"
+              className="flex w-full gap-2.5"
+              name="behavior"
+              isRequired
+            >
+              {updateBehaviorOptions.map((option) => (
+                <RadioCard
+                  key={option.value}
+                  value={option.value}
+                  title={option.title}
+                  description={option.description}
+                />
+              ))}
+            </RadioGroup>
+          </div>
+        </FormSection>
+
         {success && (
           <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
             <CircleCheck size={14} className="shrink-0" />
@@ -508,10 +603,18 @@ export const CreatePlaylistForm = () => {
           </p>
         )}
         {error && <p className="text-xs text-red-500">{error}</p>}
-        <Button type="submit" isPending={isSubmitting} isDisabled={isSubmitting}>
+      </div>
+
+      <DrawerFooter className="border-t border-black/10 px-0 dark:border-white/10">
+        <Button
+          type="submit"
+          isPending={isSubmitting}
+          isDisabled={isSubmitting}
+          className="w-full!"
+        >
           Create Playlist
         </Button>
-      </Form>
-    </div>
+      </DrawerFooter>
+    </Form>
   )
 }

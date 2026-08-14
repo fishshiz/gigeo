@@ -31,6 +31,8 @@ import { TextField } from "@workspace/ui/components/ui/TextField"
 import { useState } from "react"
 import { AppleMusicButtons } from "../AppleMusicButtons"
 import { getRandomPlaylistName } from "@/lib/playlistNames"
+import { useDrawerProvider } from "@/providers/drawerProvider"
+import { useIsMobile } from "@/providers/Breakpoint"
 
 import { DrawerBody, DrawerHeader } from "@workspace/ui/components/ui/Drawer"
 import { Modal } from "@workspace/ui/components/ui/Modal"
@@ -54,10 +56,16 @@ export const AppleMusicDrawerBody = () => {
   const { applePlaylists } = usePlaylistContext()
   const { status } = useAppleMusicAuth()
   const isConnected = Boolean(status?.apple_music_connected)
+  const { setSnapPoint } = useDrawerProvider()
+  const isMobile = useIsMobile()
 
   return (
     <DrawerBody>
-      <Tabs>
+      <Tabs
+        onSelectionChange={(key) => {
+          if (isMobile && key === "add-playlist") setSnapPoint("full")
+        }}
+      >
         <TabList aria-label="Playlist actions" className="mb-2">
           <Tab id="playlists" className="gap-1.5">
             <ListMusic size={15} />
