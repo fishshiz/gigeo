@@ -2,11 +2,13 @@
 
 import {
   AnimatePresence,
+  animate,
   motion,
   useDragControls,
+  useMotionValue,
   useReducedMotion,
 } from "motion/react"
-import { use, Children, cloneElement } from "react"
+import { use, Children, cloneElement, useEffect, useRef } from "react"
 import type { Ref } from "react"
 import type {
   DialogProps,
@@ -51,7 +53,27 @@ interface DrawerContentProps
   side?: "top" | "bottom" | "left" | "right"
   notch?: boolean
   closeDrawer: () => void
+  /** Ascending pixel heights for a draggable multi-snap bottom sheet
+   * (e.g. [peekPx, halfPx, fullPx]) -- side="bottom" only. Omit for the
+   * regular binary open/close sheet every other caller uses; when
+   * omitted, drag/animate behavior is byte-identical to before this
+   * feature existed. */
+  snapPointsPx?: number[]
+  /** Index into snapPointsPx for the currently-settled snap. */
+  activeSnapIndex?: number
+  /** Fired when a drag gesture resolves to a snap index (possibly
+   * unchanged from activeSnapIndex -- the sheet still re-settles to the
+   * exact target pixel position either way). */
+  onSnapChange?: (index: number) => void
 }
+
+// Matches the bounce feel already established by dragTransition below,
+// expressed as a real spring transition (not dragTransition, which only
+// governs live elastic recoil *during* a drag, not this post-release
+// settle) -- used both by the settle effect and directly in onDragEnd.
+const SNAP_SPRING = { type: "spring", stiffness: 600, damping: 20 } as const
+const FLING_VELOCITY_THRESHOLD = 500 // px/s
+const VELOCITY_PROJECTION_SECONDS = 0.15
 
 const DrawerContent = ({
   side = "bottom",
@@ -60,6 +82,9 @@ const DrawerContent = ({
   closeDrawer = () => {},
   children,
   className,
+  snapPointsPx,
+  activeSnapIndex,
+  onSnapChange,
   ...props
 }: DrawerContentProps) => {
   const state = use(OverlayTriggerStateContext)!
@@ -69,6 +94,150 @@ const DrawerContent = ({
     x: side === "left" ? "-100%" : side === "right" ? "100%" : 0,
     y: side === "top" ? "-100%" : side === "bottom" ? "100%" : 0,
   }
+
+  const isMultiSnapBottom =
+    side === "bottom" &&
+    !!snapPointsPx &&
+    snapPointsPx.length > 1 &&
+    activeSnapIndex !== undefined
+
+  // Downward-translate targets, one per snap point -- the smallest height
+  // (peek) is the *largest* y (most pushed down); the tallest (full) is
+  // always y=0. Only meaningful when isMultiSnapBottom, but computed
+  // unconditionally since hooks below need a stable reference either way.
+  const snapYs = (snapPointsPx ?? []).map(
+    (h) => (snapPointsPx ?? [])[(snapPointsPx ?? []).length - 1] - h
+  )
+
+  // Controlled motion value: bound to the element via `style` below so a
+  // live drag gesture and this settle effect / onDragEnd's imperative
+  // animate() both read and write the exact same value, with no jump
+  // between "being dragged" and "being programmatically animated".
+  const ySpring = useMotionValue(
+    isMultiSnapBottom ? snapYs[activeSnapIndex!] : 0
+  )
+
+  // Settles ySpring whenever activeSnapIndex changes from *outside* a drag
+  // (e.g. DrawerWrapper's auto-transition effects calling setSnapPoint).
+  // The drag-driven case settles immediately inside onDragEnd itself,
+  // below -- this effect is what covers the non-drag path. Skips the
+  // spring (jumps instantly) when only snapPointsPx changed -- e.g. a
+  // viewport resize -- so that alone never produces a visible bounce.
+  const prevSnapPointsPxRef = useRef(snapPointsPx)
+  useEffect(() => {
+    if (!isMultiSnapBottom || activeSnapIndex === undefined) return
+    const onlyPointsChanged = prevSnapPointsPxRef.current !== snapPointsPx
+    prevSnapPointsPxRef.current = snapPointsPx
+    const controls = animate(
+      ySpring,
+      snapYs[activeSnapIndex],
+      shouldReduceMotion || onlyPointsChanged ? { duration: 0 } : SNAP_SPRING
+    )
+    return () => controls.stop()
+    // snapYs is derived fresh from snapPointsPx every render (new array
+    // identity each time) -- depending on snapPointsPx itself is the
+    // correct, stable trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMultiSnapBottom, activeSnapIndex, snapPointsPx, shouldReduceMotion])
+
+  const handleBinaryDragEnd = (
+    _: React.MouseEvent<HTMLDivElement>,
+    {
+      offset,
+      velocity,
+    }: {
+      offset: { x: number; y: number }
+      velocity: { x: number; y: number }
+    }
+  ) => {
+    if (
+      side === "bottom" &&
+      (velocity.y > 150 || offset.y > screen.height * 0.25)
+    ) {
+      closeDrawer()
+    }
+    if (
+      side === "top" &&
+      (velocity.y < -150 || offset.y < screen.height * 0.25)
+    ) {
+      state.close()
+    }
+    if (side === "left" && velocity.x < -150) {
+      closeDrawer()
+    }
+    if (side === "right" && velocity.x > 150) {
+      state.close()
+    }
+  }
+
+  // Velocity-weighted nearest-snap resolution. Projects the release point
+  // forward by its velocity before picking the nearest snap (so a fast
+  // drag that hasn't visually reached the next point yet still commits to
+  // it), then separately checks a pure position-only read: if that agrees
+  // with the projected pick (i.e. "stayed put") but the release was a fast
+  // flick, forces one step in the fling's direction anyway -- otherwise a
+  // quick short flick near a boundary would resolve to doing nothing,
+  // which reads as broken/unresponsive.
+  const handleMultiSnapDragEnd = (
+    _: React.MouseEvent<HTMLDivElement>,
+    {
+      velocity,
+    }: {
+      offset: { x: number; y: number }
+      velocity: { x: number; y: number }
+    }
+  ) => {
+    if (!snapPointsPx || activeSnapIndex === undefined || !onSnapChange) {
+      return
+    }
+
+    const current = ySpring.get()
+    const projected = current + velocity.y * VELOCITY_PROJECTION_SECONDS
+    const clamped = Math.min(Math.max(projected, 0), snapYs[0])
+
+    let nearestToProjected = 0
+    let nearestToProjectedDist = Infinity
+    let nearestToCurrent = 0
+    let nearestToCurrentDist = Infinity
+    snapYs.forEach((y, i) => {
+      const projectedDist = Math.abs(y - clamped)
+      if (projectedDist < nearestToProjectedDist) {
+        nearestToProjectedDist = projectedDist
+        nearestToProjected = i
+      }
+      const currentDist = Math.abs(y - current)
+      if (currentDist < nearestToCurrentDist) {
+        nearestToCurrentDist = currentDist
+        nearestToCurrent = i
+      }
+    })
+
+    let resolvedIndex = nearestToProjected
+    if (
+      nearestToProjected === nearestToCurrent &&
+      Math.abs(velocity.y) > FLING_VELOCITY_THRESHOLD
+    ) {
+      // y decreases toward "full" -- a fast upward drag (negative
+      // velocity.y) advances the index; downward retreats it.
+      const direction = velocity.y < 0 ? 1 : -1
+      resolvedIndex = Math.min(
+        Math.max(nearestToCurrent + direction, 0),
+        snapYs.length - 1
+      )
+    }
+
+    // Settle immediately regardless of whether the index actually
+    // changed -- a released drag rarely lands exactly on the target
+    // pixel, so this is what guarantees the sheet always ends up exactly
+    // at a real snap position rather than wherever the gesture let go.
+    animate(
+      ySpring,
+      snapYs[resolvedIndex],
+      shouldReduceMotion ? { duration: 0 } : SNAP_SPRING
+    )
+    onSnapChange(resolvedIndex)
+  }
+
   return (
     <AnimatePresence>
       {(props?.isOpen || state?.isOpen) && (
@@ -101,58 +270,49 @@ const DrawerContent = ({
               ].join(" "),
             className
           )}
-          animate={{ x: 0, y: 0, opacity: 1 }}
-          initial={shouldReduceMotion ? { opacity: 0 } : { ...offscreen, opacity: 1 }}
-          exit={shouldReduceMotion ? { opacity: 0 } : { ...offscreen, opacity: 1 }}
+          style={isMultiSnapBottom ? { y: ySpring } : undefined}
+          animate={
+            isMultiSnapBottom ? { x: 0, opacity: 1 } : { x: 0, y: 0, opacity: 1 }
+          }
+          initial={
+            shouldReduceMotion
+              ? { opacity: 0 }
+              : isMultiSnapBottom
+                ? { x: 0, opacity: 1 }
+                : { ...offscreen, opacity: 1 }
+          }
+          exit={
+            shouldReduceMotion
+              ? { opacity: 0 }
+              : isMultiSnapBottom
+                ? { x: 0, opacity: 1 }
+                : { ...offscreen, opacity: 1 }
+          }
           drag={side === "left" || side === "right" ? "x" : "y"}
           whileDrag={{ cursor: "grabbing" }}
-          dragConstraints={{
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-          }}
+          dragConstraints={
+            isMultiSnapBottom
+              ? { top: 0, bottom: snapYs[0], left: 0, right: 0 }
+              : { top: 0, bottom: 0, left: 0, right: 0 }
+          }
           dragControls={dragControls}
           dragTransition={{
             bounceStiffness: 600,
             bounceDamping: 20,
           }}
+          dragMomentum={!isMultiSnapBottom}
           transition={{ duration: 0.15, ease: "easeInOut" }}
-          onDragEnd={(
-            _: React.MouseEvent<HTMLDivElement>,
-            {
-              offset,
-              velocity,
-            }: {
-              offset: { x: number; y: number }
-              velocity: { x: number; y: number }
-            }
-          ) => {
-            if (
-              side === "bottom" &&
-              (velocity.y > 150 || offset.y > screen.height * 0.25)
-            ) {
-              closeDrawer()
-            }
-            if (
-              side === "top" &&
-              (velocity.y < -150 || offset.y < screen.height * 0.25)
-            ) {
-              state.close()
-            }
-            if (side === "left" && velocity.x < -150) {
-              closeDrawer()
-            }
-            if (side === "right" && velocity.x > 150) {
-              state.close()
-            }
-          }}
-          dragElastic={{
-            top: side === "top" ? 1 : 0,
-            bottom: side === "bottom" ? 1 : 0,
-            left: side === "left" ? 1 : 0,
-            right: side === "right" ? 1 : 0,
-          }}
+          onDragEnd={isMultiSnapBottom ? handleMultiSnapDragEnd : handleBinaryDragEnd}
+          dragElastic={
+            isMultiSnapBottom
+              ? { top: 0.2, bottom: 0.2, left: 0, right: 0 }
+              : {
+                  top: side === "top" ? 1 : 0,
+                  bottom: side === "bottom" ? 1 : 0,
+                  left: side === "left" ? 1 : 0,
+                  right: side === "right" ? 1 : 0,
+                }
+          }
           dragListener={false}
         >
           <Dialog

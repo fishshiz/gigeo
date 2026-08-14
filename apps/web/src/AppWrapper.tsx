@@ -1,7 +1,5 @@
 import { lazy, Suspense } from "react"
-import { DrawerWrapper } from "./Drawer/DrawerWrapper"
 import { Search } from "./Search"
-import { useIsMobile } from "./providers/Breakpoint"
 import { AppHeader } from "./Header"
 
 const MapWrapper = lazy(() =>
@@ -18,7 +16,6 @@ const AppWrapper = () => {
         <Suspense fallback={null}>
           <MapWrapper />
         </Suspense>
-        {useIsMobile() && <DrawerWrapper />}
       </div>
     </div>
   )

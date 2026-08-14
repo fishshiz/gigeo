@@ -84,7 +84,14 @@ export function useMapInstance(
     mapRef.current?.addInteraction("map-click", {
       type: "click",
       target: { layerId: "events" },
-      handler: () => {
+      handler: (event) => {
+        // A click that hit a feature on this layer is handled here (and
+        // by useClusterSelection's own targeted interaction) -- stop it
+        // from also reaching the untargeted map-tap-collapses-drawer
+        // interaction (useCollapseDrawerOnMapTap), which would otherwise
+        // also fire on the same click since interactions are a stack,
+        // not automatically mutually exclusive by target.
+        event.preventDefault()
         if (selectedFeature) {
           mapRef.current?.setFeatureState(selectedFeature, { selected: false })
           setSelectedFeature(null)
