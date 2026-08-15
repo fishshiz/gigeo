@@ -118,21 +118,8 @@ pub(super) async fn resolve_one(state: &AppState, candidate: SportsTeamCandidate
         }
     };
 
-    for team in &teams {
-        if let Err(err) = db::upsert_standings(
-            &state.db.pool,
-            db::NewStanding {
-                league: candidate.league,
-                espn_team_id: &team.team_id,
-                record: team.record.as_deref().unwrap_or(""),
-                standing_position: team.standing_position,
-                group_name: Some(&team.group_name),
-            },
-        )
-        .await
-        {
-            tracing::warn!(error = %err, "sports enrichment: failed to persist standings");
-        }
+    if let Err(err) = db::upsert_standings_bulk(&state.db.pool, candidate.league, &teams).await {
+        tracing::warn!(error = %err, "sports enrichment: failed to persist standings");
     }
 
     // Already matched -- standings for every team in the league (this one
@@ -145,24 +132,104 @@ pub(super) async fn resolve_one(state: &AppState, candidate: SportsTeamCandidate
     match_team(state, &candidate, &tm_id, &teams).await;
 }
 
+/// Trailing sport-qualifier phrases Ticketmaster appends to college team
+/// performer names that ESPN's own team names never carry -- e.g.
+/// `"USC Trojans Football"` (Ticketmaster) vs `"USC Trojans"` (ESPN),
+/// `"UConn Huskies Women's Basketball"` vs `"UConn Huskies"`. Longest/
+/// most-specific first, so a name ending in `"Womens Basketball"` strips
+/// that whole phrase rather than only the trailing `"Basketball"` and
+/// leaving "Womens" attached. Confirmed live during this feature's
+/// design, against real Ticketmaster college football/basketball
+/// performer names.
+const SPORT_QUALIFIER_SUFFIXES: &[&str] = &[
+    "women's basketball",
+    "womens basketball",
+    "men's basketball",
+    "mens basketball",
+    "women's football",
+    "womens football",
+    "men's football",
+    "mens football",
+    "college football",
+    "college basketball",
+    "basketball",
+    "football",
+];
+
+/// A leading qualifier Ticketmaster sometimes includes that ESPN's own
+/// team names never do -- e.g. `"University of North Dakota Football"`
+/// vs ESPN's `"North Dakota"`.
+const SCHOOL_NAME_PREFIX: &str = "university of ";
+
+/// Candidate normalized names to try matching a team performer against,
+/// most-specific (the name as-is) first. Only meaningfully different
+/// from a single exact match for college teams -- pro team names already
+/// match cleanly as-is (confirmed live: Lakers, Celtics, Cubs, etc. all
+/// resolve on the first, unstripped variant), so trying the extra
+/// variants costs nothing for them.
+fn team_name_variants(name: &str) -> Vec<String> {
+    let mut variants = vec![name.to_string()];
+
+    for suffix in SPORT_QUALIFIER_SUFFIXES {
+        if let Some(stripped) = strip_suffix_case_insensitive(name, suffix) {
+            variants.push(stripped);
+        }
+    }
+
+    let prefix_stripped: Vec<String> = variants
+        .iter()
+        .filter_map(|v| strip_prefix_case_insensitive(v, SCHOOL_NAME_PREFIX))
+        .collect();
+    variants.extend(prefix_stripped);
+
+    variants
+}
+
+/// Strips `suffix` from the end of `s` case-insensitively, preserving
+/// `s`'s own original casing in the result (unlike comparing/slicing on
+/// an already-lowercased copy, which would lose it). `.get()` rather than
+/// direct slicing: byte-length arithmetic on a lowercased copy could
+/// theoretically land mid-character for non-ASCII input, and silently
+/// skipping that variant is preferable to a panic over a team name.
+fn strip_suffix_case_insensitive(s: &str, suffix: &str) -> Option<String> {
+    let lower_stripped = s.to_lowercase().strip_suffix(suffix)?.len();
+    let stripped = s.get(..lower_stripped)?.trim();
+    (!stripped.is_empty()).then(|| stripped.to_string())
+}
+
+fn strip_prefix_case_insensitive(s: &str, prefix: &str) -> Option<String> {
+    let lower_remainder_len = s.to_lowercase().strip_prefix(prefix)?.len();
+    let cut = s.len() - lower_remainder_len;
+    let stripped = s.get(cut..)?.trim();
+    (!stripped.is_empty()).then(|| stripped.to_string())
+}
+
 /// Searches the just-fetched league standings for `candidate.name` and
 /// persists the result -- a matched team id on an exact-normalized name
-/// match (the same verified-match rule `artists::worker` uses for artist
-/// names, not fuzzy/scored matching), or a tombstone on no match.
+/// match against either a team's full name or its school-name-alone
+/// (see `client::TeamStanding::team_location`'s doc comment for why both
+/// are tried), tried across `team_name_variants` most-specific-first
+/// (the same verified-match philosophy `artists::worker` uses for artist
+/// names, not fuzzy/scored matching) -- or a tombstone if nothing
+/// matches.
 async fn match_team(
     state: &AppState,
     candidate: &SportsTeamCandidate,
     tm_id: &str,
     teams: &[client::TeamStanding],
 ) {
-    let normalized = normalize_artist_name(&candidate.name);
-    if normalized.is_empty() {
-        return;
-    }
+    let variants = team_name_variants(&candidate.name);
 
-    let found = teams
-        .iter()
-        .find(|t| normalize_artist_name(&t.team_name) == normalized);
+    let found = variants.iter().find_map(|variant| {
+        let normalized = normalize_artist_name(variant);
+        if normalized.is_empty() {
+            return None;
+        }
+        teams.iter().find(|t| {
+            normalize_artist_name(&t.team_name) == normalized
+                || normalize_artist_name(&t.team_location) == normalized
+        })
+    });
 
     match found {
         Some(team) => {
@@ -220,5 +287,59 @@ mod tests {
         }];
 
         assert!(dedupe_candidates(candidates).is_empty());
+    }
+
+    #[test]
+    fn team_name_variants_leaves_a_clean_pro_team_name_alone() {
+        // Confirmed live: pro team names already match ESPN as-is, so
+        // this should be the *only* variant -- no suffix/prefix in a name
+        // like this to strip.
+        assert_eq!(
+            team_name_variants("Los Angeles Lakers"),
+            vec!["Los Angeles Lakers"]
+        );
+    }
+
+    #[test]
+    fn team_name_variants_strips_a_bare_sport_suffix() {
+        // Real Ticketmaster performer name, confirmed live: no mascot at
+        // all, just the school name plus "Football" -- ESPN's own team
+        // name for this school includes a mascot ESPN's `location` field
+        // (not `display_name`) is what this variant is meant to match.
+        assert!(
+            team_name_variants("Maine Football")
+                .iter()
+                .any(|v| v == "Maine")
+        );
+    }
+
+    #[test]
+    fn team_name_variants_strips_womens_basketball_as_one_phrase() {
+        // Must strip the whole phrase, not just trailing "Basketball" --
+        // stripping only "Basketball" would leave "UConn Huskies Women's"
+        // dangling, which matches neither `team_name` nor `team_location`.
+        assert!(
+            team_name_variants("UConn Huskies Women's Basketball")
+                .iter()
+                .any(|v| v == "UConn Huskies")
+        );
+    }
+
+    #[test]
+    fn team_name_variants_handles_alternate_apostrophe_free_spelling() {
+        assert!(
+            team_name_variants("George Washington Womens Basketball")
+                .iter()
+                .any(|v| v == "George Washington")
+        );
+    }
+
+    #[test]
+    fn team_name_variants_strips_both_prefix_and_suffix() {
+        assert!(
+            team_name_variants("University of North Dakota Football")
+                .iter()
+                .any(|v| v == "North Dakota")
+        );
     }
 }

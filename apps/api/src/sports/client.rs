@@ -46,12 +46,43 @@ struct StandingsResponse {
 #[derive(Debug, Deserialize)]
 struct ConferenceGroup {
     name: String,
+    /// ESPN sends `standings: null` (an explicit null, not a missing key)
+    /// for a conference that's actually split into sub-divisions with
+    /// their own separate standings tables instead of one conference-wide
+    /// one -- confirmed live, college football's "Sun Belt Conference"
+    /// (nests a further `children: [{name: "Sun Belt - East", ...},
+    /// {name: "Sun Belt - West", ...}]`, each with its own real
+    /// `standings.entries`). Plain `#[serde(default)]` alone only covers
+    /// a *missing* key; an explicit `null` still fails a bare
+    /// `EntriesWrapper` the same way, so this also needs
+    /// `deserialize_with` to fold `null` into the same default. Without
+    /// both, one conference's shape breaks deserializing the *entire*
+    /// response -- every other conference's real data too, not just this
+    /// one.
+    ///
+    /// Doesn't currently descend into that nested `children` shape to
+    /// recover Sun Belt's own teams -- out of scope for now, so those
+    /// specific teams just won't have standings, same as any other
+    /// best-effort miss elsewhere in this feature.
+    #[serde(default, deserialize_with = "null_as_default")]
     standings: EntriesWrapper,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct EntriesWrapper {
+    #[serde(default, deserialize_with = "null_as_default")]
     entries: Vec<Entry>,
+}
+
+/// Generic null-or-missing-key-becomes-default, for any field whose
+/// value ESPN sometimes sends as an explicit JSON `null` rather than
+/// omitting it or sending its normal type's empty form.
+fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + Default,
+{
+    Ok(Option::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +96,19 @@ struct EntryTeam {
     id: String,
     #[serde(rename = "displayName")]
     display_name: String,
+    /// The school/city name alone, no mascot -- e.g. `"South Florida"`
+    /// where `display_name` is `"South Florida Bulls"`. Needed for
+    /// college matching: Ticketmaster's own performer names for smaller
+    /// programs sometimes drop the mascot entirely (confirmed live,
+    /// e.g. a real listing named just `"Maine Football"`, matching
+    /// neither `display_name` nor `display_name` minus "Football"), so
+    /// `worker::match_team` tries both fields. ESPN already
+    /// disambiguates same-named schools at this granularity (Miami
+    /// Hurricanes' `location` is `"Miami"`; Miami (OH) RedHawks' is
+    /// `"Miami (OH)"` or similar) -- confirmed for the schools sampled
+    /// live -- so this doesn't reopen the ambiguity a raw substring/
+    /// prefix match would.
+    location: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +126,8 @@ struct Stat {
 pub(crate) struct TeamStanding {
     pub team_id: String,
     pub team_name: String,
+    /// School/city name alone -- see `EntryTeam::location`.
+    pub team_location: String,
     pub group_name: String,
     /// ESPN's own formatted record summary (the `stats[type="total"]`
     /// entry) -- e.g. `"60-22"`, or `"53-22-7"` for a hockey team's
@@ -144,6 +190,7 @@ fn to_team_standing(group_name: &str, entry: Entry) -> TeamStanding {
     TeamStanding {
         team_id: entry.team.id,
         team_name: entry.team.display_name,
+        team_location: entry.team.location,
         group_name: group_name.to_string(),
         record,
         standing_position,
@@ -168,7 +215,7 @@ mod tests {
                 "standings": {
                     "entries": [
                         {
-                            "team": { "id": "8", "displayName": "Detroit Pistons" },
+                            "team": { "id": "8", "displayName": "Detroit Pistons", "location": "Detroit" },
                             "stats": [
                                 {
                                     "type": "total",
@@ -209,15 +256,51 @@ mod tests {
         let pistons = &standings[0];
         assert_eq!(pistons.team_id, "8");
         assert_eq!(pistons.team_name, "Detroit Pistons");
+        assert_eq!(pistons.team_location, "Detroit");
         assert_eq!(pistons.group_name, "Eastern Conference");
         assert_eq!(pistons.record.as_deref(), Some("60-22"));
         assert_eq!(pistons.standing_position, Some(1));
     }
 
     #[test]
+    fn standings_response_tolerates_a_conference_with_null_standings() {
+        // Real shape, confirmed live: college football's "Sun Belt
+        // Conference" comes back with `standings: null` at the top level
+        // (it's actually split into East/West divisions with their own
+        // separate standings, nested one level deeper -- see
+        // `ConferenceGroup::standings`'s doc comment). Without
+        // `#[serde(default, deserialize_with = "null_as_default")]`
+        // there, this fails the whole response's deserialize -- breaking
+        // every other conference in it too, not just this one.
+        let fixture = r#"{
+            "children": [
+                {
+                    "name": "Sun Belt Conference",
+                    "standings": null
+                },
+                {
+                    "name": "Big Ten Conference",
+                    "standings": {
+                        "entries": [
+                            {
+                                "team": { "id": "1", "displayName": "Ohio State Buckeyes", "location": "Ohio State" },
+                                "stats": []
+                            }
+                        ]
+                    }
+                }
+            ]
+        }"#;
+
+        let parsed: StandingsResponse = serde_json::from_str(fixture).unwrap();
+        assert!(parsed.children[0].standings.entries.is_empty());
+        assert_eq!(parsed.children[1].standings.entries.len(), 1);
+    }
+
+    #[test]
     fn to_team_standing_leaves_record_and_position_none_when_stats_are_missing() {
         let entry: Entry = serde_json::from_str(
-            r#"{ "team": { "id": "1", "displayName": "Some Team" }, "stats": [] }"#,
+            r#"{ "team": { "id": "1", "displayName": "Some Team", "location": "Some" }, "stats": [] }"#,
         )
         .unwrap();
 

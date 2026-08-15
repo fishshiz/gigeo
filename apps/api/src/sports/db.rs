@@ -118,33 +118,51 @@ pub(super) async fn get_standings(
     .await
 }
 
-pub(super) struct NewStanding<'a> {
-    pub league: League,
-    pub espn_team_id: &'a str,
-    pub record: &'a str,
-    pub standing_position: Option<i32>,
-    pub group_name: Option<&'a str>,
-}
+/// Upserts every team's current record/standing in `teams` in one
+/// round-trip (`unnest` over parallel arrays), rather than one query per
+/// team -- no history kept, nothing today reads a past standing, only
+/// "as of now" (see migration docs).
+///
+/// Not just an optimization: confirmed live that a plain per-team loop
+/// takes ~33 seconds for a league the size of Division I men's college
+/// basketball (~350 teams, sequential round-trips to a remote Postgres
+/// instance) -- long enough to make the on-demand detail-view endpoint
+/// this feeds feel broken. A no-op for an empty slice (nothing to
+/// `unnest`).
+pub(super) async fn upsert_standings_bulk(
+    pool: &PgPool,
+    league: League,
+    teams: &[super::client::TeamStanding],
+) -> Result<(), sqlx::Error> {
+    if teams.is_empty() {
+        return Ok(());
+    }
 
-/// Upserts a team's current record/standing wholesale -- no history kept,
-/// nothing today reads a past standing, only "as of now" (see migration
-/// docs).
-pub(super) async fn upsert_standings(pool: &PgPool, row: NewStanding<'_>) -> Result<(), sqlx::Error> {
+    let espn_team_ids: Vec<&str> = teams.iter().map(|t| t.team_id.as_str()).collect();
+    let records: Vec<&str> = teams
+        .iter()
+        .map(|t| t.record.as_deref().unwrap_or(""))
+        .collect();
+    let standing_positions: Vec<Option<i32>> = teams.iter().map(|t| t.standing_position).collect();
+    let group_names: Vec<&str> = teams.iter().map(|t| t.group_name.as_str()).collect();
+
     sqlx::query!(
         r#"
         insert into sports_team_standings (league, espn_team_id, record, standing_position, group_name, fetched_at)
-        values ($1::text::sports_league, $2, $3, $4, $5, now())
+        select $1::text::sports_league, u.espn_team_id, u.record, u.standing_position, u.group_name, now()
+        from unnest($2::text[], $3::text[], $4::integer[], $5::text[])
+            as u(espn_team_id, record, standing_position, group_name)
         on conflict (league, espn_team_id) do update set
             record = excluded.record,
             standing_position = excluded.standing_position,
             group_name = excluded.group_name,
             fetched_at = now()
         "#,
-        row.league.as_db_str(),
-        row.espn_team_id,
-        row.record,
-        row.standing_position,
-        row.group_name,
+        league.as_db_str(),
+        &espn_team_ids as &[&str],
+        &records as &[&str],
+        &standing_positions as &[Option<i32>],
+        &group_names as &[&str],
     )
     .execute(pool)
     .await

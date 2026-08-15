@@ -25,6 +25,18 @@ function classification(
   }
 }
 
+/** A college classification -- `subGenre=College` regardless of sport,
+ * `genre` carrying the actual sport, matching what's real live (see
+ * `majorLeagueFor`'s doc comment). */
+function collegeClassification(genre: string, primary: boolean): Classification {
+  return {
+    primary,
+    segment: { id: "1", name: "Sports" },
+    genre: { id: "3", name: genre },
+    subGenre: { id: "2", name: "College" },
+  }
+}
+
 // Mirrors apps/api/src/sports/types.rs's own test suite for
 // `matchups_from`/`major_league` -- same gating rules, same reasoning,
 // just exercised client-side.
@@ -67,6 +79,44 @@ describe("majorLeagueFor", () => {
 
   it("returns null when there are no classifications", () => {
     expect(majorLeagueFor(makeEvent({ classifications: undefined }))).toBeNull()
+  })
+
+  it("resolves NCAA football from a college classification", () => {
+    const event = makeEvent({
+      classifications: [collegeClassification("Football", true)],
+    })
+    expect(majorLeagueFor(event)).toBe("NCAA_FOOTBALL")
+  })
+
+  it("defaults college basketball to men's when the event name has no gender marker", () => {
+    const event = makeEvent({
+      name: "Utah State Aggies Mens Basketball vs. Denver Pioneers Mens Basketball",
+      classifications: [collegeClassification("Basketball", true)],
+    })
+    expect(majorLeagueFor(event)).toBe("NCAA_MENS_BASKETBALL")
+  })
+
+  it("detects women's college basketball from the event name", () => {
+    const event = makeEvent({
+      name: "UConn Huskies Women's Basketball vs. Duke Blue Devils Women's Basketball",
+      classifications: [collegeClassification("Basketball", true)],
+    })
+    expect(majorLeagueFor(event)).toBe("NCAA_WOMENS_BASKETBALL")
+  })
+
+  it("detects the alternate 'Womens' spelling too", () => {
+    const event = makeEvent({
+      name: "George Washington Womens Basketball vs. Towson Tigers Womens Basketball",
+      classifications: [collegeClassification("Basketball", true)],
+    })
+    expect(majorLeagueFor(event)).toBe("NCAA_WOMENS_BASKETBALL")
+  })
+
+  it("returns null for an uncovered college sport", () => {
+    const event = makeEvent({
+      classifications: [collegeClassification("Volleyball", true)],
+    })
+    expect(majorLeagueFor(event)).toBeNull()
   })
 })
 
