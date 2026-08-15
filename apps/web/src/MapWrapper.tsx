@@ -1,4 +1,4 @@
-import { use, useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { Map as MapboxMap } from "mapbox-gl"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
