@@ -130,12 +130,13 @@ fn venue_and_date_match(a: &EventResponse, b: &EventResponse) -> bool {
 /// while Ticketmaster used the parent venue's own name ("Thompson's
 /// Point") for the identical show. Neither normalized string matches the
 /// other, but they sit ~0.15 miles apart. So we also accept a close geo
-/// match — but only when it's confirmed by an actual performer-name
-/// overlap (not the "absent = pass" leniency `performer_confirms_or_absent`
-/// allows for the exact-name path). Proximity alone is too weak a signal:
-/// two genuinely different real venues in this same test market (State
-/// Theatre and Aura) sit only ~0.28 miles apart — well within a naive
-/// "same complex" radius.
+/// match — but only when it's confirmed by an actual performer match (not
+/// the "absent = pass" leniency `performer_confirms_or_absent` allows for
+/// the exact-name path — see `performer_confirms_via_names_or_title` for
+/// what "confirmed" means when one side has no structured performer data).
+/// Proximity alone is too weak a signal: two genuinely different real
+/// venues in this same test market (State Theatre and Aura) sit only
+/// ~0.28 miles apart — well within a naive "same complex" radius.
 fn venues_match(a: &EventResponse, b: &EventResponse) -> bool {
     let a_venue = venue_key(a);
     let b_venue = venue_key(b);
@@ -146,7 +147,7 @@ fn venues_match(a: &EventResponse, b: &EventResponse) -> bool {
     match (venue_coords(a), venue_coords(b)) {
         (Some(a_coords), Some(b_coords)) => {
             distance_miles(a_coords, b_coords) <= VENUE_PROXIMITY_MILES_THRESHOLD
-                && performer_names_overlap(a, b)
+                && performer_confirms_via_names_or_title(a, b)
         }
         _ => false,
     }
@@ -210,15 +211,44 @@ fn distance_miles(a: (f64, f64), b: (f64, f64)) -> f64 {
     EARTH_RADIUS_MILES * (dx * dx + dy * dy).sqrt()
 }
 
-/// Strict performer-name overlap — unlike `performer_confirms_or_absent`,
-/// missing performer data on either side does NOT pass. Used to gate the
+/// Strict performer confirmation — unlike `performer_confirms_or_absent`,
+/// missing performer data on *both* sides does NOT pass. Used to gate the
 /// geo-proximity venue fallback, where positive confirmation is required
-/// because proximity alone isn't a strong enough signal.
-fn performer_names_overlap(a: &EventResponse, b: &EventResponse) -> bool {
+/// because proximity alone isn't a strong enough signal (two genuinely
+/// different real venues 0.28mi apart in the same test market, per
+/// `venues_match`'s own docs).
+///
+/// When both sides have structured performer entities, requires a name to
+/// overlap, same as `performer_confirms_or_absent`. When only one side does,
+/// falls back to checking whether that side's performer name(s) appear in
+/// the *other* side's own title -- confirmed-live gap this closes: a
+/// PredictHQ "Andy Grammer" event at "Bowl in the Pines" (Augusta, ME) had a
+/// second, degraded PredictHQ record for the same real show with accurate
+/// coordinates but no venue entity (falls back to the bare geocoded address,
+/// so the exact-name path above never sees it) *and* no performer entity —
+/// title-only confirmation is the only signal left to catch it. Same
+/// title-derived-name strategy this codebase already uses elsewhere for
+/// exactly this "no structured entity" gap (see `predicthq::normalize`'s
+/// notes on `performer_search_names`).
+fn performer_confirms_via_names_or_title(a: &EventResponse, b: &EventResponse) -> bool {
     match (performer_names(a), performer_names(b)) {
         (Some(a_names), Some(b_names)) => a_names.intersection(&b_names).next().is_some(),
-        _ => false,
+        (Some(names), None) => title_contains_any(b, &names),
+        (None, Some(names)) => title_contains_any(a, &names),
+        (None, None) => false,
     }
+}
+
+/// Whether `event`'s own title contains any of `names` (already
+/// `normalize_artist_name`d) as a substring, once the title is normalized
+/// the same way. Names shorter than 3 normalized characters are skipped --
+/// long enough to rule out a short act name coincidentally appearing inside
+/// an unrelated title, short enough to still catch real short act names.
+fn title_contains_any(event: &EventResponse, names: &HashSet<String>) -> bool {
+    let title = normalize_artist_name(&event.name);
+    names
+        .iter()
+        .any(|name| name.len() >= 3 && title.contains(name.as_str()))
 }
 
 /// The venue-local calendar day this event falls on, sourced from each
@@ -599,6 +629,70 @@ mod tests {
             "43.649943",
             "-70.291827",
         )];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert!(enrichments.is_empty());
+        assert_eq!(new_events.len(), 1);
+    }
+
+    #[test]
+    fn geo_proximity_confirms_via_title_when_predicthq_side_has_no_performer_entity() {
+        // The confirmed-live Augusta, ME bug: a second, degraded PredictHQ
+        // record for a real Andy Grammer show at "Bowl in the Pines" -- no
+        // venue entity (so it normalizes to the bare geocoded address
+        // string instead, missing the exact-name path entirely) and no
+        // performer entity either, despite an accurate title and accurate
+        // coordinates. Strict performer-name overlap can never confirm a
+        // match here since one side has no performer data at all -- the
+        // title is the only signal left.
+        let tm = vec![with_location(
+            with_performers(
+                event("tm-1", "Bowl in the Pines", "2026-08-19T22:00:00Z"),
+                &["Andy Grammer"],
+            ),
+            "44.326099",
+            "-69.697998",
+        )];
+        let mut phq_evt = phq_event(
+            "phq-1",
+            "Augusta, ME 04330, United States of America",
+            "2026-08-19T22:00:00Z",
+            31,
+        );
+        phq_evt.name = "Andy Grammer".to_string();
+        let phq = vec![with_location(phq_evt, "44.3261", "-69.698")];
+
+        let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
+
+        assert_eq!(enrichments.len(), 1);
+        assert_eq!(enrichments[0].id, "tm-1");
+        assert!(new_events.is_empty());
+    }
+
+    #[test]
+    fn geo_proximity_does_not_match_via_title_when_title_names_a_different_act() {
+        // Same shape as the Andy Grammer regression above, but the
+        // PredictHQ side's title doesn't mention the Ticketmaster
+        // performer at all -- title-fallback confirmation must not turn
+        // proximity-alone back into a free pass for a genuinely different
+        // show that just happens to share a nearby venue.
+        let tm = vec![with_location(
+            with_performers(
+                event("tm-1", "Bowl in the Pines", "2026-08-19T22:00:00Z"),
+                &["Andy Grammer"],
+            ),
+            "44.326099",
+            "-69.697998",
+        )];
+        let mut unrelated = phq_event(
+            "phq-1",
+            "Augusta, ME 04330, United States of America",
+            "2026-08-19T22:00:00Z",
+            31,
+        );
+        unrelated.name = "Local Farmers Market".to_string();
+        let phq = vec![with_location(unrelated, "44.3261", "-69.698")];
 
         let (enrichments, new_events) = reconcile_predicthq_events(&tm, phq);
 
