@@ -15,6 +15,7 @@ import {
   MapPinIcon,
   DollarSignIcon,
   ClockIcon,
+  TrophyIcon,
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
@@ -22,13 +23,19 @@ import SpotifyLogo from "@/assets/Primary_Logo_Green_CMYK.svg"
 import { ReactSVG } from "react-svg"
 import "react-social-icons/instagram"
 import type { EventResponse } from "./hooks/eventsStream"
-import { amArtistFullSchema, type Performer } from "./hooks/eventsStreamSchema"
+import {
+  amArtistFullSchema,
+  teamEnrichmentSchema,
+  type Performer,
+  type TeamEnrichment,
+} from "./hooks/eventsStreamSchema"
 import { useEventsContext } from "./providers/eventsProvider"
 import { useIsMobile } from "./providers/Breakpoint"
 import { useCarouselIndex } from "./hooks/useCarouselIndex"
 import { buildArtworkUrl, normalizeBg } from "./lib/artwork"
 import { formatDate, formatTime } from "./lib/dates"
 import { ticketmasterAttractionIds } from "./lib/performers"
+import { majorLeagueFor, isMajorLeagueMatchup, type League } from "./lib/sports"
 
 /** "Venue Name, City, ST" -- venue name plus a short city/state locator,
  * used anywhere a venue is referenced inline (the hero details line and
@@ -74,6 +81,17 @@ type PerformerEnrichmentState =
   | { status: "error" }
   | { status: "loaded"; artist: AmArtistFull | null }
 
+/** Per-performer state for the on-demand `/api/sports/enrichment` lookup
+ * -- same shape/rationale as `PerformerEnrichmentState` above, but for a
+ * major-league matchup's teams instead of a music event's artists. Only
+ * ever populated when `majorLeagueFor(eventData)` resolves a league (see
+ * `lib/sports.ts`); an artist lookup never runs for those performers, so
+ * the two enrichment kinds are mutually exclusive per event. */
+type TeamEnrichmentState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "loaded"; team: TeamEnrichment | null }
+
 const EventDetails = ({
   eventData,
   otherShowtimes = [],
@@ -84,6 +102,12 @@ const EventDetails = ({
   otherShowtimes?: EventResponse[]
 }) => {
   const { performers } = eventData
+  // Computed once per eventData, not per performer -- both are event-level
+  // (classification-derived) facts, not performer-level ones. See
+  // `lib/sports.ts` for why this mirrors apps/api/src/sports/types.rs's
+  // gating exactly rather than just checking `league !== null`.
+  const league = majorLeagueFor(eventData)
+  const isMatchup = isMajorLeagueMatchup(eventData)
   const [futureEvents, setFutureEvents] = useState<
     Record<string, FutureEventsState>
   >({})
@@ -191,6 +215,12 @@ const EventDetails = ({
   )
 
   useEffect(() => {
+    // Skipped for a major-league matchup -- a team name is never going to
+    // be a confident artist match (see `fetchTeamEnrichment` below for the
+    // enrichment that actually applies here), so firing this too would
+    // just be a wasted request per team on every sports event's detail
+    // view.
+    if (isMatchup) return
     ;(performers ?? [])
       .filter((performer): performer is Performer & { name: string } =>
         Boolean(performer.name)
@@ -198,7 +228,81 @@ const EventDetails = ({
       .forEach((performer) =>
         fetchPerformerEnrichment(performer.name, performer.id)
       )
-  }, [eventData, performers, fetchPerformerEnrichment])
+  }, [eventData, performers, isMatchup, fetchPerformerEnrichment])
+
+  // Current record/standing for each team on a major-league matchup,
+  // fetched on demand -- the sports-enrichment counterpart to
+  // `performerEnrichment` above, see `apps/api/src/sports/mod.rs`'s
+  // `get_team_enrichment`. Keyed by performer name, same as
+  // `performerEnrichment` is.
+  const [teamEnrichment, setTeamEnrichment] = useState<
+    Record<string, TeamEnrichmentState>
+  >({})
+
+  const fetchTeamEnrichment = useCallback(
+    (name: string, ticketmasterAttractionId: string, forLeague: League) => {
+      setTeamEnrichment((prev) => ({
+        ...prev,
+        [name]: { status: "loading" },
+      }))
+      const params = new URLSearchParams({
+        name,
+        ticketmasterAttractionId,
+        league: forLeague,
+      })
+      fetch(`/api/sports/enrichment?${params}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Request failed")
+          return res.json()
+        })
+        .then((json: unknown) => {
+          if (!isMountedRef.current) return
+          const result = teamEnrichmentSchema.nullable().safeParse(json)
+          if (!result.success) {
+            console.error(
+              "Sports enrichment response didn't match the expected schema -- backend/frontend drift?",
+              result.error,
+              json
+            )
+            setTeamEnrichment((prev) => ({
+              ...prev,
+              [name]: { status: "error" },
+            }))
+            return
+          }
+          setTeamEnrichment((prev) => ({
+            ...prev,
+            [name]: { status: "loaded", team: result.data },
+          }))
+        })
+        .catch((e) => {
+          console.error("Failed to fetch sports enrichment", e)
+          if (!isMountedRef.current) return
+          setTeamEnrichment((prev) => ({
+            ...prev,
+            [name]: { status: "error" },
+          }))
+        })
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (!isMatchup || !league) return
+    // `ticketmasterAttractionId` is required by `/api/sports/enrichment`
+    // (unlike the artist lookup, where it's optional) -- a named performer
+    // with no id has nothing to key the match cache on backend-side, so
+    // there's no point firing the request at all. See
+    // apps/api/src/sports/mod.rs's `get_team_enrichment`.
+    ;(performers ?? [])
+      .filter(
+        (performer): performer is Performer & { name: string; id: string } =>
+          Boolean(performer.name && performer.id)
+      )
+      .forEach((performer) =>
+        fetchTeamEnrichment(performer.name, performer.id, league)
+      )
+  }, [eventData, performers, isMatchup, league, fetchTeamEnrichment])
 
   // scroll handler for the pane -- this component's own root never
   // overflows itself (it's exactly as tall as its content), so the pane
@@ -436,6 +540,8 @@ const EventDetails = ({
         <PerformerCarousel
           performers={performers}
           performerEnrichment={performerEnrichment}
+          teamEnrichment={teamEnrichment}
+          isMatchup={isMatchup}
           futureEventsFor={futureEventsFor}
           fetchFutureEvents={fetchFutureEvents}
         />
@@ -450,6 +556,10 @@ const EventDetails = ({
             state={
               performer.name ? performerEnrichment[performer.name] : undefined
             }
+            teamState={
+              performer.name ? teamEnrichment[performer.name] : undefined
+            }
+            isMatchup={isMatchup}
             futureEvents={futureEventsFor(performer.id)}
             onRetryFutureEvents={
               performer.id
@@ -474,11 +584,15 @@ const EventDetails = ({
 const PerformerCarousel = ({
   performers,
   performerEnrichment,
+  teamEnrichment,
+  isMatchup,
   futureEventsFor,
   fetchFutureEvents,
 }: {
   performers: Performer[]
   performerEnrichment: Record<string, PerformerEnrichmentState>
+  teamEnrichment: Record<string, TeamEnrichmentState>
+  isMatchup: boolean
   futureEventsFor: (id: string | null | undefined) => FutureEventsState
   fetchFutureEvents: (id: string) => void
 }) => {
@@ -540,6 +654,10 @@ const PerformerCarousel = ({
                   ? performerEnrichment[performer.name]
                   : undefined
               }
+              teamState={
+                performer.name ? teamEnrichment[performer.name] : undefined
+              }
+              isMatchup={isMatchup}
               futureEvents={futureEventsFor(performer.id)}
               onRetryFutureEvents={
                 performer.id
@@ -697,27 +815,119 @@ const ArtistCardSkeleton = () => (
   </div>
 )
 
-/** One performer's slot in the details view: the rich `ArtistCard` once
- * its on-demand enrichment resolves to a real match, a skeleton while
- * that's in flight, or the plain name-plus-upcoming-events fallback
- * otherwise (no match found, the fetch errored, or the performer has no
- * name to look up at all). A real component (not inlined in the parent's
- * `.map`) because `useLoadingPhase` is a hook -- can't call one
- * conditionally per array item outside a component boundary. */
+type TeamCardProps = {
+  team: TeamEnrichment
+  futureEvents?: FutureEventsState
+  onRetryFutureEvents?: () => void
+}
+
+/** A matchup team's slot in the details view -- the sports-enrichment
+ * counterpart to `ArtistCard`, same surface/shell for visual consistency
+ * but with a team's actual shape (no artwork, similar teams, or external
+ * links -- just its current record/standing) instead of an artist's. */
+const TeamCard: React.FC<TeamCardProps> = ({
+  team,
+  futureEvents = NO_FUTURE_EVENTS,
+  onRetryFutureEvents,
+}) => {
+  const { teamName, record, standingPosition, groupName } = team
+
+  return (
+    <div className="grid gap-4 bg-(--surface-scrim) p-4 text-(--text-on-scrim) shadow-lg dark:border dark:border-white/10 dark:shadow-none">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-800/70"
+        >
+          <TrophyIcon className="h-6 w-6 text-slate-300" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-xl font-semibold">{teamName}</h2>
+          {groupName && (
+            <p className="mt-1 truncate text-sm text-slate-300">
+              {groupName}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6">
+        <div>
+          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+            Record
+          </h3>
+          <p dir="ltr" className="text-base font-semibold tabular-nums">
+            {record}
+          </p>
+        </div>
+        {standingPosition != null && (
+          <div>
+            <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+              Standing
+            </h3>
+            <p className="text-base font-semibold tabular-nums">
+              #{standingPosition}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
+    </div>
+  )
+}
+
+/** A rough silhouette of `TeamCard`'s own layout, same threshold/purpose
+ * as `ArtistCardSkeleton`. */
+const TeamCardSkeleton = () => (
+  <div aria-hidden className="grid gap-4 p-4 dark:border dark:border-white/10">
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="h-12 w-12 shrink-0 animate-pulse rounded-2xl bg-slate-700/50" />
+      <div className="min-w-0 flex-1 py-1">
+        <span className="block h-5 w-2/3 animate-pulse rounded bg-slate-700/50" />
+        <span className="mt-2 block h-3.5 w-1/3 animate-pulse rounded bg-slate-700/40" />
+      </div>
+    </div>
+  </div>
+)
+
+/** One performer's slot in the details view: the rich `ArtistCard`/
+ * `TeamCard` (depending on `isMatchup`) once its on-demand enrichment
+ * resolves to a real match, a skeleton while that's in flight, or the
+ * plain name-plus-upcoming-events fallback otherwise (no match found, the
+ * fetch errored, or the performer has no name to look up at all). A real
+ * component (not inlined in the parent's `.map`) because `useLoadingPhase`
+ * is a hook -- can't call one conditionally per array item outside a
+ * component boundary. */
 const PerformerDetails = ({
   performer,
   state,
+  teamState,
+  isMatchup,
   futureEvents,
   onRetryFutureEvents,
 }: {
   performer: Performer
   state: PerformerEnrichmentState | undefined
+  teamState: TeamEnrichmentState | undefined
+  isMatchup: boolean
   futureEvents: FutureEventsState
   onRetryFutureEvents?: () => void
 }) => {
-  const loadingPhase = useLoadingPhase(state?.status === "loading")
+  const activeStatus = isMatchup ? teamState?.status : state?.status
+  const loadingPhase = useLoadingPhase(activeStatus === "loading")
 
-  if (state?.status === "loaded" && state.artist) {
+  if (isMatchup) {
+    if (teamState?.status === "loaded" && teamState.team) {
+      return (
+        <TeamCard
+          team={teamState.team}
+          futureEvents={futureEvents}
+          onRetryFutureEvents={onRetryFutureEvents}
+        />
+      )
+    }
+  } else if (state?.status === "loaded" && state.artist) {
     return (
       <ArtistCard
         artist={state.artist}
@@ -729,8 +939,9 @@ const PerformerDetails = ({
     )
   }
 
-  if (state?.status === "loading") {
-    return loadingPhase !== null ? <ArtistCardSkeleton /> : null
+  if (activeStatus === "loading") {
+    if (loadingPhase === null) return null
+    return isMatchup ? <TeamCardSkeleton /> : <ArtistCardSkeleton />
   }
 
   if (!performer.id) return null

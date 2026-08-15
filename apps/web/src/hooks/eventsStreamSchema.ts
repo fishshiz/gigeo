@@ -86,6 +86,19 @@ const amArtistFullSchema = amArtistSchema.extend({
   similar_artists: z.array(amArtistSchema),
 })
 
+/** A team's current record/standing, from the on-demand
+ * `/api/sports/enrichment` lookup -- see apps/api/src/sports/mod.rs's
+ * `TeamEnrichmentResponse`. `record` is ESPN's own formatted summary
+ * (e.g. "60-22", or "53-22-7" for a hockey team's wins-losses-OT-losses)
+ * rather than split wins/losses fields, since the shape of "a record"
+ * varies by sport -- see apps/api/migrations/007_sports_enrichment.sql. */
+const teamEnrichmentSchema = z.object({
+  teamName: z.string(),
+  record: z.string(),
+  standingPosition: optional(z.number()),
+  groupName: optional(z.string()),
+})
+
 const performerSchema = z.object({
   id: optional(z.string()),
   name: optional(z.string()),
@@ -169,10 +182,12 @@ type ExternalLinks = z.infer<typeof externalLinksSchema>
 type AmArtwork = z.infer<typeof amArtworkSchema>
 type AmArtist = z.infer<typeof amArtistSchema>
 type AmArtistFull = z.infer<typeof amArtistFullSchema>
+type TeamEnrichment = z.infer<typeof teamEnrichmentSchema>
 
 export {
   eventResponseSchema,
   amArtistFullSchema,
+  teamEnrichmentSchema,
   type EventResponse,
   type Performer,
   type Classification,
@@ -182,4 +197,5 @@ export {
   type AmArtwork,
   type AmArtist,
   type AmArtistFull,
+  type TeamEnrichment,
 }

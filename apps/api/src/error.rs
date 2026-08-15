@@ -90,7 +90,7 @@ impl IntoResponse for AppError {
                 let code = *status;
                 (code, message.clone())
             }
-            AppError::Unauthorized { status, message } => {
+            AppError::Unauthorized { status: _, message } => {
                 (StatusCode::UNAUTHORIZED, message.clone())
             }
             AppError::Request(e) => (
