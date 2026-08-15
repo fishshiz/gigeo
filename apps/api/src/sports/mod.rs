@@ -51,10 +51,23 @@ pub struct TeamEnrichmentResponse {
     /// ESPN's own formatted record summary -- see `client::TeamStanding`
     /// doc comment on why this isn't split into wins/losses columns.
     pub record: String,
-    #[serde(rename = "standingPosition")]
-    pub standing_position: Option<i32>,
     #[serde(rename = "groupName")]
     pub group_name: Option<String>,
+    /// The full conference/division table (every cached team sharing
+    /// `group_name`), ordered by standing -- a bare position number on
+    /// its own doesn't say much without the teams around it. Empty when
+    /// `group_name` is absent, or nothing else in the group has been
+    /// cached yet.
+    pub standings: Vec<StandingEntry>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct StandingEntry {
+    #[serde(rename = "teamName")]
+    pub team_name: String,
+    pub record: String,
+    #[serde(rename = "standingPosition")]
+    pub standing_position: Option<i32>,
 }
 
 /// `GET /sports/enrichment?name=...&ticketmasterAttractionId=...&league=NBA`
@@ -97,10 +110,24 @@ async fn lookup(state: &AppState, league: League, tm_id: &str) -> Option<TeamEnr
         .ok()
         .flatten()?;
 
+    let group_standings = match &standings.group_name {
+        Some(group_name) => db::get_group_standings(&state.db.pool, league, group_name)
+            .await
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
+
     Some(TeamEnrichmentResponse {
         team_name: matched.resolved_name.unwrap_or_default(),
         record: standings.record,
-        standing_position: standings.standing_position,
         group_name: standings.group_name,
+        standings: group_standings
+            .into_iter()
+            .map(|row| StandingEntry {
+                team_name: row.team_name,
+                record: row.record,
+                standing_position: row.standing_position,
+            })
+            .collect(),
     })
 }

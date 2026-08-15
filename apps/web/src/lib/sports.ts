@@ -1,12 +1,12 @@
 import type { EventResponse } from "../hooks/eventsStream"
 
-/** The seven leagues sports enrichment covers -- mirrors
+/** The eight leagues sports enrichment covers -- mirrors
  * apps/api/src/sports/types.rs's `League` enum. Values are the `league`
  * query param `/api/sports/enrichment` expects (matched case-
  * insensitively backend-side against its own lowercase db values, so any
  * casing works as long as it lowercases to the right db string -- these
  * just mirror the backend's own naming for consistency). */
-const PRO_LEAGUES = ["NBA", "NFL", "NHL", "MLB"] as const
+const PRO_LEAGUES = ["NBA", "NFL", "NHL", "MLB", "WNBA"] as const
 type ProLeague = (typeof PRO_LEAGUES)[number]
 type League = ProLeague | "NCAA_FOOTBALL" | "NCAA_MENS_BASKETBALL" | "NCAA_WOMENS_BASKETBALL"
 

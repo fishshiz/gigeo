@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select team_name, record, standing_position\n        from sports_team_standings\n        where league = $1::text::sports_league and group_name = $2\n        order by standing_position asc nulls last, team_name asc\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "team_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "record",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "standing_position",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "1b56ed31db1ea6bef8c35e8dc609b66d77834b73bbe206d3c5de4ae9cf82686b"
+}

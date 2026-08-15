@@ -821,16 +821,35 @@ type TeamCardProps = {
   onRetryFutureEvents?: () => void
 }
 
+/** Rows shown above/below the current team by default, before the
+ * standings table needs an explicit "show more" -- a bare position
+ * number wasn't useful on its own, but the *full* conference (up to ~15
+ * teams for a pro league, more for some college conferences) is more
+ * table than a card needs to open with. Mirrors `UpcomingEvents`'s own
+ * truncate-then-expand pattern. */
+const STANDINGS_VISIBLE_WINDOW = 2
+
 /** A matchup team's slot in the details view -- the sports-enrichment
  * counterpart to `ArtistCard`, same surface/shell for visual consistency
  * but with a team's actual shape (no artwork, similar teams, or external
- * links -- just its current record/standing) instead of an artist's. */
+ * links -- its current record and where it sits in its conference/
+ * division) instead of an artist's. */
 const TeamCard: React.FC<TeamCardProps> = ({
   team,
   futureEvents = NO_FUTURE_EVENTS,
   onRetryFutureEvents,
 }) => {
-  const { teamName, record, standingPosition, groupName } = team
+  const { teamName, record, groupName, standings } = team
+  const [expanded, setExpanded] = useState(false)
+
+  const currentIndex = standings.findIndex((s) => s.teamName === teamName)
+  const visibleStandings =
+    expanded || currentIndex === -1
+      ? standings
+      : standings.filter(
+          (_, i) => Math.abs(i - currentIndex) <= STANDINGS_VISIBLE_WINDOW
+        )
+  const hiddenCount = standings.length - visibleStandings.length
 
   return (
     <div className="grid gap-4 bg-(--surface-scrim) p-4 text-(--text-on-scrim) shadow-lg dark:border dark:border-white/10 dark:shadow-none">
@@ -849,10 +868,7 @@ const TeamCard: React.FC<TeamCardProps> = ({
             </p>
           )}
         </div>
-      </div>
-
-      <div className="flex items-center gap-6">
-        <div>
+        <div className="shrink-0 text-right">
           <h3 className="text-xs tracking-wide text-slate-400 uppercase">
             Record
           </h3>
@@ -860,17 +876,49 @@ const TeamCard: React.FC<TeamCardProps> = ({
             {record}
           </p>
         </div>
-        {standingPosition != null && (
-          <div>
-            <h3 className="text-xs tracking-wide text-slate-400 uppercase">
-              Standing
-            </h3>
-            <p className="text-base font-semibold tabular-nums">
-              #{standingPosition}
-            </p>
-          </div>
-        )}
       </div>
+
+      {visibleStandings.length > 0 && (
+        <div>
+          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+            {groupName ?? "Standings"}
+          </h3>
+          <ol className="mt-1 flex flex-col text-sm">
+            {visibleStandings.map((entry) => (
+              <li
+                key={entry.teamName}
+                className={
+                  entry.teamName === teamName
+                    ? "flex items-center justify-between gap-2 rounded bg-(--accent-bg)/15 px-1.5 py-1 font-semibold"
+                    : "flex items-center justify-between gap-2 px-1.5 py-1 text-slate-300"
+                }
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    dir="ltr"
+                    className="w-5 shrink-0 tabular-nums text-slate-500"
+                  >
+                    {entry.standingPosition ?? "–"}
+                  </span>
+                  <span className="truncate">{entry.teamName}</span>
+                </span>
+                <span dir="ltr" className="shrink-0 tabular-nums text-slate-400">
+                  {entry.record}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {!expanded && hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="mt-2 text-sm text-(--text-link) underline underline-offset-2"
+            >
+              Show full standings
+            </button>
+          )}
+        </div>
+      )}
 
       <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
     </div>

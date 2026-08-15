@@ -1,5 +1,5 @@
 //! The league allow-list and event-level gating for sports (standings/
-//! record) enrichment. Scoped to the four pro majors plus NCAA football
+//! record) enrichment. Scoped to the five pro majors plus NCAA football
 //! and basketball -- even though the matching mechanism (`worker`) is
 //! dynamic and could technically resolve a team from any league ESPN
 //! covers (minor leagues, foreign) -- see `matchups_from`'s doc comment
@@ -10,7 +10,7 @@
 
 use crate::events::types::EventResponse;
 
-/// One of the seven leagues this feature covers: the four pro majors plus
+/// One of the eight leagues this feature covers: the five pro majors plus
 /// NCAA football and basketball (split men's/women's -- see
 /// `major_league`'s doc comment on why Ticketmaster's own data doesn't
 /// let that split happen anywhere else).
@@ -20,6 +20,7 @@ pub(crate) enum League {
     Nfl,
     Nhl,
     Mlb,
+    Wnba,
     NcaaFootball,
     NcaaMensBasketball,
     NcaaWomensBasketball,
@@ -28,13 +29,15 @@ pub(crate) enum League {
 impl League {
     /// The `league` query param value the on-demand endpoint accepts and
     /// the DB's `sports_league` enum stores -- lowercase, matching
-    /// `migrations/007_sports_enrichment.sql`/`008_ncaa_sports.sql`.
+    /// `migrations/007_sports_enrichment.sql`/`008_ncaa_sports.sql`/
+    /// `009_wnba.sql`.
     pub(crate) fn as_db_str(self) -> &'static str {
         match self {
             League::Nba => "nba",
             League::Nfl => "nfl",
             League::Nhl => "nhl",
             League::Mlb => "mlb",
+            League::Wnba => "wnba",
             League::NcaaFootball => "ncaa_football",
             League::NcaaMensBasketball => "ncaa_mens_basketball",
             League::NcaaWomensBasketball => "ncaa_womens_basketball",
@@ -47,6 +50,7 @@ impl League {
             "nfl" => Some(League::Nfl),
             "nhl" => Some(League::Nhl),
             "mlb" => Some(League::Mlb),
+            "wnba" => Some(League::Wnba),
             "ncaa_football" => Some(League::NcaaFootball),
             "ncaa_mens_basketball" => Some(League::NcaaMensBasketball),
             "ncaa_womens_basketball" => Some(League::NcaaWomensBasketball),
@@ -55,7 +59,7 @@ impl League {
     }
 
     /// ESPN's `{sport}/{league}` URL path segment -- one unified host
-    /// covers all seven leagues (unlike API-SPORTS' separate products per
+    /// covers all eight leagues (unlike API-SPORTS' separate products per
     /// sport), confirmed live during this feature's design. NCAA
     /// football's path only covers FBS (~130 teams, 11 conferences) --
     /// FCS/Division II/III opponents that show up in real Ticketmaster
@@ -67,6 +71,7 @@ impl League {
             League::Nfl => "football/nfl",
             League::Nhl => "hockey/nhl",
             League::Mlb => "baseball/mlb",
+            League::Wnba => "basketball/wnba",
             League::NcaaFootball => "football/college-football",
             League::NcaaMensBasketball => "basketball/mens-college-basketball",
             League::NcaaWomensBasketball => "basketball/womens-college-basketball",
@@ -135,7 +140,9 @@ pub(crate) fn matchups_from(events: &[EventResponse]) -> Vec<SportsTeamCandidate
 /// Two different detection strategies, because Ticketmaster tags these
 /// two cases completely differently (confirmed live for both):
 /// - **Pro majors**: `subGenre` alone identifies the league ("NBA",
-///   "NFL", "NHL", "MLB").
+///   "NFL", "NHL", "MLB", "WNBA" -- confirmed live that WNBA gets its own
+///   distinct subGenre, not folded into "Basketball"/"College" the way
+///   men's and women's college ball are).
 /// - **College**: `subGenre` is a flat `"College"` regardless of sport --
 ///   real Ticketmaster college football *and* basketball events both
 ///   carry `subGenre=College`, so `genre` ("Football"/"Basketball") has
@@ -162,6 +169,7 @@ fn major_league(event: &EventResponse) -> Option<League> {
         "NFL" => return Some(League::Nfl),
         "NHL" => return Some(League::Nhl),
         "MLB" => return Some(League::Mlb),
+        "WNBA" => return Some(League::Wnba),
         _ => {}
     }
 
@@ -289,6 +297,21 @@ mod tests {
         let candidates = matchups_from(&events);
         assert_eq!(candidates.len(), 2);
         assert!(candidates.iter().all(|c| c.league == League::Nba));
+    }
+
+    #[test]
+    fn matchups_from_matches_wnba_distinctly_from_college_basketball() {
+        let events = vec![event(
+            Some(vec![classification("Sports", Some("WNBA"), true)]),
+            Some(vec![
+                performer(Some("Atlanta Dream"), Some("a1")),
+                performer(Some("Indiana Fever"), Some("a2")),
+            ]),
+        )];
+
+        let candidates = matchups_from(&events);
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().all(|c| c.league == League::Wnba));
     }
 
     #[test]

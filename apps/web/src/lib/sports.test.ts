@@ -49,6 +49,13 @@ describe("majorLeagueFor", () => {
     expect(majorLeagueFor(event)).toBe("NBA")
   })
 
+  it("resolves WNBA distinctly from college basketball", () => {
+    const event = makeEvent({
+      classifications: [classification("Sports", "WNBA", true)],
+    })
+    expect(majorLeagueFor(event)).toBe("WNBA")
+  })
+
   it("is case-insensitive on the segment name", () => {
     const event = makeEvent({
       classifications: [classification("sports", "NFL", true)],

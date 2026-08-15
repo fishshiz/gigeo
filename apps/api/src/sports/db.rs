@@ -94,11 +94,16 @@ pub(super) async fn upsert_match_tombstone(
 
 pub(super) struct StandingsRow {
     pub record: String,
-    pub standing_position: Option<i32>,
     pub group_name: Option<String>,
     pub fetched_at: DateTime<Utc>,
 }
 
+/// A team's own cached row -- just enough to check freshness
+/// (`worker::resolve_one`) and to know which group to pull the full table
+/// for (`get_group_standings`). Doesn't select `standing_position`: once
+/// `mod::lookup` started building the full standings table instead of
+/// reporting one team's bare position, nothing read it from here anymore
+/// -- see `GroupStandingRow` for where that field lives now.
 pub(super) async fn get_standings(
     pool: &PgPool,
     league: League,
@@ -107,7 +112,7 @@ pub(super) async fn get_standings(
     sqlx::query_as!(
         StandingsRow,
         r#"
-        select record, standing_position, group_name, fetched_at
+        select record, group_name, fetched_at
         from sports_team_standings
         where league = $1::text::sports_league and espn_team_id = $2
         "#,
@@ -129,6 +134,12 @@ pub(super) async fn get_standings(
 /// instance) -- long enough to make the on-demand detail-view endpoint
 /// this feeds feel broken. A no-op for an empty slice (nothing to
 /// `unnest`).
+///
+/// Persists every team's name too (`migrations/
+/// 010_standings_team_name.sql`), not just the one this call happened to
+/// be resolving -- what makes `get_group_standings` possible without
+/// requiring every team in a conference to have separately gone through
+/// Ticketmaster-attraction matching first.
 pub(super) async fn upsert_standings_bulk(
     pool: &PgPool,
     league: League,
@@ -139,6 +150,7 @@ pub(super) async fn upsert_standings_bulk(
     }
 
     let espn_team_ids: Vec<&str> = teams.iter().map(|t| t.team_id.as_str()).collect();
+    let team_names: Vec<&str> = teams.iter().map(|t| t.team_name.as_str()).collect();
     let records: Vec<&str> = teams
         .iter()
         .map(|t| t.record.as_deref().unwrap_or(""))
@@ -148,11 +160,12 @@ pub(super) async fn upsert_standings_bulk(
 
     sqlx::query!(
         r#"
-        insert into sports_team_standings (league, espn_team_id, record, standing_position, group_name, fetched_at)
-        select $1::text::sports_league, u.espn_team_id, u.record, u.standing_position, u.group_name, now()
-        from unnest($2::text[], $3::text[], $4::integer[], $5::text[])
-            as u(espn_team_id, record, standing_position, group_name)
+        insert into sports_team_standings (league, espn_team_id, team_name, record, standing_position, group_name, fetched_at)
+        select $1::text::sports_league, u.espn_team_id, u.team_name, u.record, u.standing_position, u.group_name, now()
+        from unnest($2::text[], $3::text[], $4::text[], $5::integer[], $6::text[])
+            as u(espn_team_id, team_name, record, standing_position, group_name)
         on conflict (league, espn_team_id) do update set
+            team_name = excluded.team_name,
             record = excluded.record,
             standing_position = excluded.standing_position,
             group_name = excluded.group_name,
@@ -160,6 +173,7 @@ pub(super) async fn upsert_standings_bulk(
         "#,
         league.as_db_str(),
         &espn_team_ids as &[&str],
+        &team_names as &[&str],
         &records as &[&str],
         &standing_positions as &[Option<i32>],
         &group_names as &[&str],
@@ -167,4 +181,36 @@ pub(super) async fn upsert_standings_bulk(
     .execute(pool)
     .await
     .map(|_| ())
+}
+
+pub(super) struct GroupStandingRow {
+    pub team_name: String,
+    pub record: String,
+    pub standing_position: Option<i32>,
+}
+
+/// Every cached team in `league` sharing `group_name` (a conference/
+/// division), ordered by standing -- the full table the detail view
+/// shows, replacing a bare "you're #4" with the surrounding context of
+/// who's above and below. Ties/missing positions sort last, by name, so
+/// the order is still deterministic rather than reflecting whatever
+/// order Postgres happened to return rows in.
+pub(super) async fn get_group_standings(
+    pool: &PgPool,
+    league: League,
+    group_name: &str,
+) -> Result<Vec<GroupStandingRow>, sqlx::Error> {
+    sqlx::query_as!(
+        GroupStandingRow,
+        r#"
+        select team_name, record, standing_position
+        from sports_team_standings
+        where league = $1::text::sports_league and group_name = $2
+        order by standing_position asc nulls last, team_name asc
+        "#,
+        league.as_db_str(),
+        group_name,
+    )
+    .fetch_all(pool)
+    .await
 }
