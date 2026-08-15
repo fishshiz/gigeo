@@ -229,7 +229,10 @@ mod tests {
         }
     }
 
-    fn event(classifications: Option<Vec<Classification>>, performers: Option<Vec<Performer>>) -> EventResponse {
+    fn event(
+        classifications: Option<Vec<Classification>>,
+        performers: Option<Vec<Performer>>,
+    ) -> EventResponse {
         EventResponse {
             id: "1".to_string(),
             name: "Event".to_string(),
@@ -367,7 +370,10 @@ mod tests {
     fn matchups_from_skips_unnamed_performers_when_counting() {
         let events = vec![event(
             Some(vec![classification("Sports", Some("NHL"), true)]),
-            Some(vec![performer(Some("Bruins"), Some("a1")), performer(None, Some("a2"))]),
+            Some(vec![
+                performer(Some("Bruins"), Some("a1")),
+                performer(None, Some("a2")),
+            ]),
         )];
 
         assert!(matchups_from(&events).is_empty());
