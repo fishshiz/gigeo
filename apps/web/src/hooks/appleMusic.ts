@@ -23,7 +23,7 @@ declare global {
       configure: (config: {
         developerToken: string
         app: { name: string; build: string }
-      }) => void
+      }) => Promise<MusicKitInstance>
       getInstance: () => MusicKitInstance
     }
   }
@@ -191,7 +191,7 @@ export function useAppleMusicAuth(): UseAppleMusicAuthResult {
       if (!window.MusicKit) {
         throw new Error("MusicKit failed to load")
       }
-      window.MusicKit.configure({
+      await window.MusicKit.configure({
         developerToken: developer_token,
         app: { name: "Gigeo", build: "1" },
       })
