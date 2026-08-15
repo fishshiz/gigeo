@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from "react"
 import mapboxgl, { type GeoJSONFeature } from "mapbox-gl"
+import { useIsMobile } from "@/providers/Breakpoint"
 
 const INITIAL_ZOOM = 1
 
@@ -50,7 +51,10 @@ export function useMapInstance(
     })
 
     if (!mapRef.current.hasControl(geolocate)) {
-      mapRef.current.addControl(geolocate, "bottom-right")
+      mapRef.current.addControl(
+        geolocate,
+        useIsMobile() ? "top-right" : "bottom-right" // The mobile drawer coverst the bottom of the map, so put it top right on mobile.
+      )
       geolocate.on("geolocate", (e) => {
         onGeolocate([e.coords.longitude, e.coords.latitude])
       })
