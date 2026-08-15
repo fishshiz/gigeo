@@ -13,6 +13,7 @@ mod mapbox_handlers;
 mod predicthq;
 mod services;
 mod spotify;
+mod sports;
 mod state;
 mod ticketmaster_stream;
 mod token_cache;
@@ -157,6 +158,10 @@ pub async fn build_app() -> Result<Router> {
         .route(
             "/artists/enrichment",
             axum::routing::get(artists::get_performer_enrichment),
+        )
+        .route(
+            "/sports/enrichment",
+            axum::routing::get(sports::get_team_enrichment),
         )
         .route(
             "/spotify/playlist",

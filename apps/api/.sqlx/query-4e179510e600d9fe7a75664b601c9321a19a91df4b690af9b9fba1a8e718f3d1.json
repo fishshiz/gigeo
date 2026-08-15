@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into sports_team_matches (ticketmaster_attraction_id, league, last_attempted_at)\n        values ($1, $2::text::sports_league, now())\n        on conflict (ticketmaster_attraction_id) do update set\n            last_attempted_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4e179510e600d9fe7a75664b601c9321a19a91df4b690af9b9fba1a8e718f3d1"
+}

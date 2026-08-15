@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into sports_team_standings (league, espn_team_id, record, standing_position, group_name, fetched_at)\n        values ($1::text::sports_league, $2, $3, $4, $5, now())\n        on conflict (league, espn_team_id) do update set\n            record = excluded.record,\n            standing_position = excluded.standing_position,\n            group_name = excluded.group_name,\n            fetched_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4e4eda31e6cd29e1d95f189a8d4bbff41556f03b8b7c86ddf33653029b010de2"
+}

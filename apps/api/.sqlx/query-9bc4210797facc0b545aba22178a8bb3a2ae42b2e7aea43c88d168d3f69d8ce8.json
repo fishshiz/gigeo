@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into sports_team_matches (ticketmaster_attraction_id, league, espn_team_id, resolved_name, last_attempted_at)\n        values ($1, $2::text::sports_league, $3, $4, now())\n        on conflict (ticketmaster_attraction_id) do update set\n            league = excluded.league,\n            espn_team_id = excluded.espn_team_id,\n            resolved_name = excluded.resolved_name,\n            last_attempted_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9bc4210797facc0b545aba22178a8bb3a2ae42b2e7aea43c88d168d3f69d8ce8"
+}

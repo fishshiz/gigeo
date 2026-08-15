@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select espn_team_id, resolved_name, last_attempted_at\n        from sports_team_matches\n        where ticketmaster_attraction_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "espn_team_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "resolved_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_attempted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "71acc75a220d4aa93d1b00eab76ff69e80a78fbc69787e652a6cee1f939cd7b0"
+}

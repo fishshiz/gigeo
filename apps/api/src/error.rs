@@ -19,6 +19,9 @@ pub enum AppError {
     #[error("PredictHQ API error ({status}): {message}")]
     PredictHqApi { status: StatusCode, message: String },
 
+    #[error("Sports standings API error ({status}): {message}")]
+    SportsApi { status: StatusCode, message: String },
+
     #[error("Unauthorized API error ({status}): {message}")]
     Unauthorized { status: StatusCode, message: String },
 
@@ -80,6 +83,10 @@ impl IntoResponse for AppError {
                 (code, message.clone())
             }
             AppError::PredictHqApi { status, message } => {
+                let code = *status;
+                (code, message.clone())
+            }
+            AppError::SportsApi { status, message } => {
                 let code = *status;
                 (code, message.clone())
             }

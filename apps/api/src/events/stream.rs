@@ -25,6 +25,7 @@ use crate::artists::ArtistCandidate;
 use crate::error::AppError;
 use crate::predicthq::source::PredictHqSource;
 use crate::spotify::spotify_handlers::resolve_account_from_cookie_lenient;
+use crate::sports::types::SportsTeamCandidate;
 use crate::state::AppState;
 use crate::ticketmaster_stream::source::TicketmasterSource;
 use crate::ticketmaster_stream::{EventsQuery, date_windows};
@@ -106,6 +107,7 @@ pub async fn get_concerts_tm_stream(
 
     let stream: futures::stream::BoxStream<'static, Result<Bytes, AppError>> = async_stream::try_stream! {
         let mut artist_candidates: Vec<ArtistCandidate> = Vec::new();
+        let mut sports_candidates: Vec<SportsTeamCandidate> = Vec::new();
         let merged = merge_events(windows, tm_source, phq_source);
         futures::pin_mut!(merged);
 
@@ -120,6 +122,7 @@ pub async fn get_concerts_tm_stream(
                     // `Performer::genres`'s doc comment.
                     crate::artists::attach_genres(&mut events, &state.db.pool).await;
                     artist_candidates.extend(candidates_from(&events));
+                    sports_candidates.extend(crate::sports::matchups_from(&events));
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);
@@ -233,6 +236,7 @@ pub async fn get_concerts_tm_stream(
         }
 
         crate::artists::spawn_enrichment(&state, artist_candidates);
+        crate::sports::spawn_enrichment(&state, sports_candidates);
     }
     .boxed();
 
