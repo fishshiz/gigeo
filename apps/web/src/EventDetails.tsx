@@ -5,9 +5,10 @@ import { Button } from "@workspace/ui/components/ui/Button"
 import { Link } from "@workspace/ui/components/ui/Link"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { MOTION_DURATION, MOTION_EASE } from "@workspace/ui/lib/motion"
-import { useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useId, useState, useRef } from "react"
 import { ResponsiveImage } from "@workspace/ui/components/ui/ResponsiveImage"
 import AppleMusicLogo from "./assets/Apple_Music_Icon_RGB_lg_073120.svg"
+import { ForYouTag } from "./ForYouTag"
 
 import {
   ArrowLeftIcon,
@@ -468,6 +469,14 @@ const EventDetails = ({
 
       {/* rest of your content exactly as before */}
       <div className="p-2">
+        {eventData.matchedArtist && (
+          <div className="mb-2">
+            <ForYouTag
+              matchedArtist={eventData.matchedArtist}
+              matchedVia={eventData.matchedVia}
+            />
+          </div>
+        )}
         <div className="flex flex-col justify-between">
           <div className="flex items-center gap-1">
             <ClockIcon aria-hidden className="h-4 w-4 shrink-0" />
@@ -841,24 +850,37 @@ const TeamCard: React.FC<TeamCardProps> = ({
 }) => {
   const { teamName, record, groupName, standings } = team
   const [expanded, setExpanded] = useState(false)
+  const standingsId = useId()
 
   const currentIndex = standings.findIndex((s) => s.teamName === teamName)
+  // Collapsed size is fixed (independent of `expanded`) so toggling never
+  // changes which count decides whether the button renders at all -- that
+  // in turn is what keeps the button mounted across the toggle (see below).
+  const collapsedCount =
+    currentIndex === -1
+      ? standings.length
+      : Math.min(standings.length, STANDINGS_VISIBLE_WINDOW * 2 + 1)
+  const canToggle = collapsedCount < standings.length
   const visibleStandings =
     expanded || currentIndex === -1
       ? standings
       : standings.filter(
           (_, i) => Math.abs(i - currentIndex) <= STANDINGS_VISIBLE_WINDOW
         )
-  const hiddenCount = standings.length - visibleStandings.length
 
   return (
     <div className="grid gap-4 bg-(--surface-scrim) p-4 text-(--text-on-scrim) shadow-lg dark:border dark:border-white/10 dark:shadow-none">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-4">
+        {/* No team-crest data exists to put here (see `TeamEnrichment`) --
+            sized and tinted to carry comparable visual weight to
+            ArtistCard's artwork tile despite being iconography, not a
+            photo, so the two enrichment kinds don't read as different
+            products when swiped between in the mobile carousel. */}
         <span
           aria-hidden
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-800/70"
+          className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-(--accent-bg)/25 to-slate-800 shadow-[0_6px_12px_-4px_rgba(0,0,0,0.4)]"
         >
-          <TrophyIcon className="h-6 w-6 text-slate-300" />
+          <TrophyIcon className="h-10 w-10 text-slate-200" />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{teamName}</h2>
@@ -867,54 +889,74 @@ const TeamCard: React.FC<TeamCardProps> = ({
               {groupName}
             </p>
           )}
-        </div>
-        <div className="shrink-0 text-right">
-          <h3 className="text-xs tracking-wide text-slate-400 uppercase">
-            Record
-          </h3>
-          <p dir="ltr" className="text-base font-semibold tabular-nums">
-            {record}
-          </p>
+          <div className="mt-2">
+            <h3 className="text-xs tracking-wide text-slate-400 uppercase">
+              Record
+            </h3>
+            <p dir="ltr" className="text-base font-semibold tabular-nums">
+              {record}
+            </p>
+          </div>
         </div>
       </div>
 
       {visibleStandings.length > 0 && (
         <div>
           <h3 className="text-xs tracking-wide text-slate-400 uppercase">
-            {groupName ?? "Standings"}
+            Standings
           </h3>
-          <ol className="mt-1 flex flex-col text-sm">
-            {visibleStandings.map((entry) => (
-              <li
-                key={entry.teamName}
-                className={
-                  entry.teamName === teamName
-                    ? "flex items-center justify-between gap-2 rounded bg-(--accent-bg)/15 px-1.5 py-1 font-semibold"
-                    : "flex items-center justify-between gap-2 px-1.5 py-1 text-slate-300"
-                }
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
+          <table id={standingsId} className="mt-1 w-full text-sm">
+            <caption className="sr-only">{groupName ?? "Standings"}</caption>
+            <thead>
+              <tr className="text-xs text-slate-500">
+                <th scope="col" className="w-8 py-1 text-left font-normal">
+                  Pos
+                </th>
+                <th scope="col" className="py-1 text-left font-normal">
+                  Team
+                </th>
+                <th scope="col" className="py-1 text-right font-normal">
+                  Record
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStandings.map((entry) => (
+                <tr
+                  key={entry.teamName}
+                  aria-current={entry.teamName === teamName ? "true" : undefined}
+                  className={
+                    entry.teamName === teamName
+                      ? "bg-(--accent-bg)/15 font-semibold"
+                      : "text-slate-300"
+                  }
+                >
+                  <td
                     dir="ltr"
-                    className="w-5 shrink-0 tabular-nums text-slate-500"
+                    className="w-8 rounded-s px-1.5 py-1 tabular-nums text-slate-400"
                   >
                     {entry.standingPosition ?? "–"}
-                  </span>
-                  <span className="truncate">{entry.teamName}</span>
-                </span>
-                <span dir="ltr" className="shrink-0 tabular-nums text-slate-400">
-                  {entry.record}
-                </span>
-              </li>
-            ))}
-          </ol>
-          {!expanded && hiddenCount > 0 && (
+                  </td>
+                  <td className="truncate px-1.5 py-1">{entry.teamName}</td>
+                  <td
+                    dir="ltr"
+                    className="rounded-e px-1.5 py-1 text-right tabular-nums text-slate-400"
+                  >
+                    {entry.record}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {canToggle && (
             <button
               type="button"
-              onClick={() => setExpanded(true)}
-              className="mt-2 text-sm text-(--text-link) underline underline-offset-2"
+              aria-expanded={expanded}
+              aria-controls={standingsId}
+              onClick={() => setExpanded((prev) => !prev)}
+              className="relative mt-2 touch-manipulation text-sm text-(--text-link) underline underline-offset-2 before:absolute before:-inset-3 before:content-['']"
             >
-              Show full standings
+              {expanded ? "Show fewer teams" : "Show full standings"}
             </button>
           )}
         </div>
@@ -929,8 +971,8 @@ const TeamCard: React.FC<TeamCardProps> = ({
  * as `ArtistCardSkeleton`. */
 const TeamCardSkeleton = () => (
   <div aria-hidden className="grid gap-4 p-4 dark:border dark:border-white/10">
-    <div className="flex min-w-0 items-center gap-3">
-      <span className="h-12 w-12 shrink-0 animate-pulse rounded-2xl bg-slate-700/50" />
+    <div className="flex min-w-0 items-center gap-4">
+      <span className="h-24 w-24 shrink-0 animate-pulse rounded-2xl bg-slate-700/50" />
       <div className="min-w-0 flex-1 py-1">
         <span className="block h-5 w-2/3 animate-pulse rounded bg-slate-700/50" />
         <span className="mt-2 block h-3.5 w-1/3 animate-pulse rounded bg-slate-700/40" />
@@ -965,9 +1007,11 @@ const PerformerDetails = ({
   const activeStatus = isMatchup ? teamState?.status : state?.status
   const loadingPhase = useLoadingPhase(activeStatus === "loading")
 
+  let content: React.ReactNode = null
+
   if (isMatchup) {
     if (teamState?.status === "loaded" && teamState.team) {
-      return (
+      content = (
         <TeamCard
           team={teamState.team}
           futureEvents={futureEvents}
@@ -976,7 +1020,7 @@ const PerformerDetails = ({
       )
     }
   } else if (state?.status === "loaded" && state.artist) {
-    return (
+    content = (
       <ArtistCard
         artist={state.artist}
         similarArtists={state.artist.similar_artists}
@@ -987,16 +1031,37 @@ const PerformerDetails = ({
     )
   }
 
-  if (activeStatus === "loading") {
+  if (!content && activeStatus === "loading") {
     if (loadingPhase === null) return null
-    return isMatchup ? <TeamCardSkeleton /> : <ArtistCardSkeleton />
+    content = isMatchup ? <TeamCardSkeleton /> : <ArtistCardSkeleton />
   }
 
-  if (!performer.id) return null
+  if (!content) {
+    if (!performer.id) return null
+    content = (
+      <div>
+        <h2 className="text-lg font-semibold">{performer.name}</h2>
+        <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
+      </div>
+    )
+  }
+
+  // A single stable live region wrapping every branch (skeleton, loaded
+  // card, or the plain fallback) -- rather than each branch returning its
+  // own top-level element -- so the skeleton-to-card swap is a DOM mutation
+  // *inside* an already-live region and gets announced, instead of being a
+  // silent pop-in the way an unmounting/remounting top-level node would be.
   return (
-    <div>
-      <h4 className="text-lg font-semibold">{performer.name}</h4>
-      <UpcomingEvents {...futureEvents} onRetry={onRetryFutureEvents} />
+    <div
+      aria-live="polite"
+      aria-busy={activeStatus === "loading"}
+    >
+      {activeStatus === "loading" && (
+        <span className="sr-only">
+          {isMatchup ? "Loading team details…" : "Loading artist details…"}
+        </span>
+      )}
+      {content}
     </div>
   )
 }
@@ -1113,6 +1178,7 @@ const UpcomingEvents = (
   const loadingPhase = useLoadingPhase(status === "loading")
   const shouldReduceMotion = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const visibleEvents =
     expanded || events.length <= UPCOMING_EVENTS_VISIBLE_COUNT
       ? events
@@ -1170,7 +1236,7 @@ const UpcomingEvents = (
         {status === "loaded" && (
           <motion.div key="loaded" {...fade}>
             {events.length ? (
-              <ul className="mt-1 flex flex-col gap-2 text-sm">
+              <ul id={listId} className="mt-1 flex flex-col gap-2 text-sm">
                 {visibleEvents.map((e) => {
                   return (
                     <li
@@ -1210,13 +1276,17 @@ const UpcomingEvents = (
             ) : (
               <p className="mt-1 text-sm text-slate-500">No upcoming events</p>
             )}
-            {!expanded && events.length > UPCOMING_EVENTS_VISIBLE_COUNT && (
+            {events.length > UPCOMING_EVENTS_VISIBLE_COUNT && (
               <button
                 type="button"
-                onClick={() => setExpanded(true)}
-                className="mt-2 text-sm text-(--text-link) underline underline-offset-2"
+                aria-expanded={expanded}
+                aria-controls={listId}
+                onClick={() => setExpanded((prev) => !prev)}
+                className="relative mt-2 touch-manipulation text-sm text-(--text-link) underline underline-offset-2 before:absolute before:-inset-3 before:content-['']"
               >
-                Show {events.length - UPCOMING_EVENTS_VISIBLE_COUNT} more
+                {expanded
+                  ? "Show fewer"
+                  : `Show ${events.length - UPCOMING_EVENTS_VISIBLE_COUNT} more`}
               </button>
             )}
           </motion.div>

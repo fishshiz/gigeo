@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import type { Map as MapboxMap } from "mapbox-gl"
 import type { GeoJSONFeature } from "mapbox-gl"
 import { useSearchProvider } from "./providers/searchProvider"
@@ -118,7 +118,8 @@ const MapWrapper = () => {
       ? [mapView.longitude, mapView.latitude]
       : selectedCoordinates,
     handleGeolocate,
-    isRestoredMapView ? mapView.zoom : undefined
+    isRestoredMapView ? mapView.zoom : undefined,
+    useIsMobile()
   )
   useResizeFix(mapRef, mapContainer)
   useMapViewSync(mapRef)
