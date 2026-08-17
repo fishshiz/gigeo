@@ -5,7 +5,7 @@ use crate::accounts::db::{
 };
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    PlaylistUpdateMode, PlaylistVisibility, find_artist_names_near,
+    PlaylistUpdateMode, PlaylistVisibility, build_bulleted_description, find_artist_events_near,
     search_tracks_for_artists_apple, validate_cadence_days,
 };
 use crate::state::AppState;
@@ -89,12 +89,13 @@ pub async fn create_playlist(
 
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
-    let artist_names = find_artist_names_near(&state, req.latitude, req.longitude, 25, 7).await?;
-    if artist_names.is_empty() {
+    let artist_events = find_artist_events_near(&state, req.latitude, req.longitude, 25, 7).await?;
+    if artist_events.is_empty() {
         return Err(AppError::Internal(
             "No artists found from nearby Ticketmaster events".to_string(),
         ));
     }
+    let artist_names: Vec<String> = artist_events.iter().map(|a| a.name.clone()).collect();
 
     let track_results =
         search_tracks_for_artists_apple(&state, &dev_token, &artist_names, per_artist).await?;
@@ -114,12 +115,19 @@ pub async fn create_playlist(
         })
         .collect();
 
+    // A user-supplied description wins; otherwise auto-generate one from
+    // the nearby artists that populated the playlist.
+    let description = req
+        .description
+        .clone()
+        .unwrap_or_else(|| build_bulleted_description(&artist_events));
+
     let playlist = am
         .create_library_playlist(
             &dev_token,
             &account.music_user_token,
             &req.name,
-            req.description.as_deref(),
+            Some(&description),
         )
         .await?;
 

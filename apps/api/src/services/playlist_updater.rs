@@ -22,14 +22,11 @@ use uuid::Uuid;
 use crate::apple_music::apple_handlers::get_apple_music_account;
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    ArtistEvent, PlaylistUpdateMode, find_artist_events_near, find_artist_names_near,
-    search_tracks_for_artists, search_tracks_for_artists_apple,
+    PlaylistUpdateMode, build_bulleted_description, find_artist_events_near,
+    find_artist_names_near, search_tracks_for_artists, search_tracks_for_artists_apple,
 };
 use crate::spotify::token::get_valid_spotify_token;
 use crate::state::AppState;
-
-/// Spotify's hard cap on a playlist description's length.
-const DESCRIPTION_CHAR_LIMIT: usize = 300;
 
 const POLL_INTERVAL_SECS: u64 = 300; // 5 min
 const CLAIM_GRACE: ChronoDuration = ChronoDuration::minutes(15);
@@ -208,47 +205,6 @@ fn diff_uris(current: &[String], new: &[String]) -> (Vec<String>, i32, i32) {
     let removed = current_set.difference(&new_set).count() as i32;
 
     (to_add, added, removed)
-}
-
-/// Builds a bulleted "Artist — Date" playlist description from the nearby
-/// artists a destructive update pulled tracks from (in discovery order),
-/// stopping before Spotify's `DESCRIPTION_CHAR_LIMIT` and appending a
-/// "+N more" line for whatever didn't fit. Always includes at least one
-/// bullet when `artists` is non-empty, even if that single bullet alone
-/// would exceed the limit — a fuller-than-ideal description beats an
-/// empty one.
-fn build_destructive_description(artists: &[ArtistEvent]) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    let mut used = 0usize;
-
-    for (i, artist) in artists.iter().enumerate() {
-        let bullet = match &artist.date {
-            Some(date) => format!("• {} — {date}", artist.name),
-            None => format!("• {}", artist.name),
-        };
-
-        let remaining_after = artists.len() - (i + 1);
-        let more_suffix_len = if remaining_after > 0 {
-            1 + format!("+{remaining_after} more").len()
-        } else {
-            0
-        };
-        let bullet_len = bullet.len() + if lines.is_empty() { 0 } else { 1 };
-
-        if !lines.is_empty() && used + bullet_len + more_suffix_len > DESCRIPTION_CHAR_LIMIT {
-            break;
-        }
-
-        used += bullet_len;
-        lines.push(bullet);
-    }
-
-    let remaining = artists.len() - lines.len();
-    if remaining > 0 {
-        lines.push(format!("+{remaining} more"));
-    }
-
-    lines.join("\n")
 }
 
 /// Apple Music's update path: always additive (see module doc) — finds
@@ -456,7 +412,7 @@ async fn do_update_spotify(
             // it's always regenerated here — never left stale, and never
             // left as a user-authored description that's now describing
             // the wrong playlist.
-            let description = build_destructive_description(&artist_events);
+            let description = build_bulleted_description(&artist_events);
             state
                 .spotify
                 .update_playlist_details(
@@ -634,91 +590,5 @@ mod tests {
         assert!(to_add.is_empty());
         assert_eq!(added, 0);
         assert_eq!(removed, 2);
-    }
-
-    fn artist(name: &str, date: Option<&str>) -> ArtistEvent {
-        ArtistEvent {
-            name: name.to_string(),
-            date: date.map(str::to_string),
-        }
-    }
-
-    #[test]
-    fn build_destructive_description_empty_artists_is_empty_string() {
-        assert_eq!(build_destructive_description(&[]), "");
-    }
-
-    #[test]
-    fn build_destructive_description_bullets_artist_and_date() {
-        let artists = vec![artist("Phoebe Bridgers", Some("Aug 20"))];
-        assert_eq!(
-            build_destructive_description(&artists),
-            "• Phoebe Bridgers — Aug 20"
-        );
-    }
-
-    #[test]
-    fn build_destructive_description_falls_back_without_date() {
-        let artists = vec![artist("Phoebe Bridgers", None)];
-        assert_eq!(build_destructive_description(&artists), "• Phoebe Bridgers");
-    }
-
-    #[test]
-    fn build_destructive_description_fits_everything_when_under_limit() {
-        let artists = vec![
-            artist("Artist One", Some("Aug 20")),
-            artist("Artist Two", Some("Aug 21")),
-        ];
-        let desc = build_destructive_description(&artists);
-        assert_eq!(desc, "• Artist One — Aug 20\n• Artist Two — Aug 21");
-        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT);
-    }
-
-    #[test]
-    fn build_destructive_description_never_exceeds_char_limit() {
-        // Enough long-named artists that the full bulleted list would
-        // blow well past 300 chars.
-        let artists: Vec<ArtistEvent> = (0..40)
-            .map(|i| {
-                artist(
-                    &format!("A Fairly Long Artist Name Number {i}"),
-                    Some("Aug 20"),
-                )
-            })
-            .collect();
-        let desc = build_destructive_description(&artists);
-        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT, "len={}", desc.len());
-        assert!(desc.contains("more"));
-    }
-
-    #[test]
-    fn build_destructive_description_overflow_appends_more_line_not_partial_bullet() {
-        // A third artist that doesn't fit alongside the first two should
-        // surface as a whole "+N more" line, never a bullet truncated
-        // mid-word.
-        let long_name = "X".repeat(130);
-        let artists = vec![
-            artist(&long_name, Some("Aug 20")),
-            artist(&long_name, Some("Aug 21")),
-            artist("One More Artist", Some("Aug 22")),
-        ];
-        let desc = build_destructive_description(&artists);
-        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT, "len={}", desc.len());
-        let last_line = desc.lines().last().unwrap();
-        assert!(
-            last_line.starts_with('+') && last_line.ends_with(" more"),
-            "expected a '+N more' summary line, got {last_line:?}"
-        );
-        assert!(!desc.contains("One More Artist"));
-    }
-
-    #[test]
-    fn build_destructive_description_single_oversized_artist_still_included() {
-        // A single artist whose bullet alone exceeds the cap must still
-        // produce a non-empty description rather than an empty one.
-        let long_name = "Y".repeat(400);
-        let artists = vec![artist(&long_name, Some("Aug 20"))];
-        let desc = build_destructive_description(&artists);
-        assert!(desc.contains(&long_name));
     }
 }

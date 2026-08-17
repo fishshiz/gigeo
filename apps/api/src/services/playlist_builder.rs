@@ -220,9 +220,67 @@ pub async fn search_tracks_for_artists_apple(
     Ok(results)
 }
 
+/// Spotify's hard cap on a playlist description's length. Apple Music
+/// library playlist descriptions aren't documented with a matching limit,
+/// but this is applied there too for one consistent format.
+const DESCRIPTION_CHAR_LIMIT: usize = 300;
+
+/// Builds a bulleted "Artist — Date" playlist description from a set of
+/// nearby artist events (in discovery order), stopping before
+/// `DESCRIPTION_CHAR_LIMIT` and appending a "+N more" line for whatever
+/// didn't fit. Always includes at least one bullet when `artists` is
+/// non-empty, even if that single bullet alone would exceed the limit — a
+/// fuller-than-ideal description beats an empty one.
+///
+/// Used both at playlist creation (so a brand-new playlist explains which
+/// nearby artists populated it) and by the periodic destructive-update job
+/// (`playlist_updater::do_update_spotify`), which regenerates it every
+/// replace since the prior description described tracks that no longer
+/// exist.
+pub fn build_bulleted_description(artists: &[ArtistEvent]) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    let mut used = 0usize;
+
+    for (i, artist) in artists.iter().enumerate() {
+        let bullet = match &artist.date {
+            Some(date) => format!("• {} — {date}", artist.name),
+            None => format!("• {}", artist.name),
+        };
+
+        let remaining_after = artists.len() - (i + 1);
+        let more_suffix_len = if remaining_after > 0 {
+            1 + format!("+{remaining_after} more").len()
+        } else {
+            0
+        };
+        let bullet_len = bullet.len() + if lines.is_empty() { 0 } else { 1 };
+
+        if !lines.is_empty() && used + bullet_len + more_suffix_len > DESCRIPTION_CHAR_LIMIT {
+            break;
+        }
+
+        used += bullet_len;
+        lines.push(bullet);
+    }
+
+    let remaining = artists.len() - lines.len();
+    if remaining > 0 {
+        lines.push(format!("+{remaining} more"));
+    }
+
+    lines.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn artist(name: &str, date: Option<&str>) -> ArtistEvent {
+        ArtistEvent {
+            name: name.to_string(),
+            date: date.map(str::to_string),
+        }
+    }
 
     #[test]
     fn resolve_update_mode_true_is_destructive() {
@@ -257,5 +315,84 @@ mod tests {
         assert!(validate_cadence_days(14).is_err());
         assert!(validate_cadence_days(0).is_err());
         assert!(validate_cadence_days(-7).is_err());
+    }
+
+    #[test]
+    fn build_bulleted_description_empty_artists_is_empty_string() {
+        assert_eq!(build_bulleted_description(&[]), "");
+    }
+
+    #[test]
+    fn build_bulleted_description_bullets_artist_and_date() {
+        let artists = vec![artist("Phoebe Bridgers", Some("Aug 20"))];
+        assert_eq!(
+            build_bulleted_description(&artists),
+            "• Phoebe Bridgers — Aug 20"
+        );
+    }
+
+    #[test]
+    fn build_bulleted_description_falls_back_without_date() {
+        let artists = vec![artist("Phoebe Bridgers", None)];
+        assert_eq!(build_bulleted_description(&artists), "• Phoebe Bridgers");
+    }
+
+    #[test]
+    fn build_bulleted_description_fits_everything_when_under_limit() {
+        let artists = vec![
+            artist("Artist One", Some("Aug 20")),
+            artist("Artist Two", Some("Aug 21")),
+        ];
+        let desc = build_bulleted_description(&artists);
+        assert_eq!(desc, "• Artist One — Aug 20\n• Artist Two — Aug 21");
+        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT);
+    }
+
+    #[test]
+    fn build_bulleted_description_never_exceeds_char_limit() {
+        // Enough long-named artists that the full bulleted list would
+        // blow well past 300 chars.
+        let artists: Vec<ArtistEvent> = (0..40)
+            .map(|i| {
+                artist(
+                    &format!("A Fairly Long Artist Name Number {i}"),
+                    Some("Aug 20"),
+                )
+            })
+            .collect();
+        let desc = build_bulleted_description(&artists);
+        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT, "len={}", desc.len());
+        assert!(desc.contains("more"));
+    }
+
+    #[test]
+    fn build_bulleted_description_overflow_appends_more_line_not_partial_bullet() {
+        // A third artist that doesn't fit alongside the first two should
+        // surface as a whole "+N more" line, never a bullet truncated
+        // mid-word.
+        let long_name = "X".repeat(130);
+        let artists = vec![
+            artist(&long_name, Some("Aug 20")),
+            artist(&long_name, Some("Aug 21")),
+            artist("One More Artist", Some("Aug 22")),
+        ];
+        let desc = build_bulleted_description(&artists);
+        assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT, "len={}", desc.len());
+        let last_line = desc.lines().last().unwrap();
+        assert!(
+            last_line.starts_with('+') && last_line.ends_with(" more"),
+            "expected a '+N more' summary line, got {last_line:?}"
+        );
+        assert!(!desc.contains("One More Artist"));
+    }
+
+    #[test]
+    fn build_bulleted_description_single_oversized_artist_still_included() {
+        // A single artist whose bullet alone exceeds the cap must still
+        // produce a non-empty description rather than an empty one.
+        let long_name = "Y".repeat(400);
+        let artists = vec![artist(&long_name, Some("Aug 20"))];
+        let desc = build_bulleted_description(&artists);
+        assert!(desc.contains(&long_name));
     }
 }
