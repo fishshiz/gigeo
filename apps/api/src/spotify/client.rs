@@ -161,6 +161,12 @@ pub struct Playlist {
     pub owner: SpotifyUser,
     pub external_urls: ExternalUrls,
     pub snapshot_id: String,
+    /// What Spotify actually stored, echoed back on creation — only
+    /// controls whether the playlist shows on the owner's profile and in
+    /// search, *not* the separate "Private" access-control toggle
+    /// Spotify's own apps expose (that has no Web API equivalent). Worth
+    /// comparing against what was requested rather than assuming it match.
+    pub public: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

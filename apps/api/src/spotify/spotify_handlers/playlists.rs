@@ -141,15 +141,30 @@ pub async fn create_playlist(
         })
         .collect();
 
+    let requested_public = !req.privacy;
     let playlist = state
         .spotify
         .create_playlist(
             &user_token,
             &req.name,
             req.description.as_deref(),
-            !req.privacy,
+            requested_public,
         )
         .await?;
+
+    // Spotify's `public` attribute only controls profile/search
+    // visibility, not the "Private" access-control toggle shown in
+    // Spotify's own apps — there is no API-level way to set that. This
+    // just makes a mismatch observable rather than silently trusting the
+    // request echoed back what was asked for.
+    if playlist.public != Some(requested_public) {
+        tracing::warn!(
+            playlist_id = %playlist.id,
+            requested_public,
+            returned_public = ?playlist.public,
+            "Spotify did not echo back the requested playlist visibility"
+        );
+    }
 
     for chunk in track_uris.chunks(100) {
         state

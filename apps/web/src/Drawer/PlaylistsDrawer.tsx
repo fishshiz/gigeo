@@ -169,8 +169,8 @@ const PrivacyToggle = ({
         </div>
         <p className="text-xs text-muted-foreground">
           {isPrivate
-            ? "Only you can see this playlist"
-            : "Anyone with the link can see this playlist"}
+            ? "Hidden from your profile and search. Anyone with the link can still open it."
+            : "Visible on your profile and in search results"}
         </p>
       </div>
     </div>
