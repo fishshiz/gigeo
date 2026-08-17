@@ -314,3 +314,168 @@ pub(super) async fn refresh_dynamic(
     .await
     .map(|_| ())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matched_artist<'a>(normalized_name: &'a str, display_name: &'a str) -> MatchedArtist<'a> {
+        MatchedArtist {
+            normalized_name,
+            display_name,
+            apple_music_id: None,
+            spotify_id: None,
+            ticketmaster_attraction_id: None,
+            matched_via: "apple_music",
+            artwork_url: None,
+            artwork_bg_color: None,
+            apple_music_url: None,
+            spotify_url: None,
+            genres: &[],
+            similar_artists: &[],
+        }
+    }
+
+    /// Reads columns `get_artist`/`ArtistRow` don't expose, via the
+    /// runtime-checked query API so these test-only reads don't need an
+    /// entry in the offline `.sqlx` query cache.
+    async fn fetch_full(
+        pool: &PgPool,
+        normalized_name: &str,
+    ) -> (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Vec<String>,
+    ) {
+        sqlx::query_as(
+            r#"
+            select display_name, apple_music_id, spotify_id, ticketmaster_attraction_id,
+                   matched_via::text, genres
+            from artists
+            where normalized_name = $1
+            "#,
+        )
+        .bind(normalized_name)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    #[sqlx::test]
+    async fn upsert_matched_inserts_new_artist(pool: PgPool) -> sqlx::Result<()> {
+        let row = MatchedArtist {
+            apple_music_id: Some("am-1"),
+            genres: &["indie rock".to_string()],
+            ..matched_artist("phoebe bridgers", "Phoebe Bridgers")
+        };
+        upsert_matched(&pool, row).await?;
+
+        let stored = get_artist(&pool, "phoebe bridgers")
+            .await?
+            .expect("row should exist after insert");
+        assert_eq!(stored.apple_music_id.as_deref(), Some("am-1"));
+        assert_eq!(stored.matched_via.as_deref(), Some("apple_music"));
+
+        let (display_name, _, _, _, _, genres) = fetch_full(&pool, "phoebe bridgers").await;
+        assert_eq!(display_name, "Phoebe Bridgers");
+        assert_eq!(genres, vec!["indie rock".to_string()]);
+        Ok(())
+    }
+
+    /// Re-resolving an already-matched row: identity fields already set
+    /// (`apple_music_id`, `matched_via`) must survive untouched even when
+    /// the second call omits/changes them, while dynamic fields (display
+    /// name, genres) refresh unconditionally — the `coalesce(...)` vs
+    /// `excluded....` split documented on `MatchedArtist`.
+    #[sqlx::test]
+    async fn upsert_matched_on_existing_row_preserves_identity_but_refreshes_dynamic_fields(
+        pool: PgPool,
+    ) -> sqlx::Result<()> {
+        let first = MatchedArtist {
+            apple_music_id: Some("am-1"),
+            genres: &["indie rock".to_string()],
+            ..matched_artist("phoebe bridgers", "Phoebe Bridgers")
+        };
+        upsert_matched(&pool, first).await?;
+
+        let second = MatchedArtist {
+            // No apple_music_id and a different matched_via this time --
+            // coalesce should keep the row's original values regardless.
+            matched_via: "spotify",
+            genres: &["indie rock".to_string(), "sad girl indie".to_string()],
+            ..matched_artist("phoebe bridgers", "Phoebe Bridgers (Live)")
+        };
+        upsert_matched(&pool, second).await?;
+
+        let stored = get_artist(&pool, "phoebe bridgers")
+            .await?
+            .expect("row should still exist");
+        assert_eq!(
+            stored.apple_music_id.as_deref(),
+            Some("am-1"),
+            "identity field must not be cleared by a call that omits it"
+        );
+        assert_eq!(
+            stored.matched_via.as_deref(),
+            Some("apple_music"),
+            "matched_via is set once and coalesced, not overwritten"
+        );
+
+        let (display_name, _, _, _, _, genres) = fetch_full(&pool, "phoebe bridgers").await;
+        assert_eq!(
+            display_name, "Phoebe Bridgers (Live)",
+            "dynamic fields refresh unconditionally"
+        );
+        assert_eq!(
+            genres,
+            vec!["indie rock".to_string(), "sad girl indie".to_string()]
+        );
+        Ok(())
+    }
+
+    /// Two different `normalized_name`s legitimately resolving to the same
+    /// real artist (see `MatchedArtist`'s doc comment) collide on the
+    /// `apple_music_id` partial unique index rather than `normalized_name`
+    /// (the `on conflict` target), since Postgres treats the second name as
+    /// a genuine new row. `upsert_matched` must catch that, drop the
+    /// colliding field, and retry rather than erroring or clobbering the
+    /// first row's identity.
+    #[sqlx::test]
+    async fn upsert_matched_retries_without_colliding_apple_music_id(
+        pool: PgPool,
+    ) -> sqlx::Result<()> {
+        let first = MatchedArtist {
+            apple_music_id: Some("am-shared"),
+            ..matched_artist("lcd soundsystem", "LCD Soundsystem")
+        };
+        upsert_matched(&pool, first).await?;
+
+        // A losing name variant for the same real artist, discovered via a
+        // different normalized_name — see `MatchedArtist`'s doc comment.
+        let second = MatchedArtist {
+            apple_music_id: Some("am-shared"),
+            ..matched_artist(
+                "lcd soundsystem this is happening",
+                "LCD Soundsystem - This Is Happening",
+            )
+        };
+        upsert_matched(&pool, second).await?;
+
+        let winner = get_artist(&pool, "lcd soundsystem")
+            .await?
+            .expect("first row should be untouched");
+        assert_eq!(winner.apple_music_id.as_deref(), Some("am-shared"));
+
+        let loser = get_artist(&pool, "lcd soundsystem this is happening")
+            .await?
+            .expect("second row should still be created, minus the colliding id");
+        assert_eq!(
+            loser.apple_music_id, None,
+            "colliding identity field must be dropped, not silently reassigned"
+        );
+        Ok(())
+    }
+}
