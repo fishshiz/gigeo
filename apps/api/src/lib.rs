@@ -46,11 +46,24 @@ pub async fn build_app() -> Result<Router> {
     // Load .env if present.
     let _ = dotenvy::dotenv().ok();
 
+    // JSON output so every field already attached to `tracing` calls
+    // throughout the codebase (error, playlist_id, ...) is machine-
+    // parseable without a bespoke logging module. Loosely convention: an
+    // `event = "..."` field marks something usage-shaped worth counting;
+    // `error`/`code` fields mark failures worth alerting on later.
     tracing_subscriber::fmt()
+        .json()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
+    install_panic_hook();
+
+    // Prometheus scrape endpoint on its own port (0.0.0.0:9000 by
+    // default) — separate from the axum router since there's no
+    // production environment yet to justify wiring it through the same
+    // origin/CORS setup. `curl localhost:9000` locally to see it.
+    metrics_exporter_prometheus::PrometheusBuilder::new().install()?;
 
     // Load credentials from env.
     let creds = SpotifyCredentials::from_env();
@@ -216,6 +229,17 @@ pub async fn build_app() -> Result<Router> {
     Ok(app)
 }
 
+/// Logs panics through `tracing` (so they land in the same structured
+/// stream as everything else) before falling through to the default
+/// hook's own stderr output.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        tracing::error!(panic = %info, "panic occurred");
+        default_hook(info);
+    }));
+}
+
 pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
     match sqlx::query("SELECT 1").execute(&state.db.pool).await {
         Ok(_) => Json(json!({
@@ -223,7 +247,7 @@ pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
             "database": "connected"
         })),
         Err(e) => {
-            eprintln!("Database error: {}", e);
+            tracing::error!(error = %e, "database health check failed");
             Json(json!({
                 "status": "error",
                 "database": "disconnected",

@@ -162,6 +162,8 @@ pub async fn create_playlist(
     )
     .await?;
 
+    metrics::counter!("playlist_created", "service" => "apple_music").increment(1);
+
     Ok((
         StatusCode::CREATED,
         Json(CreatePlaylistResponse {
@@ -320,6 +322,8 @@ pub async fn update_playlist(
     }
 
     update_playlist_cadence(&state.db.pool, playlist_id, cadence).await?;
+
+    metrics::counter!("playlist_updated", "service" => "apple_music").increment(1);
 
     Ok(Json(UpdatePlaylistResponse {
         playlist_id: playlist_id.to_string(),

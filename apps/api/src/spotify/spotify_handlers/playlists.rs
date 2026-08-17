@@ -200,6 +200,8 @@ pub async fn create_playlist(
     )
     .await?;
 
+    metrics::counter!("playlist_created", "service" => "spotify").increment(1);
+
     Ok((
         StatusCode::CREATED,
         Json(CreatePlaylistResponse {
@@ -382,6 +384,8 @@ pub async fn update_playlist(
                 },
             )
             .await?;
+
+            metrics::counter!("playlist_updated", "service" => "spotify").increment(1);
 
             Ok(Json(UpdatePlaylistResponse {
                 playlist_id: playlist_id.to_string(),

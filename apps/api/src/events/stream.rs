@@ -108,6 +108,7 @@ pub async fn get_concerts_tm_stream(
     let stream: futures::stream::BoxStream<'static, Result<Bytes, AppError>> = async_stream::try_stream! {
         let mut artist_candidates: Vec<ArtistCandidate> = Vec::new();
         let mut sports_candidates: Vec<SportsTeamCandidate> = Vec::new();
+        let mut total_events: u64 = 0;
         let merged = merge_events(windows, tm_source, phq_source);
         futures::pin_mut!(merged);
 
@@ -126,6 +127,7 @@ pub async fn get_concerts_tm_stream(
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);
+                        total_events += 1;
                         yield to_ndjson_line(&event)?;
                     }
                 }
@@ -144,6 +146,7 @@ pub async fn get_concerts_tm_stream(
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);
+                        total_events += 1;
                         yield to_ndjson_line(&event)?;
                     }
                 }
@@ -229,6 +232,7 @@ pub async fn get_concerts_tm_stream(
 
                     for mut event in events {
                         apply_personalization(&mut event, &personalization_matches);
+                        total_events += 1;
                         yield to_ndjson_line(&event)?;
                     }
                 }
@@ -237,6 +241,10 @@ pub async fn get_concerts_tm_stream(
 
         crate::artists::spawn_enrichment(&state, artist_candidates);
         crate::sports::spawn_enrichment(&state, sports_candidates);
+
+        metrics::counter!("event_stream_completed").increment(1);
+        metrics::counter!("events_streamed").increment(total_events);
+        tracing::info!(event = "event_stream_completed", event_count = total_events);
     }
     .boxed();
 
