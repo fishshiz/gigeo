@@ -369,6 +369,7 @@ pub async fn update_playlist(
             &row.provider_playlist_id,
             Some(&req.name),
             Some(!req.privacy),
+            None,
         )
         .await
     {

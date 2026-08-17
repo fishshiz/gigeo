@@ -419,8 +419,9 @@ impl SpotifyClient {
     }
 
     /// `PUT /playlists/{playlist_id}`
-    /// Updates a playlist's name and/or public visibility. No-ops (without
-    /// making a request) if both `name` and `public` are `None`.
+    /// Updates a playlist's name, public visibility, and/or description.
+    /// No-ops (without making a request) if `name`, `public`, and
+    /// `description` are all `None`.
     /// Scopes: `playlist-modify-public`, `playlist-modify-private`
     pub async fn update_playlist_details(
         &self,
@@ -428,8 +429,9 @@ impl SpotifyClient {
         playlist_id: &str,
         name: Option<&str>,
         public: Option<bool>,
+        description: Option<&str>,
     ) -> Result<(), AppError> {
-        let body = Self::build_update_details_body(name, public);
+        let body = Self::build_update_details_body(name, public, description);
         if body.as_object().is_some_and(|m| m.is_empty()) {
             return Ok(());
         }
@@ -444,13 +446,20 @@ impl SpotifyClient {
         Ok(())
     }
 
-    fn build_update_details_body(name: Option<&str>, public: Option<bool>) -> serde_json::Value {
+    fn build_update_details_body(
+        name: Option<&str>,
+        public: Option<bool>,
+        description: Option<&str>,
+    ) -> serde_json::Value {
         let mut body = serde_json::Map::new();
         if let Some(n) = name {
             body.insert("name".into(), serde_json::json!(n));
         }
         if let Some(p) = public {
             body.insert("public".into(), serde_json::json!(p));
+        }
+        if let Some(d) = description {
+            body.insert("description".into(), serde_json::json!(d));
         }
         serde_json::Value::Object(body)
     }
@@ -634,28 +643,38 @@ mod tests {
 
     #[test]
     fn build_update_details_body_empty_when_nothing_provided() {
-        let body = SpotifyClient::build_update_details_body(None, None);
+        let body = SpotifyClient::build_update_details_body(None, None, None);
         assert_eq!(body, serde_json::json!({}));
     }
 
     #[test]
     fn build_update_details_body_includes_only_name() {
-        let body = SpotifyClient::build_update_details_body(Some("New Name"), None);
+        let body = SpotifyClient::build_update_details_body(Some("New Name"), None, None);
         assert_eq!(body, serde_json::json!({ "name": "New Name" }));
     }
 
     #[test]
     fn build_update_details_body_includes_only_public() {
-        let body = SpotifyClient::build_update_details_body(None, Some(true));
+        let body = SpotifyClient::build_update_details_body(None, Some(true), None);
         assert_eq!(body, serde_json::json!({ "public": true }));
     }
 
     #[test]
-    fn build_update_details_body_includes_both() {
-        let body = SpotifyClient::build_update_details_body(Some("New Name"), Some(false));
+    fn build_update_details_body_includes_only_description() {
+        let body = SpotifyClient::build_update_details_body(None, None, Some("• Artist — Aug 20"));
         assert_eq!(
             body,
-            serde_json::json!({ "name": "New Name", "public": false })
+            serde_json::json!({ "description": "• Artist — Aug 20" })
+        );
+    }
+
+    #[test]
+    fn build_update_details_body_includes_all() {
+        let body =
+            SpotifyClient::build_update_details_body(Some("New Name"), Some(false), Some("desc"));
+        assert_eq!(
+            body,
+            serde_json::json!({ "name": "New Name", "public": false, "description": "desc" })
         );
     }
 }

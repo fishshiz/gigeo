@@ -48,8 +48,20 @@ pub fn resolve_update_mode(destructive: Option<bool>) -> PlaylistUpdateMode {
     }
 }
 
-/// Finds nearby Ticketmaster events and returns the unique set of artist
-/// names playing within `radius_miles` over the next `window_days`.
+/// A nearby artist plus the human-readable date of the event that
+/// surfaced them (`EventResponse::dates_pretty`), for callers that need
+/// to say *when* an artist is playing rather than just who's nearby.
+/// `date` is `None` when the source event had no `dates_pretty` (Ticketmaster
+/// couldn't format one) — that's an existing gap in the upstream data, not
+/// something this type papers over.
+pub struct ArtistEvent {
+    pub name: String,
+    pub date: Option<String>,
+}
+
+/// Finds nearby Ticketmaster events and returns the unique set of artists
+/// playing within `radius_miles` over the next `window_days`, each paired
+/// with the date of the (first-seen) event that surfaced them.
 ///
 /// Shared by the create-playlist handler and the periodic playlist
 /// updater, so both build a playlist's artist list the same way. Fetches
@@ -58,13 +70,13 @@ pub fn resolve_update_mode(destructive: Option<bool>) -> PlaylistUpdateMode {
 /// completeness in dense areas for a bounded, predictable number of
 /// Ticketmaster requests. `ticketmaster_stream::get_concerts_tm_stream`
 /// (the map view) is the one that needs — and pays for — full coverage.
-pub async fn find_artist_names_near(
+pub async fn find_artist_events_near(
     state: &AppState,
     latitude: f64,
     longitude: f64,
     radius_miles: u8,
     window_days: i64,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<ArtistEvent>, AppError> {
     let geo_hash = encode(
         Coord {
             x: longitude,
@@ -91,13 +103,41 @@ pub async fn find_artist_names_near(
     )
     .await?;
 
-    Ok(events
-        .iter()
-        .flat_map(|e| e.performers.as_ref().into_iter().flatten())
-        .filter_map(|a| a.name.clone())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect())
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for event in &events {
+        for performer in event.performers.as_ref().into_iter().flatten() {
+            let Some(name) = performer.name.clone() else {
+                continue;
+            };
+            if seen.insert(name.clone()) {
+                out.push(ArtistEvent {
+                    name,
+                    date: event.dates_pretty.clone(),
+                });
+            }
+        }
+    }
+
+    Ok(out)
+}
+
+/// Names-only convenience wrapper around [`find_artist_events_near`], for
+/// the callers that don't need per-artist date info.
+pub async fn find_artist_names_near(
+    state: &AppState,
+    latitude: f64,
+    longitude: f64,
+    radius_miles: u8,
+    window_days: i64,
+) -> Result<Vec<String>, AppError> {
+    Ok(
+        find_artist_events_near(state, latitude, longitude, radius_miles, window_days)
+            .await?
+            .into_iter()
+            .map(|a| a.name)
+            .collect(),
+    )
 }
 
 pub struct TrackResult {
