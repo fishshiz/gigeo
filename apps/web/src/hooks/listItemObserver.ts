@@ -21,7 +21,8 @@ export function useTopMostVisibleInScrollContainer<T extends HTMLElement>(
     const containerRect = container.getBoundingClientRect()
     const targetTop = containerRect.top + offsetTop
 
-    let bestId: string | null = null
+    let bestId: string | null =
+      elementsRef.current.size > 0 ? currentIdRef.current : null
     let bestDistance = Number.POSITIVE_INFINITY
 
     for (const [id, el] of elementsRef.current) {
@@ -29,7 +30,6 @@ export function useTopMostVisibleInScrollContainer<T extends HTMLElement>(
 
       const isVisible =
         rect.bottom > targetTop && rect.top < containerRect.bottom
-
       if (!isVisible) continue
 
       const distance = Math.abs(rect.top - targetTop)
