@@ -30,7 +30,7 @@ const performerIdsOverlap = (a: EventResponse, b: EventResponse): boolean => {
 
 type EventsAction =
   | { type: "RESET_EVENTS" }
-  | { type: "UPSERT_STREAMED_EVENT"; payload: EventResponse }
+  | { type: "UPSERT_STREAMED_EVENTS"; payload: EventResponse[] }
   | { type: "STREAM_ERROR"; payload: string }
   | { type: "STREAM_STATUS"; payload: { isStreaming: boolean } }
   | { type: "SELECT_EVENTS"; payload: EventResponse[] }
@@ -116,35 +116,44 @@ function eventsReducer(state: EventsState, action: EventsAction): EventsState {
         error: action.payload,
       }
 
-    case "UPSERT_STREAMED_EVENT": {
-      const event = action.payload
-      const dateKey = eventDateKey(event)
-      const existingBucket = state.eventsByDate[dateKey] ?? []
+    case "UPSERT_STREAMED_EVENTS": {
+      if (action.payload.length === 0) return state
 
-      const existingIndex = existingBucket.findIndex((existing) =>
-        sameEvent(existing, event)
-      )
+      const nextByDate = { ...state.eventsByDate }
+      const touchedDateKeys = new Set<string>()
 
-      // A later emission for the same event (by sameEvent's identity) always
-      // carries at least as much information as an earlier one — e.g. the
-      // cross-source reconciliation pass re-emitting a Ticketmaster event
-      // with rank/predictedAttendance attached — so replace rather than
-      // discard on a match.
-      const nextBucket =
-        existingIndex === -1
-          ? sortEvents([...existingBucket, event])
-          : sortEvents(
-              existingBucket.map((existing, i) =>
+      for (const event of action.payload) {
+        const dateKey = eventDateKey(event)
+        const existingBucket = nextByDate[dateKey] ?? []
+
+        const existingIndex = existingBucket.findIndex((existing) =>
+          sameEvent(existing, event)
+        )
+
+        // A later emission for the same event (by sameEvent's identity)
+        // always carries at least as much information as an earlier one --
+        // e.g. the cross-source reconciliation pass re-emitting a
+        // Ticketmaster event with rank/predictedAttendance attached -- so
+        // replace rather than discard on a match.
+        nextByDate[dateKey] =
+          existingIndex === -1
+            ? [...existingBucket, event]
+            : existingBucket.map((existing, i) =>
                 i === existingIndex ? event : existing
               )
-            )
+        touchedDateKeys.add(dateKey)
+      }
+
+      // Sort once per touched date bucket rather than once per event -- a
+      // batch commonly carries many events for the same day (see
+      // eventsProvider.tsx's rAF-batched dispatch).
+      for (const dateKey of touchedDateKeys) {
+        nextByDate[dateKey] = sortEvents(nextByDate[dateKey])
+      }
 
       return {
         ...state,
-        eventsByDate: {
-          ...state.eventsByDate,
-          [dateKey]: nextBucket,
-        },
+        eventsByDate: nextByDate,
       }
     }
 

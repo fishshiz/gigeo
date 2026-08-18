@@ -239,16 +239,24 @@ describe("eventsReducer", () => {
     expect(next.isStreaming).toBe(false)
   })
 
-  it("UPSERT_STREAMED_EVENT buckets a new event by its date key", () => {
+  it("UPSERT_STREAMED_EVENTS buckets a new event by its date key", () => {
     const event = makeEvent({ dates: "2026-08-01T20:00:00Z" })
     const next = eventsReducer(initialEventsState, {
-      type: "UPSERT_STREAMED_EVENT",
-      payload: event,
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [event],
     })
     expect(next.eventsByDate["2026-08-01"]).toEqual([event])
   })
 
-  it("UPSERT_STREAMED_EVENT collapses a duplicate of the same event into one entry, not two", () => {
+  it("UPSERT_STREAMED_EVENTS is a no-op for an empty batch", () => {
+    const next = eventsReducer(initialEventsState, {
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [],
+    })
+    expect(next).toBe(initialEventsState)
+  })
+
+  it("UPSERT_STREAMED_EVENTS collapses a duplicate of the same event into one entry, not two", () => {
     const event = makeEvent({
       id: "tm-1",
       dates: "2026-08-01T20:00:00Z",
@@ -260,19 +268,15 @@ describe("eventsReducer", () => {
       venue: { name: "The Venue", images: [] },
     })
 
-    const afterFirst = eventsReducer(initialEventsState, {
-      type: "UPSERT_STREAMED_EVENT",
-      payload: event,
-    })
-    const afterSecond = eventsReducer(afterFirst, {
-      type: "UPSERT_STREAMED_EVENT",
-      payload: duplicate,
+    const next = eventsReducer(initialEventsState, {
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [event, duplicate],
     })
 
-    expect(afterSecond.eventsByDate["2026-08-01"]).toHaveLength(1)
+    expect(next.eventsByDate["2026-08-01"]).toHaveLength(1)
   })
 
-  it("UPSERT_STREAMED_EVENT replaces a matching event with the later payload rather than discarding it", () => {
+  it("UPSERT_STREAMED_EVENTS replaces a matching event with the later payload rather than discarding it", () => {
     // This is what makes cross-source enrichment work: the backend re-emits
     // the same Ticketmaster event id with rank/predictedAttendance attached
     // once PredictHQ reconciliation completes, and that update must actually
@@ -291,16 +295,46 @@ describe("eventsReducer", () => {
     })
 
     const afterFirst = eventsReducer(initialEventsState, {
-      type: "UPSERT_STREAMED_EVENT",
-      payload: original,
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [original],
     })
     const afterSecond = eventsReducer(afterFirst, {
-      type: "UPSERT_STREAMED_EVENT",
-      payload: enriched,
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [enriched],
     })
 
     expect(afterSecond.eventsByDate["2026-08-01"]).toHaveLength(1)
     expect(afterSecond.eventsByDate["2026-08-01"][0]).toEqual(enriched)
+  })
+
+  it("UPSERT_STREAMED_EVENTS sorts each touched date bucket once, across events for multiple days in one batch", () => {
+    // Noon UTC, not midnight -- stays on the same calendar day in every
+    // timezone eventDateKey might localize to, so this doesn't trip the
+    // UTC-vs-local-day boundary bug dates.ts's toLocalDay guards against.
+    const augLater = makeEvent({
+      id: "1",
+      name: "Later",
+      dates: "2026-08-02T12:00:00Z",
+    })
+    const augEarlier = makeEvent({
+      id: "2",
+      name: "Earlier",
+      dates: "2026-08-01T12:00:00Z",
+    })
+    const sepEvent = makeEvent({
+      id: "3",
+      name: "September Show",
+      dates: "2026-09-01T12:00:00Z",
+    })
+
+    const next = eventsReducer(initialEventsState, {
+      type: "UPSERT_STREAMED_EVENTS",
+      payload: [augLater, sepEvent, augEarlier],
+    })
+
+    expect(next.eventsByDate["2026-08-01"]).toEqual([augEarlier])
+    expect(next.eventsByDate["2026-08-02"]).toEqual([augLater])
+    expect(next.eventsByDate["2026-09-01"]).toEqual([sepEvent])
   })
 
   it("SELECT_EVENTS replaces selectedEvents", () => {

@@ -131,6 +131,36 @@ const EventsContext = createContext<EventsContextValue | null>(null)
 export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(eventsReducer, initialEventsState)
   const abortRef = useRef<AbortController | null>(null)
+  // Batches parsed ndjson events into one dispatch per animation frame
+  // instead of one per line -- a week-wide search can stream in dozens of
+  // events within a few hundred ms, and dispatching (and re-sorting/
+  // re-rendering) per event is what actually caused the frontend jitter,
+  // not the streamed transport itself.
+  const pendingEventsRef = useRef<EventResponse[]>([])
+  const flushHandleRef = useRef<number | null>(null)
+
+  const flushPendingEvents = useCallback(() => {
+    if (flushHandleRef.current !== null) {
+      cancelAnimationFrame(flushHandleRef.current)
+      flushHandleRef.current = null
+    }
+    if (pendingEventsRef.current.length === 0) return
+    const batch = pendingEventsRef.current
+    pendingEventsRef.current = []
+    dispatch({ type: "UPSERT_STREAMED_EVENTS", payload: batch })
+  }, [])
+
+  const enqueueStreamedEvent = useCallback(
+    (event: EventResponse) => {
+      pendingEventsRef.current.push(event)
+      if (flushHandleRef.current !== null) return
+      flushHandleRef.current = requestAnimationFrame(() => {
+        flushHandleRef.current = null
+        flushPendingEvents()
+      })
+    },
+    [flushPendingEvents]
+  )
   const [activeClassifications, setActiveClassifications] = useState<
     Set<string>
   >(new Set())
@@ -208,7 +238,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
             const event = parseStreamedEvent(trimmed)
             if (!event) continue
-            dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
+            enqueueStreamedEvent(event)
             count++
           }
         }
@@ -219,17 +249,23 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
         if (trailing) {
           const event = parseStreamedEvent(trailing)
           if (event) {
-            dispatch({ type: "UPSERT_STREAMED_EVENT", payload: event })
+            enqueueStreamedEvent(event)
             count++
           }
         }
       } finally {
         reader.releaseLock()
+        // Commits whatever's still buffered instead of leaving it stranded
+        // in a pending animation frame -- matters both on normal completion
+        // (so the caller's totalCount-driven radius-tier check reflects
+        // events that have actually reached state) and on early exit
+        // (abort/error), so a partial batch isn't silently dropped.
+        flushPendingEvents()
       }
 
       return count
     },
-    []
+    [enqueueStreamedEvent, flushPendingEvents]
   )
 
   const streamEvents = useCallback(
