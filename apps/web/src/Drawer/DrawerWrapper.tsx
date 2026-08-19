@@ -14,7 +14,10 @@ import { VenueDetails } from "../VenueDetails"
 import { EventsDrawer, EventsDrawerHeader } from "./EventsDrawer"
 import { useTopMostVisibleInScrollContainer } from "../hooks/listItemObserver"
 import type { Key } from "react-aria-components/Tabs"
-import { useDrawerProvider, type DrawerSnapPoint } from "@/providers/drawerProvider"
+import {
+  useDrawerProvider,
+  type DrawerSnapPoint,
+} from "@/providers/drawerProvider"
 import { groupEvents } from "../lib/groupEvents"
 
 // Matches AppHeader's h-16 (apps/web/src/Header.tsx) -- kept as a constant
@@ -187,9 +190,7 @@ const DrawerWrapper = () => {
   // Mirrors Breakpoint.tsx's own resize-listener pattern rather than a
   // ResizeObserver -- this only needs the window's own size, not any
   // particular element's.
-  const [viewportHeight, setViewportHeight] = useState(
-    () => window.innerHeight
-  )
+  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight)
   useEffect(() => {
     const onResize = () => setViewportHeight(window.innerHeight)
     window.addEventListener("resize", onResize)
@@ -233,7 +234,7 @@ const DrawerWrapper = () => {
             // pointer-events-none below -- this is the box that actually
             // tracks the visible sheet position (via DrawerContent's own
             // y-transform), so it's the one that should catch touches.
-            "z-10 flex h-full w-full flex-col overflow-hidden pointer-events-auto"
+            "pointer-events-auto z-10 flex h-full w-full flex-col overflow-hidden"
       }
     >
       {isDesktop && (
@@ -254,7 +255,9 @@ const DrawerWrapper = () => {
           discoverable equivalent -- gestures alone aren't discoverable. */}
       {!isDesktop && (
         <DrawerClose
-          aria-label={snapPoint === "peek" ? "Expand drawer" : "Minimize drawer"}
+          aria-label={
+            snapPoint === "peek" ? "Expand drawer" : "Minimize drawer"
+          }
           className="absolute top-3 right-3 z-20 touch-manipulation max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-['']"
           variant="quiet"
           onClick={() => setSnapPoint(snapPoint === "peek" ? "half" : "peek")}
@@ -276,7 +279,7 @@ const DrawerWrapper = () => {
               className="touch-manipulation gap-1.5 px-2 py-3.5"
             >
               <DestinationIcon id={id} size={16} />
-              <span className="hidden text-xs font-medium min-[375px]:inline">
+              <span className="hidden text-center text-xs font-medium min-[375px]:inline">
                 {label}
               </span>
             </Tab>
@@ -364,7 +367,7 @@ const DrawerWrapper = () => {
               className="w-16 touch-manipulation flex-col gap-1 rounded-lg px-2 py-2"
             >
               <DestinationIcon id={id} size={20} />
-              <span className="text-[10px] leading-none font-medium">
+              <span className="text-center text-[10px] leading-none font-medium">
                 {label}
               </span>
             </Tab>
