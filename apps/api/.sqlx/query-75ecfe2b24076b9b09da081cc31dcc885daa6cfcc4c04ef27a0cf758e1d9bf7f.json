@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into sports_team_standings (league, espn_team_id, team_name, record, standing_position, group_name, logo_url, fetched_at)\n        select $1::text::sports_league, u.espn_team_id, u.team_name, u.record, u.standing_position, u.group_name, u.logo_url, now()\n        from unnest($2::text[], $3::text[], $4::text[], $5::integer[], $6::text[], $7::text[])\n            as u(espn_team_id, team_name, record, standing_position, group_name, logo_url)\n        on conflict (league, espn_team_id) do update set\n            team_name = excluded.team_name,\n            record = excluded.record,\n            standing_position = excluded.standing_position,\n            group_name = excluded.group_name,\n            logo_url = excluded.logo_url,\n            fetched_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "Int4Array",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75ecfe2b24076b9b09da081cc31dcc885daa6cfcc4c04ef27a0cf758e1d9bf7f"
+}

@@ -108,6 +108,10 @@ const teamEnrichmentSchema = z.object({
   teamName: z.string(),
   record: z.string(),
   groupName: optional(z.string()),
+  /** ESPN's crest for this team, when it has one -- see
+   * apps/api/src/sports/client.rs's `pick_logo`. Absent for a handful of
+   * smaller programs ESPN has no logo for. */
+  logoUrl: optional(z.string()),
   standings: z.array(standingEntrySchema),
 })
 

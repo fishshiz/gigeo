@@ -53,6 +53,11 @@ pub struct TeamEnrichmentResponse {
     pub record: String,
     #[serde(rename = "groupName")]
     pub group_name: Option<String>,
+    /// ESPN's crest for this team -- see `client::pick_logo`. `None` when
+    /// ESPN has no logo for it (confirmed live for a handful of smaller
+    /// programs); the frontend falls back to a generic icon in that case.
+    #[serde(rename = "logoUrl")]
+    pub logo_url: Option<String>,
     /// The full conference/division table (every cached team sharing
     /// `group_name`), ordered by standing -- a bare position number on
     /// its own doesn't say much without the teams around it. Empty when
@@ -121,6 +126,7 @@ async fn lookup(state: &AppState, league: League, tm_id: &str) -> Option<TeamEnr
         team_name: matched.resolved_name.unwrap_or_default(),
         record: standings.record,
         group_name: standings.group_name,
+        logo_url: standings.logo_url,
         standings: group_standings
             .into_iter()
             .map(|row| StandingEntry {

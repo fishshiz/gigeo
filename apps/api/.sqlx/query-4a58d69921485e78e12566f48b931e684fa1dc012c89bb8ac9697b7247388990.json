@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select record, group_name, fetched_at\n        from sports_team_standings\n        where league = $1::text::sports_league and espn_team_id = $2\n        ",
+  "query": "\n        select record, group_name, fetched_at, logo_url\n        from sports_team_standings\n        where league = $1::text::sports_league and espn_team_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,11 @@
         "ordinal": 2,
         "name": "fetched_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "logo_url",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -28,8 +33,9 @@
     "nullable": [
       false,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "b390eb5cacd85a2bed89f6e3edd9138f64a30f623decade747e0c845e95e40cd"
+  "hash": "4a58d69921485e78e12566f48b931e684fa1dc012c89bb8ac9697b7247388990"
 }

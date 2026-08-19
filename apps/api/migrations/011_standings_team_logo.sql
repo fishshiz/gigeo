@@ -1,0 +1,12 @@
+-- Stores each team's ESPN crest URL alongside its cached standing, so the
+-- detail view can show the team's actual logo (`client::EntryTeam::logos`)
+-- instead of a generic trophy icon placeholder. Nullable: a handful of
+-- smaller programs come back from ESPN with no `logos` entry at all, and
+-- the frontend falls back to the trophy icon for those same as it does
+-- for any team not yet cached.
+--
+-- No truncate needed here (unlike migrations/010_standings_team_name.sql):
+-- a null logo_url for an already-cached row just means the trophy
+-- fallback keeps showing until that row's next natural refresh
+-- (`db::upsert_standings_bulk`), same as any other stale-cache miss.
+alter table sports_team_standings add column logo_url text;

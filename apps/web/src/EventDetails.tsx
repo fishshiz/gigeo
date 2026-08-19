@@ -848,8 +848,9 @@ const TeamCard: React.FC<TeamCardProps> = ({
   futureEvents = NO_FUTURE_EVENTS,
   onRetryFutureEvents,
 }) => {
-  const { teamName, record, groupName, standings } = team
+  const { teamName, record, groupName, logoUrl, standings } = team
   const [expanded, setExpanded] = useState(false)
+  const [logoFailed, setLogoFailed] = useState(false)
   const standingsId = useId()
 
   const currentIndex = standings.findIndex((s) => s.teamName === teamName)
@@ -871,16 +872,28 @@ const TeamCard: React.FC<TeamCardProps> = ({
   return (
     <div className="grid gap-4 bg-(--surface-scrim) p-4 text-(--text-on-scrim) shadow-lg dark:border dark:border-white/10 dark:shadow-none">
       <div className="flex min-w-0 items-center gap-4">
-        {/* No team-crest data exists to put here (see `TeamEnrichment`) --
-            sized and tinted to carry comparable visual weight to
-            ArtistCard's artwork tile despite being iconography, not a
-            photo, so the two enrichment kinds don't read as different
-            products when swiped between in the mobile carousel. */}
+        {/* Falls back to the trophy icon both when ESPN has no crest for
+            this team at all (`logoUrl` absent -- a handful of smaller
+            programs, see `client::pick_logo`) and when a present URL
+            fails to load. Sized and tinted to carry comparable visual
+            weight to ArtistCard's artwork tile despite being iconography
+            in the fallback case, not a photo, so the two enrichment kinds
+            don't read as different products when swiped between in the
+            mobile carousel. */}
         <span
           aria-hidden
           className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-(--accent-bg)/25 to-slate-800 shadow-[0_6px_12px_-4px_rgba(0,0,0,0.4)]"
         >
-          <TrophyIcon className="h-10 w-10 text-slate-200" />
+          {logoUrl && !logoFailed ? (
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-16 w-16 object-contain"
+              onError={() => setLogoFailed(true)}
+            />
+          ) : (
+            <TrophyIcon className="h-10 w-10 text-slate-200" />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{teamName}</h2>

@@ -96,6 +96,7 @@ pub(super) struct StandingsRow {
     pub record: String,
     pub group_name: Option<String>,
     pub fetched_at: DateTime<Utc>,
+    pub logo_url: Option<String>,
 }
 
 /// A team's own cached row -- just enough to check freshness
@@ -112,7 +113,7 @@ pub(super) async fn get_standings(
     sqlx::query_as!(
         StandingsRow,
         r#"
-        select record, group_name, fetched_at
+        select record, group_name, fetched_at, logo_url
         from sports_team_standings
         where league = $1::text::sports_league and espn_team_id = $2
         "#,
@@ -157,18 +158,20 @@ pub(super) async fn upsert_standings_bulk(
         .collect();
     let standing_positions: Vec<Option<i32>> = teams.iter().map(|t| t.standing_position).collect();
     let group_names: Vec<&str> = teams.iter().map(|t| t.group_name.as_str()).collect();
+    let logo_urls: Vec<Option<&str>> = teams.iter().map(|t| t.logo_url.as_deref()).collect();
 
     sqlx::query!(
         r#"
-        insert into sports_team_standings (league, espn_team_id, team_name, record, standing_position, group_name, fetched_at)
-        select $1::text::sports_league, u.espn_team_id, u.team_name, u.record, u.standing_position, u.group_name, now()
-        from unnest($2::text[], $3::text[], $4::text[], $5::integer[], $6::text[])
-            as u(espn_team_id, team_name, record, standing_position, group_name)
+        insert into sports_team_standings (league, espn_team_id, team_name, record, standing_position, group_name, logo_url, fetched_at)
+        select $1::text::sports_league, u.espn_team_id, u.team_name, u.record, u.standing_position, u.group_name, u.logo_url, now()
+        from unnest($2::text[], $3::text[], $4::text[], $5::integer[], $6::text[], $7::text[])
+            as u(espn_team_id, team_name, record, standing_position, group_name, logo_url)
         on conflict (league, espn_team_id) do update set
             team_name = excluded.team_name,
             record = excluded.record,
             standing_position = excluded.standing_position,
             group_name = excluded.group_name,
+            logo_url = excluded.logo_url,
             fetched_at = now()
         "#,
         league.as_db_str(),
@@ -177,6 +180,7 @@ pub(super) async fn upsert_standings_bulk(
         &records as &[&str],
         &standing_positions as &[Option<i32>],
         &group_names as &[&str],
+        &logo_urls as &[Option<&str>],
     )
     .execute(pool)
     .await

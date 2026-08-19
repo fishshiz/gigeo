@@ -109,6 +109,37 @@ struct EntryTeam {
     /// live -- so this doesn't reopen the ambiguity a raw substring/
     /// prefix match would.
     location: String,
+    /// Missing entirely for a handful of smaller programs, confirmed
+    /// live -- `pick_logo` and `TeamStanding::logo_url` both stay
+    /// `Option` the rest of the way down for that case.
+    #[serde(default)]
+    logos: Vec<Logo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Logo {
+    href: String,
+    /// e.g. `["full", "default"]` for ESPN's light-background crest,
+    /// `["full", "scoreboard", "dark"]` for its dark-background one --
+    /// confirmed live across NBA/NFL/NHL/MLB and NCAA football. `pick_logo`
+    /// prefers the `"default"`-tagged entry; see its doc comment.
+    #[serde(default)]
+    rel: Vec<String>,
+}
+
+/// ESPN sends 1-2 logo variants per team (a `"default"`-tagged one meant
+/// for light backgrounds, sometimes a `"dark"`-tagged one) -- confirmed
+/// live, see `Logo::rel`. Prefers `"default"` since that's the one ESPN's
+/// own site treats as the canonical crest; falls back to whatever's first
+/// for the rare case that tag is missing. `None` when `logos` is empty
+/// (some smaller programs have no crest at all, confirmed live) --
+/// `TeamCard` falls back to the trophy icon in that case.
+fn pick_logo(logos: &[Logo]) -> Option<String> {
+    logos
+        .iter()
+        .find(|l| l.rel.iter().any(|r| r == "default"))
+        .or_else(|| logos.first())
+        .map(|l| l.href.clone())
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,6 +170,8 @@ pub(crate) struct TeamStanding {
     /// flat standing position ESPN exposes; confirmed present under the
     /// same `"playoffseed"` stat type across all four sports.
     pub standing_position: Option<i32>,
+    /// See `pick_logo` -- `None` when ESPN has no crest for this team.
+    pub logo_url: Option<String>,
 }
 
 /// `GET /apis/v2/sports/{sport}/{league}/standings` -- confirmed live for
@@ -187,6 +220,8 @@ fn to_team_standing(group_name: &str, entry: Entry) -> TeamStanding {
         .and_then(|s| s.display_value.as_deref())
         .and_then(|v| v.parse().ok());
 
+    let logo_url = pick_logo(&entry.team.logos);
+
     TeamStanding {
         team_id: entry.team.id,
         team_name: entry.team.display_name,
@@ -194,6 +229,7 @@ fn to_team_standing(group_name: &str, entry: Entry) -> TeamStanding {
         group_name: group_name.to_string(),
         record,
         standing_position,
+        logo_url,
     }
 }
 
@@ -204,9 +240,9 @@ mod tests {
     /// A trimmed real response, captured live from
     /// `GET /apis/v2/sports/basketball/nba/standings` during this
     /// feature's design (one conference, one team, extraneous fields --
-    /// logos, links, unrelated stats -- stripped, but every field this
-    /// module actually reads is verbatim). Guards against the deserialize
-    /// silently going empty on a field-name mismatch, which
+    /// links, unrelated stats -- stripped, but every field this module
+    /// actually reads, including `logos`, is verbatim). Guards against the
+    /// deserialize silently going empty on a field-name mismatch, which
     /// `#[derive(Deserialize)]` won't catch at compile time.
     const REAL_NBA_FIXTURE: &str = r#"{
         "children": [
@@ -215,7 +251,21 @@ mod tests {
                 "standings": {
                     "entries": [
                         {
-                            "team": { "id": "8", "displayName": "Detroit Pistons", "location": "Detroit" },
+                            "team": {
+                                "id": "8", "displayName": "Detroit Pistons", "location": "Detroit",
+                                "logos": [
+                                    {
+                                        "href": "https://a.espncdn.com/i/teamlogos/nba/500/det.png",
+                                        "width": 500, "height": 500, "alt": "",
+                                        "rel": ["full", "default"]
+                                    },
+                                    {
+                                        "href": "https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/det.png",
+                                        "width": 500, "height": 500, "alt": "",
+                                        "rel": ["full", "scoreboard", "dark"]
+                                    }
+                                ]
+                            },
                             "stats": [
                                 {
                                     "type": "total",
@@ -260,6 +310,36 @@ mod tests {
         assert_eq!(pistons.group_name, "Eastern Conference");
         assert_eq!(pistons.record.as_deref(), Some("60-22"));
         assert_eq!(pistons.standing_position, Some(1));
+        assert_eq!(
+            pistons.logo_url.as_deref(),
+            Some("https://a.espncdn.com/i/teamlogos/nba/500/det.png")
+        );
+    }
+
+    #[test]
+    fn pick_logo_falls_back_to_the_first_entry_when_none_is_tagged_default() {
+        let logos = vec![
+            Logo {
+                href: "https://example.com/a.png".to_string(),
+                rel: vec!["full".to_string(), "scoreboard".to_string()],
+            },
+            Logo {
+                href: "https://example.com/b.png".to_string(),
+                rel: vec!["full".to_string(), "default".to_string()],
+            },
+        ];
+
+        // "default" is tagged on the second entry, not the first --
+        // confirms this doesn't just always take `logos[0]`.
+        assert_eq!(
+            pick_logo(&logos).as_deref(),
+            Some("https://example.com/b.png")
+        );
+        assert_eq!(
+            pick_logo(&logos[..1]).as_deref(),
+            Some("https://example.com/a.png")
+        );
+        assert_eq!(pick_logo(&[]), None);
     }
 
     #[test]
