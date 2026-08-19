@@ -269,13 +269,14 @@ const DrawerWrapper = () => {
       {!isDesktop && (
         <TabList
           aria-label="Content sections"
-          className="mt-4 mb-1 flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 dark:border-white/10"
+          className="mt-4 flex shrink-0 items-center justify-center gap-1 border-b border-black/10 px-2 dark:border-white/10"
         >
           {destinationTabs.map(({ id, label }) => (
             <Tab
               key={id}
               id={id}
               aria-label={label}
+              variant="bar"
               className="touch-manipulation gap-1.5 px-2 py-3.5"
             >
               <DestinationIcon id={id} size={16} />
@@ -364,6 +365,7 @@ const DrawerWrapper = () => {
               key={id}
               id={id}
               aria-label={label}
+              variant="bar"
               className="w-16 touch-manipulation flex-col gap-1 rounded-lg px-2 py-2"
             >
               <DestinationIcon id={id} size={20} />
