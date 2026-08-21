@@ -58,6 +58,38 @@ pub struct Artist {
     /// both shapes deserialize into the same struct.
     #[serde(default)]
     pub genres: Vec<String>,
+    /// 0-100, present on both search-result and full artist objects
+    /// (unlike `genres`) — defaulted for the same "both shapes deserialize"
+    /// reasoning anyway, in case a future endpoint ever omits it.
+    #[serde(default)]
+    pub popularity: u32,
+}
+
+/// One release from `GET /artists/{id}/albums` — see `Client::get_artist_albums`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SimplifiedAlbum {
+    pub id: String,
+    pub name: String,
+    /// `album_type` is one of `"album"`, `"single"`, `"compilation"` --
+    /// filtered to the first two by `get_artist_albums`'s `include_groups`
+    /// param, so a caller never sees `"compilation"` in practice, but the
+    /// field is still modeled since it's always present on the wire.
+    pub album_type: String,
+    /// ISO 8601, but only as precise as `release_date_precision` says --
+    /// `"year"` (`"1999"`), `"month"` (`"1999-12"`), or `"day"`
+    /// (`"1999-12-31"`). Kept as the raw string rather than parsed here;
+    /// `artists::worker::backfill_release_info` handles the precision
+    /// split when deciding whether a release counts as recent.
+    pub release_date: String,
+    pub release_date_precision: String,
+    #[serde(default)]
+    pub images: Vec<Image>,
+    pub external_urls: ExternalUrls,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ArtistAlbumsResponse {
+    pub items: Vec<SimplifiedAlbum>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -313,6 +345,25 @@ impl SpotifyClient {
     pub async fn get_artist_by_href(&self, token: &str, href: &str) -> Result<Artist, AppError> {
         let url = href.to_string();
         self.get_json(token, &url).await
+    }
+
+    /// `GET /artists/{id}/albums?include_groups=album,single&limit=10` --
+    /// non-deprecated. Restricted to albums/singles (excludes
+    /// compilations and appears-on credits) since those are what "new
+    /// music" means for `artists::worker::backfill_release_info`'s recency
+    /// check. The endpoint has no reliable sort guarantee, so the caller
+    /// sorts by `release_date` itself -- 10 is comfortably more than any
+    /// artist releases in a 30-day recency window, short of pulling every
+    /// release they've ever put out.
+    pub async fn get_artist_albums(
+        &self,
+        token: &str,
+        id: &str,
+    ) -> Result<Vec<SimplifiedAlbum>, AppError> {
+        let url = format!("{BASE}/artists/{id}/albums?include_groups=album,single&limit=10");
+        self.get_json::<ArtistAlbumsResponse>(token, &url)
+            .await
+            .map(|r| r.items)
     }
 
     /// `GET /me/top/artists?time_range={time_range}&limit={limit}`

@@ -17,6 +17,7 @@ import {
   DollarSignIcon,
   ClockIcon,
   TrophyIcon,
+  Disc3Icon,
 } from "lucide-react"
 import WikiLogo from "@/assets/wikipedia-w-brands-solid-full.svg"
 import IgLogo from "@/assets/instagram.svg"
@@ -647,7 +648,7 @@ const PerformerCarousel = ({
         role="region"
         aria-label="Performer details"
         tabIndex={0}
-        className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden"
       >
         {performers.map((performer, i) => (
           <div
@@ -659,9 +660,7 @@ const PerformerCarousel = ({
             <PerformerDetails
               performer={performer}
               state={
-                performer.name
-                  ? performerEnrichment[performer.name]
-                  : undefined
+                performer.name ? performerEnrichment[performer.name] : undefined
               }
               teamState={
                 performer.name ? teamEnrichment[performer.name] : undefined
@@ -703,7 +702,15 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
   onRetryFutureEvents,
   artworkSize = 200,
 }) => {
-  const { name, genres = [], artwork, apple_music_url, spotify_url } = artist
+  const {
+    name,
+    genres = [],
+    artwork,
+    apple_music_url,
+    spotify_url,
+    popularity,
+    recent_release,
+  } = artist
 
   // A canonical artist matched via Spotify (rather than Apple Music) can
   // legitimately have no artwork at all -- render the card without an
@@ -767,6 +774,30 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({
           <h2 className="truncate text-xl font-semibold">{name}</h2>
           {primaryGenre && (
             <p className="mt-1 text-sm text-slate-300">{primaryGenre}</p>
+          )}
+          {typeof popularity === "number" && (
+            <p className="mt-1 text-xs text-slate-400">
+              Popularity <span className="tabular-nums">{popularity}</span>
+              /100
+            </p>
+          )}
+          {recent_release && (
+            <div className="mt-2 flex w-fit max-w-full items-center gap-1.5 rounded-full bg-(--accent-bg) px-2.5 py-1 text-xs font-medium text-(--text-on-accent)">
+              <Disc3Icon aria-hidden className="h-3 w-3 shrink-0" />
+              {recent_release.url ? (
+                <Link
+                  href={recent_release.url}
+                  target="_blank"
+                  className="truncate text-(--text-on-accent) no-underline hover:underline"
+                >
+                  New release: {recent_release.name}
+                </Link>
+              ) : (
+                <span className="truncate">
+                  New release: {recent_release.name}
+                </span>
+              )}
+            </div>
           )}
           <ul className="flex flex-col">
             {wikiUrl && <ExternalLink url={wikiUrl} label="Wikipedia" />}
@@ -838,6 +869,17 @@ type TeamCardProps = {
  * truncate-then-expand pattern. */
 const STANDINGS_VISIBLE_WINDOW = 2
 
+/** See apps/api/src/sports/types.rs's `PlayoffStatus` doc comment for what
+ * each of these means and which leagues can produce them. */
+const PLAYOFF_STATUS_LABEL: Record<
+  "inPlayoffPosition" | "inPlayInPosition" | "outOfPlayoffPosition",
+  string
+> = {
+  inPlayoffPosition: "In playoff position",
+  inPlayInPosition: "In play-in position",
+  outOfPlayoffPosition: "Out of playoff position",
+}
+
 /** A matchup team's slot in the details view -- the sports-enrichment
  * counterpart to `ArtistCard`, same surface/shell for visual consistency
  * but with a team's actual shape (no artwork, similar teams, or external
@@ -848,7 +890,8 @@ const TeamCard: React.FC<TeamCardProps> = ({
   futureEvents = NO_FUTURE_EVENTS,
   onRetryFutureEvents,
 }) => {
-  const { teamName, record, groupName, logoUrl, standings } = team
+  const { teamName, record, groupName, logoUrl, standings, playoffStatus } =
+    team
   const [expanded, setExpanded] = useState(false)
   const [logoFailed, setLogoFailed] = useState(false)
   const standingsId = useId()
@@ -898,9 +941,7 @@ const TeamCard: React.FC<TeamCardProps> = ({
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{teamName}</h2>
           {groupName && (
-            <p className="mt-1 truncate text-sm text-slate-300">
-              {groupName}
-            </p>
+            <p className="mt-1 truncate text-sm text-slate-300">{groupName}</p>
           )}
           <div className="mt-2">
             <h3 className="text-xs tracking-wide text-slate-400 uppercase">
@@ -910,6 +951,17 @@ const TeamCard: React.FC<TeamCardProps> = ({
               {record}
             </p>
           </div>
+          {playoffStatus && (
+            <p
+              className={
+                playoffStatus === "outOfPlayoffPosition"
+                  ? "mt-2 text-xs text-slate-400"
+                  : "mt-2 flex w-fit items-center rounded-full bg-(--accent-bg) px-2.5 py-1 text-xs font-medium text-(--text-on-accent)"
+              }
+            >
+              {PLAYOFF_STATUS_LABEL[playoffStatus]}
+            </p>
+          )}
         </div>
       </div>
 
@@ -934,31 +986,58 @@ const TeamCard: React.FC<TeamCardProps> = ({
               </tr>
             </thead>
             <tbody>
-              {visibleStandings.map((entry) => (
-                <tr
-                  key={entry.teamName}
-                  aria-current={entry.teamName === teamName ? "true" : undefined}
-                  className={
-                    entry.teamName === teamName
-                      ? "bg-(--accent-bg)/15 font-semibold"
-                      : "text-slate-300"
-                  }
-                >
-                  <td
-                    dir="ltr"
-                    className="w-8 rounded-s px-1.5 py-1 tabular-nums text-slate-400"
+              {visibleStandings.flatMap((entry, i) => {
+                // A dashed divider right where a league's playoff line
+                // falls (see PLAYOFF_STATUS_LABEL's doc comment) -- only
+                // rendered when both sides of the transition are actually
+                // visible in this (possibly truncated) window, so
+                // expanding/collapsing the table never reveals a
+                // previously-invisible line at an unexpected spot.
+                const prev = visibleStandings[i - 1]
+                const playoffLine =
+                  prev?.playoffStatus &&
+                  prev.playoffStatus !== "outOfPlayoffPosition" &&
+                  entry.playoffStatus === "outOfPlayoffPosition" ? (
+                    <tr key={`${entry.teamName}-playoff-line`} aria-hidden>
+                      <td colSpan={3} className="py-1.5">
+                        <div className="flex items-center gap-2 text-[10px] font-medium tracking-wide text-slate-400 uppercase">
+                          <span className="h-px flex-1 bg-slate-500" />
+                          Playoff line
+                          <span className="h-px flex-1 bg-slate-500" />
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null
+
+                return [
+                  playoffLine,
+                  <tr
+                    key={entry.teamName}
+                    aria-current={
+                      entry.teamName === teamName ? "true" : undefined
+                    }
+                    className={
+                      entry.teamName === teamName
+                        ? "bg-(--accent-bg)/15 font-semibold"
+                        : "text-slate-300"
+                    }
                   >
-                    {entry.standingPosition ?? "–"}
-                  </td>
-                  <td className="truncate px-1.5 py-1">{entry.teamName}</td>
-                  <td
-                    dir="ltr"
-                    className="rounded-e px-1.5 py-1 text-right tabular-nums text-slate-400"
-                  >
-                    {entry.record}
-                  </td>
-                </tr>
-              ))}
+                    <td
+                      dir="ltr"
+                      className="w-8 rounded-s px-1.5 py-1 text-slate-400 tabular-nums"
+                    >
+                      {entry.standingPosition ?? "–"}
+                    </td>
+                    <td className="truncate px-1.5 py-1">{entry.teamName}</td>
+                    <td
+                      dir="ltr"
+                      className="rounded-e px-1.5 py-1 text-right text-slate-400 tabular-nums"
+                    >
+                      {entry.record}
+                    </td>
+                  </tr>,
+                ]
+              })}
             </tbody>
           </table>
           {canToggle && (
@@ -1065,10 +1144,7 @@ const PerformerDetails = ({
   // *inside* an already-live region and gets announced, instead of being a
   // silent pop-in the way an unmounting/remounting top-level node would be.
   return (
-    <div
-      aria-live="polite"
-      aria-busy={activeStatus === "loading"}
-    >
+    <div aria-live="polite" aria-busy={activeStatus === "loading"}>
       {activeStatus === "loading" && (
         <span className="sr-only">
           {isMatchup ? "Loading team details…" : "Loading artist details…"}

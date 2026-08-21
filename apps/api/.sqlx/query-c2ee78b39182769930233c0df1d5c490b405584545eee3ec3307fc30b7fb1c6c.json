@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select spotify_id, release_checked_at\n        from artists\n        where normalized_name = $1 and matched_via is not null\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "spotify_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "release_checked_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "c2ee78b39182769930233c0df1d5c490b405584545eee3ec3307fc30b7fb1c6c"
+}

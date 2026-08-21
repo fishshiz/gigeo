@@ -73,6 +73,12 @@ pub(super) struct MatchedArtist<'a> {
     pub spotify_url: Option<&'a str>,
     pub genres: &'a [String],
     pub similar_artists: &'a [SimilarArtist],
+    /// Spotify-only (see column doc comment in
+    /// `migrations/012_artist_popularity_release.sql`) -- `None` when this
+    /// candidate had no concurrent Spotify match, coalesced against
+    /// whatever's already stored rather than clobbering a previous
+    /// match's value to null.
+    pub popularity: Option<i16>,
 }
 
 /// Upserts a resolved match, retrying with an already-claimed identity
@@ -118,12 +124,12 @@ async fn execute_upsert_matched(pool: &PgPool, row: &MatchedArtist<'_>) -> Resul
             apple_music_id, spotify_id, ticketmaster_attraction_id,
             matched_via, matched_at,
             artwork_url, artwork_bg_color, apple_music_url, spotify_url,
-            genres, similar_artists,
+            genres, similar_artists, popularity,
             last_attempted_at, enrichment_refreshed_at
         )
         values (
             $1, $2, $3, $4, $5, $6::text::music_provider, now(),
-            $7, $8, $9, $10, $11, $12, now(), now()
+            $7, $8, $9, $10, $11, $12, $13, now(), now()
         )
         on conflict (normalized_name) do update set
             display_name = excluded.display_name,
@@ -138,6 +144,7 @@ async fn execute_upsert_matched(pool: &PgPool, row: &MatchedArtist<'_>) -> Resul
             spotify_url = excluded.spotify_url,
             genres = excluded.genres,
             similar_artists = excluded.similar_artists,
+            popularity = coalesce(excluded.popularity, artists.popularity),
             last_attempted_at = now(),
             enrichment_refreshed_at = now()
         "#,
@@ -153,6 +160,7 @@ async fn execute_upsert_matched(pool: &PgPool, row: &MatchedArtist<'_>) -> Resul
         row.spotify_url,
         row.genres,
         Json(row.similar_artists) as _,
+        row.popularity,
     )
     .execute(pool)
     .await
@@ -292,23 +300,114 @@ pub(super) async fn attach_spotify(
 }
 
 /// Refreshes only the fields expected to go stale on their own (genres,
-/// similar artists) for an already-matched row — identity and artwork are
-/// left untouched, per ADR-0001.
+/// similar artists, popularity) for an already-matched row — identity and
+/// artwork are left untouched, per ADR-0001. `popularity` is coalesced
+/// rather than overwritten unconditionally like `genres`/`similar_artists`:
+/// unlike those, a refresh attempt might not have a fresh Spotify read at
+/// all (e.g. an Apple-matched row with no `spotify_id`), and `None` there
+/// must mean "nothing new to report", not "clear the last known value".
 pub(super) async fn refresh_dynamic(
     pool: &PgPool,
     normalized_name: &str,
     genres: &[String],
     similar_artists: &[SimilarArtist],
+    popularity: Option<i16>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         update artists
-        set genres = $2, similar_artists = $3, last_attempted_at = now(), enrichment_refreshed_at = now()
+        set genres = $2, similar_artists = $3,
+            popularity = coalesce($4, popularity),
+            last_attempted_at = now(), enrichment_refreshed_at = now()
         where normalized_name = $1
         "#,
         normalized_name,
         genres,
         Json(similar_artists) as _,
+        popularity,
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
+pub(super) struct ReleaseCheckStatus {
+    pub spotify_id: Option<String>,
+    pub release_checked_at: Option<DateTime<Utc>>,
+}
+
+/// This row's `spotify_id` (if any) and when its latest-release info was
+/// last checked -- `None` when the row doesn't exist. Unlike
+/// `get_similar_artists`, this isn't gated to one `matched_via` value:
+/// an Apple-matched artist can still carry a `spotify_id` from the
+/// concurrent Spotify lookup `worker::resolve_fresh` always attempts, and
+/// popularity/release data only ever comes from Spotify regardless of
+/// which provider won identity. Backs `worker::backfill_release_info`.
+pub(super) async fn get_release_check_status(
+    pool: &PgPool,
+    normalized_name: &str,
+) -> Result<Option<ReleaseCheckStatus>, sqlx::Error> {
+    sqlx::query_as!(
+        ReleaseCheckStatus,
+        r#"
+        select spotify_id, release_checked_at
+        from artists
+        where normalized_name = $1 and matched_via is not null
+        "#,
+        normalized_name
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// One artist's latest release, as fetched from Spotify -- see
+/// `SimplifiedAlbum` doc comment on why `release_date` stays a raw string
+/// rather than a parsed date here too; `attach_release` is the one place
+/// that actually needs a `chrono::NaiveDate` (to store in the `date`
+/// column), so the parse happens there instead of threading a second
+/// representation through `worker::backfill_release_info`.
+pub(super) struct LatestRelease<'a> {
+    pub name: &'a str,
+    pub release_date: chrono::NaiveDate,
+    pub url: Option<&'a str>,
+    pub artwork_url: Option<&'a str>,
+}
+
+/// Persists a release-info backfill (or a confirmed "checked, nothing new"
+/// when `release` is `None`) without touching genres/similar_artists or
+/// bumping `enrichment_refreshed_at` -- deliberately narrower than
+/// `refresh_dynamic`, mirroring `attach_similar_artists`: this only fills
+/// the gap `resolve_fresh` leaves on purpose, on its own
+/// `RELEASE_CHECK_TTL` cadence, independent of the 30-day dynamic-field
+/// refresh.
+///
+/// Also opportunistically refreshes `popularity` (coalesced, same "don't
+/// clobber with a failed fetch" rule as `refresh_dynamic`) -- this is the
+/// backfill path for rows matched before that column existed, which would
+/// otherwise never get one until their next 30-day dynamic-field refresh.
+pub(super) async fn attach_release(
+    pool: &PgPool,
+    normalized_name: &str,
+    release: Option<LatestRelease<'_>>,
+    popularity: Option<i16>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        update artists
+        set latest_release_name = $2,
+            latest_release_date = $3,
+            latest_release_url = $4,
+            latest_release_artwork_url = $5,
+            popularity = coalesce($6, popularity),
+            release_checked_at = now()
+        where normalized_name = $1
+        "#,
+        normalized_name,
+        release.as_ref().map(|r| r.name),
+        release.as_ref().map(|r| r.release_date),
+        release.as_ref().and_then(|r| r.url),
+        release.as_ref().and_then(|r| r.artwork_url),
+        popularity,
     )
     .execute(pool)
     .await
@@ -333,6 +432,7 @@ mod tests {
             spotify_url: None,
             genres: &[],
             similar_artists: &[],
+            popularity: None,
         }
     }
 

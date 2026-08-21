@@ -30,7 +30,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
-use types::{League, SportsTeamCandidate};
+use types::{League, PlayoffStatus, SportsTeamCandidate};
 
 #[derive(Deserialize)]
 pub struct TeamEnrichmentQuery {
@@ -64,6 +64,16 @@ pub struct TeamEnrichmentResponse {
     /// `group_name` is absent, or nothing else in the group has been
     /// cached yet.
     pub standings: Vec<StandingEntry>,
+    /// This team's own playoff/postseason implication, derived from its
+    /// seed -- see `types::playoff_status`. `None` for a league with no
+    /// standings-derivable playoff line (WNBA, NCAA -- see
+    /// `types::League::playoff_format`'s doc comment) or a team ESPN
+    /// hasn't seeded yet. Duplicates the info already recoverable from
+    /// this team's own row in `standings`, but the frontend shouldn't have
+    /// to find-by-name in that list just to show a one-line summary next
+    /// to the team header.
+    #[serde(rename = "playoffStatus")]
+    pub playoff_status: Option<PlayoffStatus>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -73,6 +83,11 @@ pub struct StandingEntry {
     pub record: String,
     #[serde(rename = "standingPosition")]
     pub standing_position: Option<i32>,
+    /// See `TeamEnrichmentResponse::playoff_status` -- computed per row so
+    /// the frontend can band/divide the full table by playoff line, not
+    /// just label the one selected team.
+    #[serde(rename = "playoffStatus")]
+    pub playoff_status: Option<PlayoffStatus>,
 }
 
 /// `GET /sports/enrichment?name=...&ticketmasterAttractionId=...&league=NBA`
@@ -122,14 +137,21 @@ async fn lookup(state: &AppState, league: League, tm_id: &str) -> Option<TeamEnr
         None => Vec::new(),
     };
 
+    let team_standing_position = group_standings
+        .iter()
+        .find(|row| row.espn_team_id == team_id)
+        .and_then(|row| row.standing_position);
+
     Some(TeamEnrichmentResponse {
         team_name: matched.resolved_name.unwrap_or_default(),
         record: standings.record,
         group_name: standings.group_name,
         logo_url: standings.logo_url,
+        playoff_status: types::playoff_status(league, team_standing_position),
         standings: group_standings
             .into_iter()
             .map(|row| StandingEntry {
+                playoff_status: types::playoff_status(league, row.standing_position),
                 team_name: row.team_name,
                 record: row.record,
                 standing_position: row.standing_position,
