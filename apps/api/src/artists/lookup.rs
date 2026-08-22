@@ -162,16 +162,22 @@ fn to_response(row: &EnrichmentRow) -> ArtistEnrichment {
         bg_color: row.artwork_bg_color.clone(),
     });
 
-    let recent_release = row.latest_release_date.filter(is_recent).and(
-        row.latest_release_name.clone().map(|name| RecentRelease {
-            name,
-            url: row.latest_release_url.clone(),
-            artwork: row
-                .latest_release_artwork_url
-                .clone()
-                .map(|url| ArtistArtwork { url, bg_color: None }),
-        }),
-    );
+    let recent_release =
+        row.latest_release_date
+            .filter(is_recent)
+            .and(row.latest_release_name.clone().map(|name| {
+                RecentRelease {
+                    name,
+                    url: row.latest_release_url.clone(),
+                    artwork: row
+                        .latest_release_artwork_url
+                        .clone()
+                        .map(|url| ArtistArtwork {
+                            url,
+                            bg_color: None,
+                        }),
+                }
+            }));
 
     ArtistEnrichment {
         name: row.display_name.clone(),

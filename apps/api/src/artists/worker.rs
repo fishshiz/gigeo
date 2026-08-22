@@ -397,7 +397,9 @@ pub(super) async fn backfill_release_info(state: &AppState, normalized_name: &st
     // paths that also keep it fresh going forward. Its own failure is
     // independently best-effort and doesn't block the release check.
     let (albums, popularity) = tokio::join!(
-        state.spotify.get_artist_albums(&token.access_token, &spotify_id),
+        state
+            .spotify
+            .get_artist_albums(&token.access_token, &spotify_id),
         fetch_spotify_popularity(state, Some(&spotify_id)),
     );
     let Ok(albums) = albums else {
@@ -416,8 +418,7 @@ pub(super) async fn backfill_release_info(state: &AppState, normalized_name: &st
         artwork_url: album.images.first().map(|i| i.url.as_str()),
     });
 
-    if let Err(err) =
-        db::attach_release(&state.db.pool, normalized_name, release, popularity).await
+    if let Err(err) = db::attach_release(&state.db.pool, normalized_name, release, popularity).await
     {
         tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to backfill release info");
     }
@@ -435,9 +436,12 @@ fn parse_release_date(album: &SimplifiedAlbum) -> Option<chrono::NaiveDate> {
 
     match album.release_date_precision.as_str() {
         "day" => NaiveDate::parse_from_str(&album.release_date, "%Y-%m-%d").ok(),
-        "month" => NaiveDate::parse_from_str(&format!("{}-01", album.release_date), "%Y-%m-%d").ok(),
-        "year" => NaiveDate::parse_from_str(&format!("{}-01-01", album.release_date), "%Y-%m-%d")
-            .ok(),
+        "month" => {
+            NaiveDate::parse_from_str(&format!("{}-01", album.release_date), "%Y-%m-%d").ok()
+        }
+        "year" => {
+            NaiveDate::parse_from_str(&format!("{}-01-01", album.release_date), "%Y-%m-%d").ok()
+        }
         _ => None,
     }
 }

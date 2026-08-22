@@ -147,7 +147,10 @@ pub(crate) struct PlayoffFormat {
 /// `None` when `league` has no derivable playoff line (`playoff_format`)
 /// or `standing_position` is absent (a team ESPN hasn't seeded yet, or a
 /// non-positive value that can't be a real seed).
-pub(crate) fn playoff_status(league: League, standing_position: Option<i32>) -> Option<PlayoffStatus> {
+pub(crate) fn playoff_status(
+    league: League,
+    standing_position: Option<i32>,
+) -> Option<PlayoffStatus> {
     let format = league.playoff_format()?;
     let seed = u8::try_from(standing_position?).ok()?;
     if seed == 0 {
