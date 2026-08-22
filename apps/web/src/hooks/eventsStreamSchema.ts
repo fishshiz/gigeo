@@ -24,9 +24,7 @@ import { z } from "zod"
  * `@workspace/ui`'s `Image` type), while parsing still accepts whatever
  * the wire actually sends (`null`, a real value, or a missing key). */
 const optional = <T extends z.ZodTypeAny>(schema: T) =>
-  schema
-    .nullish()
-    .transform((value) => value ?? undefined)
+  schema.nullish().transform((value) => value ?? undefined)
 
 const segmentSchema = z.object({
   id: z.string(),
@@ -70,6 +68,16 @@ const amArtistSchema = z.object({
   artwork: optional(amArtworkSchema),
 })
 
+/** A recently-released album/single (within 30 days as of the response --
+ * see apps/api/src/artists/lookup.rs's `RECENT_RELEASE_WINDOW`), or absent
+ * entirely if the artist's latest known release is older than that, or
+ * unknown. See apps/api/src/events/types.rs's `RecentRelease`. */
+const recentReleaseSchema = z.object({
+  name: z.string(),
+  url: optional(z.string()),
+  artwork: optional(amArtworkSchema),
+})
+
 /** `spotify_url` is on the *full* schema, not `amArtistSchema` above --
  * similar artists only ever come from Apple Music's similar-artists view
  * (see apps/api/src/artists/worker.rs module docs), so they never carry
@@ -84,7 +92,22 @@ const amArtistFullSchema = amArtistSchema.extend({
   spotify_url: optional(z.string()),
   genres: z.array(z.string()),
   similar_artists: z.array(amArtistSchema),
+  /** Spotify's 0-100 popularity score -- absent for an artist matched via
+   * Apple Music with no concurrent Spotify match, same availability rule
+   * as `spotify_url` above. */
+  popularity: optional(z.number()),
+  recent_release: optional(recentReleaseSchema),
 })
+
+/** A team's playoff/postseason implication, derived from its standings
+ * seed -- see apps/api/src/sports/types.rs's `PlayoffStatus`. Absent for
+ * a league with no standings-derivable playoff line (WNBA, NCAA -- see
+ * that type's doc comment) or a team ESPN hasn't seeded yet. */
+const playoffStatusSchema = z.enum([
+  "inPlayoffPosition",
+  "inPlayInPosition",
+  "outOfPlayoffPosition",
+])
 
 /** One team's row in a conference/division standings table -- see
  * apps/api/src/sports/mod.rs's `StandingEntry`. */
@@ -92,6 +115,7 @@ const standingEntrySchema = z.object({
   teamName: z.string(),
   record: z.string(),
   standingPosition: optional(z.number()),
+  playoffStatus: optional(playoffStatusSchema),
 })
 
 /** A team's current record plus its full conference/division standings
@@ -113,6 +137,10 @@ const teamEnrichmentSchema = z.object({
    * smaller programs ESPN has no logo for. */
   logoUrl: optional(z.string()),
   standings: z.array(standingEntrySchema),
+  /** This team's own playoff implication -- duplicates what's
+   * recoverable from its own row in `standings`, but avoids a find-by-
+   * name just to show a one-line summary next to the team header. */
+  playoffStatus: optional(playoffStatusSchema),
 })
 
 const performerSchema = z.object({

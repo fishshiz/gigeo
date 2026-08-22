@@ -77,6 +77,111 @@ impl League {
             League::NcaaWomensBasketball => "basketball/womens-college-basketball",
         }
     }
+
+    /// This league's postseason format, if `standing_position` (ESPN's own
+    /// `playoffseed` stat, cached verbatim -- see `client::TeamStanding`)
+    /// directly is the real playoff line. `None` for every league *except*
+    /// NBA/NFL/NHL/MLB, each confirmed live against ESPN's real endpoint
+    /// during this feature's design (Phase 5, #102):
+    ///
+    /// - NBA: 15 teams/conference, seeds 1-6 clinch an automatic berth,
+    ///   7-10 play in the play-in tournament, 11-15 are out.
+    /// - NFL: 16 teams/conference, seeds 1-7 make the playoffs (4 division
+    ///   winners + 3 wild cards, no play-in tier), 8-16 are out.
+    /// - NHL: 16 teams/conference, seeds 1-8 make the playoffs (3 per
+    ///   division + 2 wild cards), 9-16 are out.
+    /// - MLB: 15 teams/league, seeds 1-6 make the postseason (3 division
+    ///   winners + 3 wild cards, no play-in tier), 7-15 are out.
+    ///
+    /// WNBA is deliberately excluded despite being a pro major: its real
+    /// playoff line is the top 8 teams *league-wide* by record, not
+    /// per-conference seed -- ESPN's response still groups it into
+    /// Eastern/Western conferences with a conference-relative seed
+    /// (confirmed live: a 7-team and an 8-team group, each seeded 1-N),
+    /// which doesn't tell you whether a team is actually in the real
+    /// top 8 without comparing win/loss records across both conferences --
+    /// data this feature only stores as ESPN's opaque formatted string
+    /// (e.g. `"10-5"`), not parsed. Computing it correctly would mean
+    /// re-deriving a cross-conference rank instead of reading the cached
+    /// seed, which isn't "reusing already-cached data" per #102's locked
+    /// scope. NCAA football/basketball are excluded for the same shape of
+    /// reason (committee/bracket selection, not seed-derived) -- see
+    /// #102's "Out of scope" section.
+    pub(crate) fn playoff_format(self) -> Option<PlayoffFormat> {
+        match self {
+            League::Nba => Some(PlayoffFormat {
+                automatic_spots: 6,
+                total_spots: 10,
+            }),
+            League::Nfl => Some(PlayoffFormat {
+                automatic_spots: 7,
+                total_spots: 7,
+            }),
+            League::Nhl => Some(PlayoffFormat {
+                automatic_spots: 8,
+                total_spots: 8,
+            }),
+            League::Mlb => Some(PlayoffFormat {
+                automatic_spots: 6,
+                total_spots: 6,
+            }),
+            League::Wnba
+            | League::NcaaFootball
+            | League::NcaaMensBasketball
+            | League::NcaaWomensBasketball => None,
+        }
+    }
+}
+
+/// How many of a league's per-conference (or per-league, for MLB) seeds
+/// make the postseason -- see `League::playoff_format`. `automatic_spots`
+/// and `total_spots` are equal for every league without a play-in tier
+/// (NFL/NHL/MLB); NBA is the only one where they differ.
+pub(crate) struct PlayoffFormat {
+    automatic_spots: u8,
+    total_spots: u8,
+}
+
+/// Whether `standing_position` (a 1-indexed seed within its
+/// `group_name`) is within playoff position, play-in position, or out --
+/// `None` when `league` has no derivable playoff line (`playoff_format`)
+/// or `standing_position` is absent (a team ESPN hasn't seeded yet, or a
+/// non-positive value that can't be a real seed).
+pub(crate) fn playoff_status(
+    league: League,
+    standing_position: Option<i32>,
+) -> Option<PlayoffStatus> {
+    let format = league.playoff_format()?;
+    let seed = u8::try_from(standing_position?).ok()?;
+    if seed == 0 {
+        return None;
+    }
+    Some(if seed <= format.automatic_spots {
+        PlayoffStatus::InPlayoff
+    } else if seed <= format.total_spots {
+        PlayoffStatus::InPlayIn
+    } else {
+        PlayoffStatus::OutOfPlayoff
+    })
+}
+
+/// Variant names deliberately drop the shared `Position` postfix the
+/// wire format still uses (`#[serde(rename = ...)]` per variant) --
+/// clippy's `enum_variant_names` lint (`-D clippy::all` in CI) rejects
+/// same-postfix variants, and the wire format predates that rename so
+/// the frontend (`apps/web/src/hooks/eventsStreamSchema.ts`'s
+/// `playoffStatusSchema`) didn't need to change too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub(crate) enum PlayoffStatus {
+    #[serde(rename = "inPlayoffPosition")]
+    InPlayoff,
+    /// NBA only -- see `League::playoff_format`. Never produced for a
+    /// league whose `PlayoffFormat` has no play-in tier
+    /// (`automatic_spots == total_spots`).
+    #[serde(rename = "inPlayInPosition")]
+    InPlayIn,
+    #[serde(rename = "outOfPlayoffPosition")]
+    OutOfPlayoff,
 }
 
 /// One team performer worth attempting ESPN matching for.
@@ -194,6 +299,94 @@ fn major_league(event: &EventResponse) -> Option<League> {
 /// (a men's game's name never says "Men's").
 fn is_womens_event(event: &EventResponse) -> bool {
     event.name.to_lowercase().contains("women")
+}
+
+#[cfg(test)]
+mod playoff_status_tests {
+    use super::*;
+
+    #[test]
+    fn nba_seed_within_automatic_spots_is_in_playoff_position() {
+        assert_eq!(
+            playoff_status(League::Nba, Some(6)),
+            Some(PlayoffStatus::InPlayoff)
+        );
+    }
+
+    #[test]
+    fn nba_seed_in_play_in_range_is_in_play_in_position() {
+        assert_eq!(
+            playoff_status(League::Nba, Some(7)),
+            Some(PlayoffStatus::InPlayIn)
+        );
+        assert_eq!(
+            playoff_status(League::Nba, Some(10)),
+            Some(PlayoffStatus::InPlayIn)
+        );
+    }
+
+    #[test]
+    fn nba_seed_below_play_in_range_is_out() {
+        assert_eq!(
+            playoff_status(League::Nba, Some(11)),
+            Some(PlayoffStatus::OutOfPlayoff)
+        );
+    }
+
+    /// NFL/NHL/MLB have no play-in tier -- `automatic_spots == total_spots`,
+    /// so nothing should ever come back `InPlayIn` for them.
+    #[test]
+    fn leagues_without_a_play_in_tier_never_report_play_in_position() {
+        assert_eq!(
+            playoff_status(League::Nfl, Some(7)),
+            Some(PlayoffStatus::InPlayoff)
+        );
+        assert_eq!(
+            playoff_status(League::Nfl, Some(8)),
+            Some(PlayoffStatus::OutOfPlayoff)
+        );
+        assert_eq!(
+            playoff_status(League::Nhl, Some(8)),
+            Some(PlayoffStatus::InPlayoff)
+        );
+        assert_eq!(
+            playoff_status(League::Nhl, Some(9)),
+            Some(PlayoffStatus::OutOfPlayoff)
+        );
+        assert_eq!(
+            playoff_status(League::Mlb, Some(6)),
+            Some(PlayoffStatus::InPlayoff)
+        );
+        assert_eq!(
+            playoff_status(League::Mlb, Some(7)),
+            Some(PlayoffStatus::OutOfPlayoff)
+        );
+    }
+
+    /// WNBA is a pro major with real cached standings, but its
+    /// conference-relative seed isn't the real (league-wide) playoff line
+    /// -- see `League::playoff_format`'s doc comment. Must stay `None`,
+    /// not silently reuse the per-conference seed as if it were accurate.
+    #[test]
+    fn wnba_has_no_derivable_playoff_status() {
+        assert_eq!(playoff_status(League::Wnba, Some(1)), None);
+    }
+
+    #[test]
+    fn ncaa_has_no_derivable_playoff_status() {
+        assert_eq!(playoff_status(League::NcaaFootball, Some(1)), None);
+    }
+
+    #[test]
+    fn missing_standing_position_has_no_playoff_status() {
+        assert_eq!(playoff_status(League::Nba, None), None);
+    }
+
+    #[test]
+    fn non_positive_standing_position_has_no_playoff_status() {
+        assert_eq!(playoff_status(League::Nba, Some(0)), None);
+        assert_eq!(playoff_status(League::Nba, Some(-1)), None);
+    }
 }
 
 #[cfg(test)]

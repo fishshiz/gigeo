@@ -86,6 +86,8 @@ pub async fn get_performer_enrichment(
     )
     .await;
 
+    worker::backfill_release_info(&state, &normalized).await;
+
     let enrichment = lookup::fetch_one(&state.db.pool, &normalized).await;
 
     let needs_similar_artists = enrichment

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select\n            normalized_name,\n            display_name,\n            apple_music_id,\n            spotify_id,\n            artwork_url,\n            artwork_bg_color,\n            apple_music_url,\n            spotify_url,\n            genres,\n            similar_artists as \"similar_artists: Json<Vec<SimilarArtist>>\"\n        from artists\n        where normalized_name = any($1) and matched_via is not null\n        ",
+  "query": "\n        select\n            normalized_name,\n            display_name,\n            apple_music_id,\n            spotify_id,\n            artwork_url,\n            artwork_bg_color,\n            apple_music_url,\n            spotify_url,\n            genres,\n            similar_artists as \"similar_artists: Json<Vec<SimilarArtist>>\",\n            popularity,\n            latest_release_name,\n            latest_release_date,\n            latest_release_url,\n            latest_release_artwork_url\n        from artists\n        where normalized_name = any($1) and matched_via is not null\n        ",
   "describe": {
     "columns": [
       {
@@ -52,6 +52,31 @@
         "ordinal": 9,
         "name": "similar_artists: Json<Vec<SimilarArtist>>",
         "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "popularity",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "latest_release_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "latest_release_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "latest_release_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "latest_release_artwork_url",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -69,8 +94,13 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "5dbbdf15fc42caf8c51c564139d85398c1748d67eb20b9379680583876f0db3a"
+  "hash": "066cb847a409400f3a12b71ee8273c941225ff24380dfc21b6c5c80302e08793"
 }

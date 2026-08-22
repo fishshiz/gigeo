@@ -7,12 +7,23 @@
 
 use std::collections::HashMap;
 
+use chrono::{Duration, NaiveDate, Utc};
 use sqlx::PgPool;
 use sqlx::types::Json;
 
 use super::SimilarArtist;
-use crate::events::types::{ArtistArtwork, ArtistEnrichment, EventResponse, SimilarArtistResponse};
+use crate::events::types::{
+    ArtistArtwork, ArtistEnrichment, EventResponse, RecentRelease, SimilarArtistResponse,
+};
 use crate::spotify::client::normalize_artist_name;
+
+/// How recent `latest_release_date` has to be, as of "now" at response
+/// time, to surface as `ArtistEnrichment::recent_release` — see #102's
+/// locked decision. A read-time window rather than a write-time filter:
+/// `artists::worker::backfill_release_info` stores whatever the actual
+/// latest release is regardless of age, so this can change later without
+/// needing every artist re-fetched.
+const RECENT_RELEASE_WINDOW: Duration = Duration::days(30);
 
 struct EnrichmentRow {
     normalized_name: String,
@@ -25,6 +36,11 @@ struct EnrichmentRow {
     spotify_url: Option<String>,
     genres: Vec<String>,
     similar_artists: Json<Vec<SimilarArtist>>,
+    popularity: Option<i16>,
+    latest_release_name: Option<String>,
+    latest_release_date: Option<NaiveDate>,
+    latest_release_url: Option<String>,
+    latest_release_artwork_url: Option<String>,
 }
 
 /// Attaches persisted genres (see ADR-0001) to every performer in `events`
@@ -119,7 +135,12 @@ async fn fetch_rows(
             apple_music_url,
             spotify_url,
             genres,
-            similar_artists as "similar_artists: Json<Vec<SimilarArtist>>"
+            similar_artists as "similar_artists: Json<Vec<SimilarArtist>>",
+            popularity,
+            latest_release_name,
+            latest_release_date,
+            latest_release_url,
+            latest_release_artwork_url
         from artists
         where normalized_name = any($1) and matched_via is not null
         "#,
@@ -140,6 +161,23 @@ fn to_response(row: &EnrichmentRow) -> ArtistEnrichment {
         url,
         bg_color: row.artwork_bg_color.clone(),
     });
+
+    let recent_release =
+        row.latest_release_date
+            .filter(is_recent)
+            .and(row.latest_release_name.clone().map(|name| {
+                RecentRelease {
+                    name,
+                    url: row.latest_release_url.clone(),
+                    artwork: row
+                        .latest_release_artwork_url
+                        .clone()
+                        .map(|url| ArtistArtwork {
+                            url,
+                            bg_color: None,
+                        }),
+                }
+            }));
 
     ArtistEnrichment {
         name: row.display_name.clone(),
@@ -162,7 +200,15 @@ fn to_response(row: &EnrichmentRow) -> ArtistEnrichment {
                 }),
             })
             .collect(),
+        popularity: row.popularity.map(|p| p as u8),
+        recent_release,
     }
+}
+
+/// Whether `date` falls within `RECENT_RELEASE_WINDOW` of now — split out
+/// so `to_response`'s `.filter(...)` reads as "recent" at the call site.
+fn is_recent(date: &NaiveDate) -> bool {
+    Utc::now().date_naive() - *date < RECENT_RELEASE_WINDOW
 }
 
 #[cfg(test)]
@@ -187,6 +233,11 @@ mod tests {
                 apple_music_url: Some("https://music.apple.com/artist/2".to_string()),
                 artwork_url: Some("https://example.com/similar.jpg".to_string()),
             }]),
+            popularity: Some(72),
+            latest_release_name: None,
+            latest_release_date: None,
+            latest_release_url: None,
+            latest_release_artwork_url: None,
         }
     }
 
@@ -227,6 +278,47 @@ mod tests {
     fn to_response_leaves_spotify_url_none_when_absent() {
         let r = row("role model");
         assert!(to_response(&r).spotify_url.is_none());
+    }
+
+    #[test]
+    fn to_response_maps_popularity() {
+        let r = row("role model");
+        assert_eq!(to_response(&r).popularity, Some(72));
+    }
+
+    #[test]
+    fn to_response_omits_recent_release_when_none_stored() {
+        let r = row("role model");
+        assert!(to_response(&r).recent_release.is_none());
+    }
+
+    #[test]
+    fn to_response_surfaces_recent_release_within_window() {
+        let mut r = row("role model");
+        r.latest_release_name = Some("New Album".to_string());
+        r.latest_release_date = Some(Utc::now().date_naive() - Duration::days(5));
+        r.latest_release_url = Some("https://open.spotify.com/album/1".to_string());
+        r.latest_release_artwork_url = Some("https://example.com/album.jpg".to_string());
+
+        let release = to_response(&r).recent_release.expect("should be recent");
+        assert_eq!(release.name, "New Album");
+        assert_eq!(
+            release.url.as_deref(),
+            Some("https://open.spotify.com/album/1")
+        );
+        assert_eq!(
+            release.artwork.as_ref().unwrap().url,
+            "https://example.com/album.jpg"
+        );
+    }
+
+    #[test]
+    fn to_response_omits_release_older_than_window() {
+        let mut r = row("role model");
+        r.latest_release_name = Some("Old Album".to_string());
+        r.latest_release_date = Some(Utc::now().date_naive() - Duration::days(45));
+
+        assert!(to_response(&r).recent_release.is_none());
     }
 
     #[test]

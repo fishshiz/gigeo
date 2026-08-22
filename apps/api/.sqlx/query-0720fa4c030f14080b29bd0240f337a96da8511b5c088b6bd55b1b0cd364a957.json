@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into artists (\n            normalized_name, display_name,\n            apple_music_id, spotify_id, ticketmaster_attraction_id,\n            matched_via, matched_at,\n            artwork_url, artwork_bg_color, apple_music_url, spotify_url,\n            genres, similar_artists, popularity,\n            last_attempted_at, enrichment_refreshed_at\n        )\n        values (\n            $1, $2, $3, $4, $5, $6::text::music_provider, now(),\n            $7, $8, $9, $10, $11, $12, $13, now(), now()\n        )\n        on conflict (normalized_name) do update set\n            display_name = excluded.display_name,\n            apple_music_id = coalesce(artists.apple_music_id, excluded.apple_music_id),\n            spotify_id = coalesce(artists.spotify_id, excluded.spotify_id),\n            ticketmaster_attraction_id = coalesce(excluded.ticketmaster_attraction_id, artists.ticketmaster_attraction_id),\n            matched_via = coalesce(artists.matched_via, excluded.matched_via),\n            matched_at = coalesce(artists.matched_at, excluded.matched_at),\n            artwork_url = excluded.artwork_url,\n            artwork_bg_color = excluded.artwork_bg_color,\n            apple_music_url = excluded.apple_music_url,\n            spotify_url = excluded.spotify_url,\n            genres = excluded.genres,\n            similar_artists = excluded.similar_artists,\n            popularity = coalesce(excluded.popularity, artists.popularity),\n            last_attempted_at = now(),\n            enrichment_refreshed_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Jsonb",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0720fa4c030f14080b29bd0240f337a96da8511b5c088b6bd55b1b0cd364a957"
+}

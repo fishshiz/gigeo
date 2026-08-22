@@ -105,6 +105,26 @@ pub struct ArtistEnrichment {
     pub artwork: Option<ArtistArtwork>,
     pub genres: Vec<String>,
     pub similar_artists: Vec<SimilarArtistResponse>,
+    /// Spotify's 0-100 artist popularity score. `None` for an artist
+    /// matched via Apple Music with no concurrent Spotify match — see
+    /// `spotify_url`'s doc comment above on why that's "no Spotify data",
+    /// not "not popular".
+    pub popularity: Option<u8>,
+    /// Present only when the artist's latest release (album or single) is
+    /// within the last 30 days as of this response — see
+    /// `crate::artists::lookup::to_response`'s recency check. Absent both
+    /// when there's no release on record yet (never backfilled, or a
+    /// backfill found nothing) and when the latest release is simply
+    /// older than the window — the frontend has no use for a stale
+    /// release date, only for "is there something new right now".
+    pub recent_release: Option<RecentRelease>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct RecentRelease {
+    pub name: String,
+    pub url: Option<String>,
+    pub artwork: Option<ArtistArtwork>,
 }
 
 /// Already resolved to a concrete size by `crate::artists::worker`

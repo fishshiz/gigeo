@@ -8,7 +8,9 @@ use super::db::{self, MatchedArtist, SimilarArtistsStatus};
 use super::{ArtistCandidate, SimilarArtist};
 use crate::apple_music::client::ArtistAttributes;
 use crate::auth::ClientCredentialsManager;
-use crate::spotify::client::{Artist as SpotifyArtist, SpotifyClient, normalize_artist_name};
+use crate::spotify::client::{
+    Artist as SpotifyArtist, SimplifiedAlbum, SpotifyClient, normalize_artist_name,
+};
 use crate::state::AppState;
 
 /// Apple Music's own artwork template resolved to a real photo size for an
@@ -34,6 +36,13 @@ const UNMATCHED_RETRY_COOLDOWN: Duration = Duration::days(7);
 /// trusted before being re-fetched. Identity and artwork have no
 /// equivalent TTL — see ADR-0001.
 const DYNAMIC_FIELD_TTL: Duration = Duration::days(30);
+/// How long a "latest release" check is trusted before
+/// `backfill_release_info` re-fetches it — deliberately much shorter than
+/// `DYNAMIC_FIELD_TTL`: unlike genres/similar-artists, whether an artist
+/// has released something in the last 30 days changes on its own
+/// timescale, so this needs a tighter cadence to avoid the recency flag
+/// going stale for most of the window it's supposed to cover.
+const RELEASE_CHECK_TTL: Duration = Duration::days(3);
 
 /// Fires off best-effort background enrichment for `candidates` without
 /// blocking the caller — see module docs on why this, and not a batch job
@@ -155,6 +164,9 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
                     .and_then(|a| a.external_urls.spotify.as_deref()),
                 genres: &attrs.genre_names,
                 similar_artists: &[],
+                // Only present when the concurrent Spotify lookup also
+                // found a confident match -- see `MatchedArtist::popularity`.
+                popularity: spotify_match.as_ref().map(|a| a.popularity as i16),
             },
         )
         .await;
@@ -185,6 +197,7 @@ async fn resolve_fresh(state: &AppState, candidate: &ArtistCandidate, normalized
                 // module docs) — an artist Apple couldn't verify simply
                 // has none.
                 similar_artists: &[],
+                popularity: Some(artist.popularity as i16),
             },
         )
         .await;
@@ -229,9 +242,21 @@ async fn refresh_dynamic_fields(state: &AppState, normalized_name: &str, row: &d
             };
             let similar = fetch_similar_artists(state, apple_music_id).await;
             let genres = artist.attributes.map(|a| a.genre_names).unwrap_or_default();
+            // Popularity only ever comes from Spotify -- an Apple-matched
+            // row only has one to refresh if the concurrent lookup at
+            // first-match time also found a Spotify id (see
+            // `resolve_fresh`). `None` here is "nothing new to report", not
+            // "clear it" -- `db::refresh_dynamic` coalesces accordingly.
+            let popularity = fetch_spotify_popularity(state, row.spotify_id.as_deref()).await;
 
-            if let Err(err) =
-                db::refresh_dynamic(&state.db.pool, normalized_name, &genres, &similar).await
+            if let Err(err) = db::refresh_dynamic(
+                &state.db.pool,
+                normalized_name,
+                &genres,
+                &similar,
+                popularity,
+            )
+            .await
             {
                 tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to refresh Apple Music dynamic fields");
             }
@@ -252,14 +277,36 @@ async fn refresh_dynamic_fields(state: &AppState, normalized_name: &str, row: &d
                 return;
             };
 
-            if let Err(err) =
-                db::refresh_dynamic(&state.db.pool, normalized_name, &artist.genres, &[]).await
+            if let Err(err) = db::refresh_dynamic(
+                &state.db.pool,
+                normalized_name,
+                &artist.genres,
+                &[],
+                Some(artist.popularity as i16),
+            )
+            .await
             {
                 tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to refresh Spotify dynamic fields");
             }
         }
         _ => {}
     }
+}
+
+/// Best-effort Spotify popularity lookup by id, for the Apple-matched
+/// branch of `refresh_dynamic_fields` -- `None` for no id, an expired/
+/// unobtainable client-credentials token, or a failed Spotify call, same
+/// "just don't update it" handling as everywhere else in this best-effort
+/// pipeline.
+async fn fetch_spotify_popularity(state: &AppState, spotify_id: Option<&str>) -> Option<i16> {
+    let spotify_id = spotify_id?;
+    let token = state.cc_manager.get_token().await.ok()?;
+    let artist = state
+        .spotify
+        .get_artist(&token.access_token, spotify_id)
+        .await
+        .ok()?;
+    Some(artist.popularity as i16)
 }
 
 /// Fetches and persists similar-artists for `normalized_name` if it's
@@ -298,6 +345,104 @@ pub(super) async fn backfill_similar_artists(state: &AppState, normalized_name: 
 
     if let Err(err) = db::attach_similar_artists(&state.db.pool, normalized_name, &similar).await {
         tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to backfill similar artists");
+    }
+}
+
+/// Fetches and persists `normalized_name`'s latest release, if its
+/// `release_checked_at` is missing or past `RELEASE_CHECK_TTL` -- the
+/// on-demand counterpart to the fetch `resolve_fresh` never does at
+/// first-match time (same "most newly-seen artists are never opened"
+/// reasoning as `backfill_similar_artists`). Works off `spotify_id`
+/// directly rather than `matched_via`: an Apple-matched row can still
+/// carry one from the concurrent Spotify lookup, and popularity/release
+/// data only ever comes from Spotify regardless of which provider won
+/// identity — see `db::get_release_check_status`.
+///
+/// Persists a "checked, nothing found" result (`release: None`) on a
+/// successful-but-empty fetch, not just a successful one with a hit —
+/// unlike `backfill_similar_artists`, this has its own short TTL to
+/// re-check on, so there's no need to leave `release_checked_at` unset to
+/// force a retry on every subsequent open.
+pub(super) async fn backfill_release_info(state: &AppState, normalized_name: &str) {
+    let status = match db::get_release_check_status(&state.db.pool, normalized_name).await {
+        Ok(Some(status)) => status,
+        Ok(None) => return,
+        Err(err) => {
+            tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to read release-check status, skipping backfill");
+            return;
+        }
+    };
+
+    let Some(spotify_id) = status.spotify_id else {
+        return;
+    };
+    let fresh = status
+        .release_checked_at
+        .is_some_and(|t| Utc::now() - t < RELEASE_CHECK_TTL);
+    if fresh {
+        return;
+    }
+
+    let Ok(token) = state.cc_manager.get_token().await else {
+        return;
+    };
+    // A failed albums fetch (rate limit, transient error) leaves
+    // `release_checked_at` untouched entirely, rather than persisting a
+    // false "nothing found" — retried on the very next on-demand call
+    // instead of waiting out the full TTL. The artist-popularity refetch
+    // below piggybacks on this same on-demand call (a cheap second
+    // request on a token we already have) mainly to backfill `popularity`
+    // for rows matched before that column existed — see the module-level
+    // note on `resolve_fresh`/`refresh_dynamic_fields` for the two other
+    // paths that also keep it fresh going forward. Its own failure is
+    // independently best-effort and doesn't block the release check.
+    let (albums, popularity) = tokio::join!(
+        state
+            .spotify
+            .get_artist_albums(&token.access_token, &spotify_id),
+        fetch_spotify_popularity(state, Some(&spotify_id)),
+    );
+    let Ok(albums) = albums else {
+        return;
+    };
+
+    let latest = albums
+        .iter()
+        .filter_map(|album| parse_release_date(album).map(|date| (date, album)))
+        .max_by_key(|(date, _)| *date);
+
+    let release = latest.map(|(release_date, album)| db::LatestRelease {
+        name: &album.name,
+        release_date,
+        url: album.external_urls.spotify.as_deref(),
+        artwork_url: album.images.first().map(|i| i.url.as_str()),
+    });
+
+    if let Err(err) = db::attach_release(&state.db.pool, normalized_name, release, popularity).await
+    {
+        tracing::warn!(error = %err, normalized_name, "artist enrichment: failed to backfill release info");
+    }
+}
+
+/// Parses `album.release_date` at whatever precision Spotify actually
+/// gave it (`release_date_precision`), defaulting the missing components
+/// to the start of the period — e.g. a year-only release becomes Jan 1st
+/// of that year. That default only ever pushes a release *further* from
+/// "recent", never closer, so a coarse-precision release can't falsely
+/// count as new — it can only ever be under-counted, which is the safe
+/// direction for a "new release" flag.
+fn parse_release_date(album: &SimplifiedAlbum) -> Option<chrono::NaiveDate> {
+    use chrono::NaiveDate;
+
+    match album.release_date_precision.as_str() {
+        "day" => NaiveDate::parse_from_str(&album.release_date, "%Y-%m-%d").ok(),
+        "month" => {
+            NaiveDate::parse_from_str(&format!("{}-01", album.release_date), "%Y-%m-%d").ok()
+        }
+        "year" => {
+            NaiveDate::parse_from_str(&format!("{}-01-01", album.release_date), "%Y-%m-%d").ok()
+        }
+        _ => None,
     }
 }
 

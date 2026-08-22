@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update artists\n        set latest_release_name = $2,\n            latest_release_date = $3,\n            latest_release_url = $4,\n            latest_release_artwork_url = $5,\n            popularity = coalesce($6, popularity),\n            release_checked_at = now()\n        where normalized_name = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Date",
+        "Text",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f1f8e35c39655b739da1cd04fa82d2fdfca56749209b714c3abc18bbe5bb2859"
+}

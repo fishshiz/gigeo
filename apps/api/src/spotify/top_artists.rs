@@ -288,6 +288,7 @@ mod tests {
             images: vec![],
             artist_type: None,
             genres: vec![],
+            popularity: 0,
         }
     }
 

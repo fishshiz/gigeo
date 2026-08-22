@@ -188,6 +188,7 @@ pub(super) async fn upsert_standings_bulk(
 }
 
 pub(super) struct GroupStandingRow {
+    pub espn_team_id: String,
     pub team_name: String,
     pub record: String,
     pub standing_position: Option<i32>,
@@ -198,7 +199,10 @@ pub(super) struct GroupStandingRow {
 /// shows, replacing a bare "you're #4" with the surrounding context of
 /// who's above and below. Ties/missing positions sort last, by name, so
 /// the order is still deterministic rather than reflecting whatever
-/// order Postgres happened to return rows in.
+/// order Postgres happened to return rows in. Carries `espn_team_id` so
+/// `mod::lookup` can find the selected team's own row by id rather than
+/// by re-matching `team_name` as a string (see Phase 5's
+/// `TeamEnrichmentResponse::playoff_status`).
 pub(super) async fn get_group_standings(
     pool: &PgPool,
     league: League,
@@ -207,7 +211,7 @@ pub(super) async fn get_group_standings(
     sqlx::query_as!(
         GroupStandingRow,
         r#"
-        select team_name, record, standing_position
+        select espn_team_id, team_name, record, standing_position
         from sports_team_standings
         where league = $1::text::sports_league and group_name = $2
         order by standing_position asc nulls last, team_name asc
