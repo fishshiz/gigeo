@@ -75,6 +75,7 @@ export type CreateApplePlaylistInput = {
   description: string
   cadence: number
   radius: number
+  genres: string[]
 }
 
 export type CreateApplePlaylistOutput = {
@@ -84,6 +85,7 @@ export type CreateApplePlaylistOutput = {
 
 export type UpdateApplePlaylistInput = {
   cadence: number
+  genres: string[]
 }
 
 type UseAppleMusicAuthResult = {
@@ -100,6 +102,20 @@ type UseAppleMusicAuthResult = {
     input: UpdateApplePlaylistInput
   ) => Promise<void>
   deletePlaylist: (playlistId: string) => Promise<void>
+}
+
+/** Mirrors `hooks/spotify.ts`'s `parseGenresField` -- reads the `genres`
+ * hidden input (JSON-stringified string array). Missing/malformed input
+ * means "no filter", never a thrown validation error. */
+function parseGenresField(formData: FormData): string[] {
+  const raw = formData.get("genres")
+  if (typeof raw !== "string" || !raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((g) => typeof g === "string") : []
+  } catch {
+    return []
+  }
 }
 
 export function parseCreateApplePlaylistForm(
@@ -125,6 +141,7 @@ export function parseCreateApplePlaylistForm(
     description: "",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     radius: 25,
+    genres: parseGenresField(formData),
   }
 }
 
@@ -137,6 +154,7 @@ export function parseUpdateApplePlaylistForm(
   }
   return {
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
+    genres: parseGenresField(formData),
   }
 }
 
@@ -265,6 +283,7 @@ export function useAppleMusicAuth(): UseAppleMusicAuthResult {
           description: payload.description || null,
           location: payload.location,
           cadence: payload.cadence,
+          genres: payload.genres,
           latitude,
           longitude,
         }),

@@ -1,4 +1,4 @@
-use crate::services::playlist_builder::{PlaylistUpdateMode, PlaylistVisibility};
+use crate::services::playlist_builder::{GenrePriority, PlaylistUpdateMode, PlaylistVisibility};
 
 pub async fn create_session(
     db: &sqlx::PgPool,
@@ -204,4 +204,62 @@ pub async fn soft_delete_playlist(
     .execute(db)
     .await
     .map(|_| ())
+}
+
+/// Reads a playlist's saved genre filter, ordered by priority (lower
+/// first) -- empty for every playlist created before this feature, and the
+/// signal `services::playlist_builder::apply_genre_filter` treats as "no
+/// filter".
+pub async fn get_playlist_genre_priorities(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+) -> Result<Vec<GenrePriority>, sqlx::Error> {
+    sqlx::query_as!(
+        GenrePriority,
+        r#"
+        select genre, priority
+        from playlist_genre_priority
+        where playlist_id = $1
+        order by priority
+        "#,
+        playlist_id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Replaces a playlist's saved genre filter wholesale: priority is derived
+/// from `genres`' order (first = priority 1, most preferred) rather than
+/// exposed as a separate reorder step in the UI. An empty `genres` clears
+/// the filter back to "match everything".
+pub async fn set_playlist_genre_priority(
+    db: &sqlx::PgPool,
+    playlist_id: uuid::Uuid,
+    genres: &[String],
+) -> Result<(), sqlx::Error> {
+    let mut tx = db.begin().await?;
+
+    sqlx::query!(
+        "delete from playlist_genre_priority where playlist_id = $1",
+        playlist_id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    for (i, genre) in genres.iter().enumerate() {
+        let priority = (i + 1) as i16;
+        sqlx::query!(
+            r#"
+            insert into playlist_genre_priority (playlist_id, genre, priority)
+            values ($1, $2, $3)
+            "#,
+            playlist_id,
+            genre,
+            priority,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await
 }

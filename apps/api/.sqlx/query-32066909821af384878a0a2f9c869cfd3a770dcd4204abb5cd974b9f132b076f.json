@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            insert into playlist_genre_priority (playlist_id, genre, priority)\n            values ($1, $2, $3)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "32066909821af384878a0a2f9c869cfd3a770dcd4204abb5cd974b9f132b076f"
+}

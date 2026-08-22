@@ -20,6 +20,7 @@ export type CreatePlaylistInput = {
   cadence: number
   radius: number
   destructive: boolean
+  genres: string[]
 }
 
 export type CreatePlaylistOutput = {
@@ -33,6 +34,7 @@ export type UpdatePlaylistInput = {
   privacy: boolean
   cadence: number
   destructive: boolean
+  genres: string[]
 }
 
 /** Thrown when the server confirms a playlist is no longer on Spotify (410). */
@@ -57,6 +59,22 @@ type UseSpotifyAuthResult = {
     input: UpdatePlaylistInput
   ) => Promise<void>
   deletePlaylist: (playlistId: string) => Promise<void>
+}
+
+/** Reads the `genres` hidden input (a JSON-stringified string array, kept
+ * in sync with the genre checkbox picker the same way `privacy` mirrors its
+ * toggle). Missing or malformed input means "no filter", never a thrown
+ * validation error -- unlike name/location/cadence, an empty genre list is
+ * a fully valid, common choice. */
+function parseGenresField(formData: FormData): string[] {
+  const raw = formData.get("genres")
+  if (typeof raw !== "string" || !raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((g) => typeof g === "string") : []
+  } catch {
+    return []
+  }
 }
 
 export function parseCreatePlaylistForm(
@@ -88,6 +106,7 @@ export function parseCreatePlaylistForm(
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     destructive: behavior === "destructive",
     radius: 25,
+    genres: parseGenresField(formData),
   }
 }
 
@@ -110,6 +129,7 @@ export function parseUpdatePlaylistForm(formData: FormData): UpdatePlaylistInput
     privacy: privacy === "private",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     destructive: behavior === "destructive",
+    genres: parseGenresField(formData),
   }
 }
 

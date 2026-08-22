@@ -19,11 +19,12 @@ use sqlx::PgPool;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::accounts::db::get_playlist_genre_priorities;
 use crate::apple_music::apple_handlers::get_apple_music_account;
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    PlaylistUpdateMode, build_bulleted_description, find_artist_events_near,
-    find_artist_names_near, search_tracks_for_artists, search_tracks_for_artists_apple,
+    GenrePriority, PlaylistUpdateMode, apply_genre_filter, build_bulleted_description,
+    find_artist_events_near, search_tracks_for_artists, search_tracks_for_artists_apple,
 };
 use crate::spotify::token::get_valid_spotify_token;
 use crate::state::AppState;
@@ -36,10 +37,10 @@ const SEARCH_RADIUS_MILES: u8 = 25;
 const EVENT_WINDOW_DAYS: i64 = 7;
 const TRACKS_PER_ARTIST: u8 = 3;
 /// Upper bound on how many tracks a single update run touches, regardless
-/// of how many nearby artists/tracks were found. Plain truncation for now;
-/// once genre prioritization exists (playlist_genre_priority is already in
-/// the schema, unused), this is the natural place to select tracks by
-/// priority instead of just taking the first N.
+/// of how many nearby artists/tracks were found. Plain truncation, but
+/// `apply_genre_filter` has already sorted the candidate artists by genre
+/// priority before this point, so a filtered playlist's higher-priority
+/// genres are kept preferentially rather than dropped arbitrarily.
 const MAX_TRACKS_PER_RUN: usize = 30;
 
 /// Entry point called from `build_app()`. Spawns the background poll loop.
@@ -148,7 +149,17 @@ async fn update_one_playlist(state: &AppState, p: ClaimedPlaylist) {
         }
     };
 
-    match do_update(state, &p).await {
+    // A separate, cheap indexed-by-playlist-id query rather than folding
+    // into `claim_due_playlist`'s `FOR UPDATE SKIP LOCKED` claim -- keeps
+    // that query's shape unchanged and this one only runs for the single
+    // playlist just claimed. A lookup failure is treated as "no filter"
+    // (same best-effort posture as `apply_genre_filter` itself) rather than
+    // failing the whole update run over what's normally an empty result.
+    let genre_priorities = get_playlist_genre_priorities(&state.db.pool, p.id)
+        .await
+        .unwrap_or_default();
+
+    match do_update(state, &p, &genre_priorities).await {
         Ok(outcome) => {
             if let Err(e) = finish_run_success(&state.db.pool, run_id, &outcome).await {
                 error!(playlist_id = %p.id, error = %e, "failed to finalize playlist_update_run (success)");
@@ -212,7 +223,11 @@ fn diff_uris(current: &[String], new: &[String]) -> (Vec<String>, i32, i32) {
 /// removes anything. No refresh flow for the stored Music User Token; a
 /// missing account row or an auth error from Apple propagates up to
 /// `update_one_playlist`, which treats it as unrecoverable.
-async fn do_update_apple(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcome, AppError> {
+async fn do_update_apple(
+    state: &AppState,
+    p: &ClaimedPlaylist,
+    genre_priorities: &[GenrePriority],
+) -> Result<UpdateOutcome, AppError> {
     let (coord, _, _) = geohash::decode(&p.geohash)
         .map_err(|e| AppError::Internal(format!("geohash decode failed: {e}")))?;
 
@@ -232,7 +247,7 @@ async fn do_update_apple(state: &AppState, p: &ClaimedPlaylist) -> Result<Update
         .await?
         .ok_or_else(|| AppError::AuthRequired("Apple Music account no longer connected.".into()))?;
 
-    let artist_names = find_artist_names_near(
+    let artist_events = find_artist_events_near(
         state,
         coord.y,
         coord.x,
@@ -240,6 +255,8 @@ async fn do_update_apple(state: &AppState, p: &ClaimedPlaylist) -> Result<Update
         EVENT_WINDOW_DAYS,
     )
     .await?;
+    let artist_events = apply_genre_filter(&state.db.pool, artist_events, genre_priorities).await;
+    let artist_names: Vec<String> = artist_events.iter().map(|a| a.name.clone()).collect();
 
     if artist_names.is_empty() {
         return Ok(UpdateOutcome {
@@ -294,16 +311,21 @@ async fn do_update_apple(state: &AppState, p: &ClaimedPlaylist) -> Result<Update
     })
 }
 
-async fn do_update(state: &AppState, p: &ClaimedPlaylist) -> Result<UpdateOutcome, AppError> {
+async fn do_update(
+    state: &AppState,
+    p: &ClaimedPlaylist,
+    genre_priorities: &[GenrePriority],
+) -> Result<UpdateOutcome, AppError> {
     match p.provider.as_str() {
-        "apple_music" => do_update_apple(state, p).await,
-        _ => do_update_spotify(state, p).await,
+        "apple_music" => do_update_apple(state, p, genre_priorities).await,
+        _ => do_update_spotify(state, p, genre_priorities).await,
     }
 }
 
 async fn do_update_spotify(
     state: &AppState,
     p: &ClaimedPlaylist,
+    genre_priorities: &[GenrePriority],
 ) -> Result<UpdateOutcome, AppError> {
     let (coord, _, _) = geohash::decode(&p.geohash)
         .map_err(|e| AppError::Internal(format!("geohash decode failed: {e}")))?;
@@ -319,6 +341,7 @@ async fn do_update_spotify(
         EVENT_WINDOW_DAYS,
     )
     .await?;
+    let artist_events = apply_genre_filter(&state.db.pool, artist_events, genre_priorities).await;
     let artist_names: Vec<String> = artist_events.iter().map(|a| a.name.clone()).collect();
 
     if artist_names.is_empty() {

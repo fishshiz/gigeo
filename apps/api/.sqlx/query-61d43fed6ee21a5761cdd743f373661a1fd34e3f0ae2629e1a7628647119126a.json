@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select genre, priority\n        from playlist_genre_priority\n        where playlist_id = $1\n        order by priority\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "genre",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "priority",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "61d43fed6ee21a5761cdd743f373661a1fd34e3f0ae2629e1a7628647119126a"
+}

@@ -25,6 +25,7 @@ describe("parseCreatePlaylistForm", () => {
       cadence: 7,
       destructive: false,
       radius: 25,
+      genres: [],
     })
   })
 
@@ -107,6 +108,24 @@ describe("parseCreatePlaylistForm", () => {
       ""
     )
   })
+
+  it("parses the genres hidden field from JSON", () => {
+    const result = parseCreatePlaylistForm(
+      makeForm({ ...validFields, genres: JSON.stringify(["Rock", "Pop"]) })
+    )
+    expect(result.genres).toEqual(["Rock", "Pop"])
+  })
+
+  it("defaults genres to an empty array when the field is missing", () => {
+    expect(parseCreatePlaylistForm(makeForm(validFields)).genres).toEqual([])
+  })
+
+  it("defaults genres to an empty array when the field is malformed JSON", () => {
+    const result = parseCreatePlaylistForm(
+      makeForm({ ...validFields, genres: "not json" })
+    )
+    expect(result.genres).toEqual([])
+  })
 })
 
 const validUpdateFields = {
@@ -121,6 +140,7 @@ describe("parseUpdatePlaylistForm", () => {
       privacy: false,
       cadence: 7,
       destructive: false,
+      genres: [],
     })
   })
 

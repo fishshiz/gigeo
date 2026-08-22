@@ -1,12 +1,14 @@
 use super::db::resolve_account_from_cookie;
 use crate::accounts::db::{
     CreatePlaylistParams, UpdatePlaylistParams, create_playlist_record, deactivate_playlist,
-    get_playlist_for_account, soft_delete_playlist, update_playlist_config,
+    get_playlist_for_account, get_playlist_genre_priorities, set_playlist_genre_priority,
+    soft_delete_playlist, update_playlist_config,
 };
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    PlaylistUpdateMode, PlaylistVisibility, build_bulleted_description, find_artist_events_near,
-    resolve_update_mode, search_tracks_for_artists, validate_cadence_days,
+    PlaylistUpdateMode, PlaylistVisibility, apply_genre_filter, build_bulleted_description,
+    find_artist_events_near, genres_to_priorities, resolve_update_mode, search_tracks_for_artists,
+    validate_cadence_days,
 };
 use crate::state::AppState;
 use axum::{
@@ -47,6 +49,12 @@ pub struct CreatePlaylistRequest {
     // The location coordinates
     pub latitude: f64,
     pub longitude: f64,
+    // Only include artists matching one of these genres (case-insensitive).
+    // Empty/omitted means no filter -- every genre included. Order sets
+    // priority (first = most preferred) for the recurring updater's
+    // track-truncation step.
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -81,6 +89,7 @@ pub struct PlaylistSummary {
     pub update_mode: PlaylistUpdateMode,
     pub update_cadence_days: i16,
     pub is_active: bool,
+    pub genres: Vec<String>,
 }
 
 pub async fn get_user_playlists(
@@ -114,6 +123,8 @@ pub async fn create_playlist(
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
     let artist_events = find_artist_events_near(&state, req.latitude, req.longitude, 25, 7).await?;
+    let genre_priorities = genres_to_priorities(&req.genres);
+    let artist_events = apply_genre_filter(&state.db.pool, artist_events, &genre_priorities).await;
 
     if artist_events.is_empty() {
         return Err(AppError::Internal(
@@ -204,7 +215,7 @@ pub async fn create_playlist(
 
     let update_mode = resolve_update_mode(req.destructive);
 
-    create_playlist_record(
+    let playlist_id = create_playlist_record(
         &state.db.pool,
         CreatePlaylistParams {
             account_id,
@@ -218,6 +229,8 @@ pub async fn create_playlist(
         },
     )
     .await?;
+
+    set_playlist_genre_priority(&state.db.pool, playlist_id, &req.genres).await?;
 
     metrics::counter!("playlist_created", "service" => "spotify").increment(1);
 
@@ -260,6 +273,11 @@ pub async fn get_playlists(
 
     let mut summaries = Vec::with_capacity(rows.len());
     for row in rows {
+        let genres = get_playlist_genre_priorities(&state.db.pool, row.id)
+            .await
+            .map(|gs| gs.into_iter().map(|g| g.genre).collect())
+            .unwrap_or_default();
+
         if !row.is_active {
             // Already known to be gone from Spotify — no point re-fetching.
             summaries.push(PlaylistSummary {
@@ -274,6 +292,7 @@ pub async fn get_playlists(
                 update_mode: row.update_mode,
                 update_cadence_days: row.update_cadence_days,
                 is_active: false,
+                genres,
             });
             continue;
         }
@@ -295,6 +314,7 @@ pub async fn get_playlists(
                 update_mode: row.update_mode,
                 update_cadence_days: row.update_cadence_days,
                 is_active: true,
+                genres,
             }),
             Err(err) if is_gone_from_spotify(&err) => {
                 if let Err(e) = deactivate_playlist(&state.db.pool, row.id).await {
@@ -312,6 +332,7 @@ pub async fn get_playlists(
                     update_mode: row.update_mode,
                     update_cadence_days: row.update_cadence_days,
                     is_active: false,
+                    genres,
                 });
             }
             Err(err) => {
@@ -339,6 +360,8 @@ pub struct UpdatePlaylistRequest {
     pub privacy: bool,
     pub cadence: i16,
     pub destructive: bool,
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -348,6 +371,7 @@ pub struct UpdatePlaylistResponse {
     pub visibility: PlaylistVisibility,
     pub update_mode: PlaylistUpdateMode,
     pub update_cadence_days: i16,
+    pub genres: Vec<String>,
 }
 
 pub async fn update_playlist(
@@ -404,6 +428,7 @@ pub async fn update_playlist(
                 },
             )
             .await?;
+            set_playlist_genre_priority(&state.db.pool, playlist_id, &req.genres).await?;
 
             metrics::counter!("playlist_updated", "service" => "spotify").increment(1);
 
@@ -413,6 +438,7 @@ pub async fn update_playlist(
                 visibility,
                 update_mode,
                 update_cadence_days: cadence,
+                genres: req.genres,
             }))
         }
         Err(err) if is_gone_from_spotify(&err) => {

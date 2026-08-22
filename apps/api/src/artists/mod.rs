@@ -34,7 +34,7 @@ mod matching_eval;
 mod spotify_backfill;
 mod worker;
 
-pub(crate) use lookup::attach_genres;
+pub(crate) use lookup::{attach_genres, genres_for_names};
 pub(crate) use worker::spawn_enrichment;
 
 use axum::{

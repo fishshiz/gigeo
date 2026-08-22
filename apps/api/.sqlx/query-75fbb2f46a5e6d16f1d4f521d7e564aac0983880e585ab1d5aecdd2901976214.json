@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from playlist_genre_priority where playlist_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75fbb2f46a5e6d16f1d4f521d7e564aac0983880e585ab1d5aecdd2901976214"
+}

@@ -358,7 +358,7 @@ impl AppleMusicClient {
     ///
     /// Fetch a library playlist's tracks. First page only (limit 100) —
     /// same bounded-completeness trade-off as
-    /// `playlist_builder::find_artist_names_near`; used to avoid
+    /// `playlist_builder::find_artist_events_near`; used to avoid
     /// re-adding songs already present, not to enumerate every track in a
     /// very large playlist.
     /// Requires: `Music-User-Token` header.

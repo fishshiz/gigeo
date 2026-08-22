@@ -16,6 +16,8 @@ import {
 
 import { Button } from "@workspace/ui/components/ui/Button"
 import { RadioGroup, Radio } from "@workspace/ui/components/ui/RadioGroup"
+import { CheckboxGroup } from "@workspace/ui/components/ui/CheckboxGroup"
+import { Checkbox } from "@workspace/ui/components/ui/Checkbox"
 import {
   Tabs,
   TabList,
@@ -26,11 +28,13 @@ import {
 import { Form } from "@workspace/ui/components/ui/Form"
 import { Label } from "@workspace/ui/components/ui/Field"
 import { useSearchProvider } from "@/providers/searchProvider"
+import { useEventsContext } from "@/providers/eventsProvider"
 import { MapPin } from "lucide-react"
 import { TextField } from "@workspace/ui/components/ui/TextField"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { AppleMusicButtons } from "../AppleMusicButtons"
 import { getRandomPlaylistName } from "@/lib/playlistNames"
+import { nearbyGenres } from "@/lib/genres"
 import { useDrawerProvider } from "@/providers/drawerProvider"
 import { useIsMobile } from "@/providers/Breakpoint"
 
@@ -101,6 +105,46 @@ export const AppleMusicDrawerBody = () => {
         </TabPanels>
       </Tabs>
     </DrawerBody>
+  )
+}
+
+/** Checkbox list of genres to filter playlist tracks by -- sourced from
+ * `nearbyGenres` (already-streamed event data, see apps/web/src/lib/genres.ts)
+ * rather than a fixed taxonomy or a new backend endpoint. Renders nothing
+ * when there's no genre data to offer, rather than an empty, confusing
+ * section. Mirrors PlaylistsDrawer.tsx's version, flattened to match this
+ * file's non-FormSection layout. */
+const GenreCheckboxSection = ({
+  available,
+  selected,
+  onChange,
+}: {
+  available: string[]
+  selected: string[]
+  onChange: (value: string[]) => void
+}) => {
+  if (available.length === 0) return null
+
+  return (
+    <>
+      <Label>Genres</Label>
+      <CheckboxGroup
+        aria-label="Genre filter"
+        value={selected}
+        onChange={onChange}
+      >
+        <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto">
+          {available.map((genre) => (
+            <Checkbox key={genre} value={genre}>
+              {genre}
+            </Checkbox>
+          ))}
+        </div>
+      </CheckboxGroup>
+      <p className="text-xs text-muted-foreground">
+        Leave all unchecked to include every genre.
+      </p>
+    </>
   )
 }
 
@@ -194,10 +238,19 @@ const EditPlaylistForm = ({
   onDone: () => void
 }) => {
   const { updatePlaylist } = useAppleMusicAuth()
+  const { eventsByDate } = useEventsContext()
   const [selectedFrequency, setSelectedFrequency] = useState(
     cadenceToFrequencyValue(playlist.update_cadence_days)
   )
+  const [selectedGenres, setSelectedGenres] = useState(playlist.genres)
   const [error, setError] = useState<string | null>(null)
+
+  // Already-saved genres always stay pickable, even if this playlist's
+  // city isn't the one currently loaded on the map.
+  const availableGenres = useMemo(
+    () => [...new Set([...nearbyGenres(eventsByDate), ...playlist.genres])].sort(),
+    [eventsByDate, playlist.genres]
+  )
 
   return (
     <Form
@@ -215,6 +268,11 @@ const EditPlaylistForm = ({
         }
       }}
     >
+      <input
+        type="hidden"
+        name="genres"
+        value={JSON.stringify(selectedGenres)}
+      />
       <p className="text-xs text-muted-foreground">
         Apple Music playlists can only add new tracks, never remove them —
         update frequency is the only thing to configure here.
@@ -238,6 +296,11 @@ const EditPlaylistForm = ({
           />
         ))}
       </RadioGroup>
+      <GenreCheckboxSection
+        available={availableGenres}
+        selected={selectedGenres}
+        onChange={setSelectedGenres}
+      />
       {error && <p className="text-xs text-red-500">{error}</p>}
       <Button type="submit">Save changes</Button>
     </Form>
@@ -287,14 +350,21 @@ const RadioCard = ({
 
 export const CreatePlaylistForm = () => {
   const { focusSearchInput, selectedLocation } = useSearchProvider()
+  const { eventsByDate } = useEventsContext()
   const { createPlaylist } = useAppleMusicAuth()
 
   const emptyLocationString = "Search a location to start"
   const placeholder = getRandomPlaylistName(selectedLocation?.cityName || "")
   const [selectedFrequency, setSelectedFrequency] = useState("weekly")
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ name: string } | null>(null)
+
+  const availableGenres = useMemo(
+    () => nearbyGenres(eventsByDate),
+    [eventsByDate]
+  )
 
   return (
     <div className="flex flex-col items-center justify-center">
@@ -320,6 +390,11 @@ export const CreatePlaylistForm = () => {
           type="hidden"
           name="location"
           value={selectedLocation?.fullAddress ?? ""}
+        />
+        <input
+          type="hidden"
+          name="genres"
+          value={JSON.stringify(selectedGenres)}
         />
         <Label>Playlist location</Label>
         <Button
@@ -362,6 +437,11 @@ export const CreatePlaylistForm = () => {
             />
           ))}
         </RadioGroup>
+        <GenreCheckboxSection
+          available={availableGenres}
+          selected={selectedGenres}
+          onChange={setSelectedGenres}
+        />
         <p className="text-xs text-muted-foreground">
           Updates only ever add new tracks — Apple Music doesn't let apps
           remove them.

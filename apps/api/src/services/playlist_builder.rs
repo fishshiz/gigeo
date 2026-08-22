@@ -1,10 +1,12 @@
 use crate::error::AppError;
+use crate::spotify::client::normalize_artist_name;
 use crate::state::AppState;
 use crate::ticketmaster_stream::{PageLimit, fetch_events_near};
 use chrono::Utc;
 use geohash::{Coord, encode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use sqlx::PgPool;
+use std::collections::{HashMap, HashSet};
 
 #[derive(sqlx::Type, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[sqlx(type_name = "playlist_visibility", rename_all = "lowercase")]
@@ -122,22 +124,95 @@ pub async fn find_artist_events_near(
     Ok(out)
 }
 
-/// Names-only convenience wrapper around [`find_artist_events_near`], for
-/// the callers that don't need per-artist date info.
-pub async fn find_artist_names_near(
-    state: &AppState,
-    latitude: f64,
-    longitude: f64,
-    radius_miles: u8,
-    window_days: i64,
-) -> Result<Vec<String>, AppError> {
-    Ok(
-        find_artist_events_near(state, latitude, longitude, radius_miles, window_days)
-            .await?
-            .into_iter()
-            .map(|a| a.name)
-            .collect(),
-    )
+/// One genre a playlist filters/prioritizes on, from `playlist_genre_priority`
+/// (lower `priority` = preferred first when tracks get truncated). An empty
+/// slice of these means "no filter" -- every existing playlist today, since
+/// nothing has written to that table until this feature.
+pub struct GenrePriority {
+    pub genre: String,
+    pub priority: i16,
+}
+
+/// Converts a user-supplied, order-carries-priority genre list (as
+/// submitted by the create/update playlist request) into `GenrePriority`s
+/// -- first genre is priority 1 (most preferred), and so on. Shared by both
+/// providers' handlers so `apply_genre_filter` always sees the same
+/// priority derivation `set_playlist_genre_priority` persists.
+pub fn genres_to_priorities(genres: &[String]) -> Vec<GenrePriority> {
+    genres
+        .iter()
+        .enumerate()
+        .map(|(i, genre)| GenrePriority {
+            genre: genre.clone(),
+            priority: (i + 1) as i16,
+        })
+        .collect()
+}
+
+/// Filters `artist_events` down to artists matching at least one of
+/// `genre_priorities` (case-insensitive), then sorts survivors by the best
+/// (lowest) priority among their matching genres -- ties broken by original
+/// discovery order. An artist absent from `genres_by_normalized` (not yet
+/// enriched, or enriched with no genres) never matches a non-empty filter.
+///
+/// Split out from `apply_genre_filter` so the matching/sorting logic itself
+/// is testable without a live database, mirroring the
+/// `attach_genres`/`merge_genres` split in `artists::lookup`.
+fn filter_and_sort_by_genre(
+    artist_events: Vec<ArtistEvent>,
+    genre_priorities: &[GenrePriority],
+    genres_by_normalized: &HashMap<String, Vec<String>>,
+) -> Vec<ArtistEvent> {
+    if genre_priorities.is_empty() {
+        return artist_events;
+    }
+
+    let wanted: HashMap<String, i16> = genre_priorities
+        .iter()
+        .map(|g| (g.genre.to_lowercase(), g.priority))
+        .collect();
+
+    let mut matched: Vec<(i16, usize, ArtistEvent)> = artist_events
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, artist)| {
+            let genres = genres_by_normalized.get(&normalize_artist_name(&artist.name))?;
+            let best_priority = genres
+                .iter()
+                .filter_map(|g| wanted.get(&g.to_lowercase()))
+                .min()
+                .copied()?;
+            Some((best_priority, i, artist))
+        })
+        .collect();
+
+    matched.sort_by_key(|(priority, i, _)| (*priority, *i));
+    matched.into_iter().map(|(_, _, artist)| artist).collect()
+}
+
+/// DB-backed wrapper around [`filter_and_sort_by_genre`]: looks up genres
+/// for every artist in `artist_events`, then filters/sorts by
+/// `genre_priorities`. Best-effort like `artists::attach_genres` -- a DB
+/// error surfaces as "no genre data available", which `filter_and_sort_by_genre`
+/// then treats as no matches for a non-empty filter. This means a DB hiccup
+/// on a genre-filtered playlist produces an empty result rather than
+/// silently ignoring the user's filter and returning everything; the
+/// create/update call sites already treat "no artists found" as a normal,
+/// user-visible outcome (unlike `attach_genres`, which only decorates
+/// already-successful responses).
+pub async fn apply_genre_filter(
+    pool: &PgPool,
+    artist_events: Vec<ArtistEvent>,
+    genre_priorities: &[GenrePriority],
+) -> Vec<ArtistEvent> {
+    if genre_priorities.is_empty() {
+        return artist_events;
+    }
+
+    let names: Vec<String> = artist_events.iter().map(|a| a.name.clone()).collect();
+    let genres_by_normalized = crate::artists::genres_for_names(pool, &names).await;
+
+    filter_and_sort_by_genre(artist_events, genre_priorities, &genres_by_normalized)
 }
 
 pub struct TrackResult {
@@ -384,6 +459,82 @@ mod tests {
             "expected a '+N more' summary line, got {last_line:?}"
         );
         assert!(!desc.contains("One More Artist"));
+    }
+
+    fn genre_priority(genre: &str, priority: i16) -> GenrePriority {
+        GenrePriority {
+            genre: genre.to_string(),
+            priority,
+        }
+    }
+
+    #[test]
+    fn filter_and_sort_by_genre_empty_filter_is_passthrough() {
+        let artists = vec![artist("Role Model", None), artist("Someone Else", None)];
+        let result = filter_and_sort_by_genre(artists, &[], &HashMap::new());
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].name, "Role Model");
+        assert_eq!(result[1].name, "Someone Else");
+    }
+
+    #[test]
+    fn filter_and_sort_by_genre_drops_non_matching_artists() {
+        let artists = vec![artist("Role Model", None), artist("Someone Else", None)];
+        let mut genres = HashMap::new();
+        genres.insert("rolemodel".to_string(), vec!["Pop".to_string()]);
+        genres.insert("someoneelse".to_string(), vec!["Metal".to_string()]);
+
+        let result = filter_and_sort_by_genre(artists, &[genre_priority("Pop", 1)], &genres);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "Role Model");
+    }
+
+    #[test]
+    fn filter_and_sort_by_genre_drops_artists_with_no_genre_data() {
+        let artists = vec![artist("Unenriched Artist", None)];
+        let result =
+            filter_and_sort_by_genre(artists, &[genre_priority("Pop", 1)], &HashMap::new());
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn filter_and_sort_by_genre_is_case_insensitive() {
+        let artists = vec![artist("Role Model", None)];
+        let mut genres = HashMap::new();
+        genres.insert("rolemodel".to_string(), vec!["pop".to_string()]);
+
+        let result = filter_and_sort_by_genre(artists, &[genre_priority("POP", 1)], &genres);
+
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn filter_and_sort_by_genre_orders_by_best_matching_priority() {
+        let artists = vec![
+            artist("Rock Artist", None),
+            artist("Pop Artist", None),
+            artist("Both Genres Artist", None),
+        ];
+        let mut genres = HashMap::new();
+        genres.insert("rockartist".to_string(), vec!["Rock".to_string()]);
+        genres.insert("popartist".to_string(), vec!["Pop".to_string()]);
+        genres.insert(
+            "bothgenresartist".to_string(),
+            vec!["Rock".to_string(), "Pop".to_string()],
+        );
+
+        // Pop is priority 1 (preferred), Rock is priority 2.
+        let priorities = [genre_priority("Pop", 1), genre_priority("Rock", 2)];
+        let result = filter_and_sort_by_genre(artists, &priorities, &genres);
+
+        assert_eq!(result.len(), 3);
+        // Pop Artist and Both Genres Artist both have a priority-1 match
+        // (Pop) -- discovery order breaks the tie ahead of Rock Artist's
+        // priority-2-only match.
+        assert_eq!(result[0].name, "Pop Artist");
+        assert_eq!(result[1].name, "Both Genres Artist");
+        assert_eq!(result[2].name, "Rock Artist");
     }
 
     #[test]

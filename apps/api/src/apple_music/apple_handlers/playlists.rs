@@ -1,12 +1,14 @@
 use super::db::{get_apple_music_account, resolve_account_from_cookie};
 use crate::accounts::db::{
-    CreatePlaylistParams, create_playlist_record, get_playlist_for_account, soft_delete_playlist,
+    CreatePlaylistParams, create_playlist_record, get_playlist_for_account,
+    get_playlist_genre_priorities, set_playlist_genre_priority, soft_delete_playlist,
     update_playlist_cadence,
 };
 use crate::error::AppError;
 use crate::services::playlist_builder::{
-    PlaylistUpdateMode, PlaylistVisibility, build_bulleted_description, find_artist_events_near,
-    search_tracks_for_artists_apple, validate_cadence_days,
+    PlaylistUpdateMode, PlaylistVisibility, apply_genre_filter, build_bulleted_description,
+    find_artist_events_near, genres_to_priorities, search_tracks_for_artists_apple,
+    validate_cadence_days,
 };
 use crate::state::AppState;
 use axum::{
@@ -58,6 +60,8 @@ pub struct CreatePlaylistRequest {
     pub location: String,
     pub latitude: f64,
     pub longitude: f64,
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -90,6 +94,8 @@ pub async fn create_playlist(
     let per_artist = req.tracks_per_artist.unwrap_or(3).min(10);
 
     let artist_events = find_artist_events_near(&state, req.latitude, req.longitude, 25, 7).await?;
+    let genre_priorities = genres_to_priorities(&req.genres);
+    let artist_events = apply_genre_filter(&state.db.pool, artist_events, &genre_priorities).await;
     if artist_events.is_empty() {
         return Err(AppError::Internal(
             "No artists found from nearby Ticketmaster events".to_string(),
@@ -155,7 +161,7 @@ pub async fn create_playlist(
         None => 30,
     };
 
-    create_playlist_record(
+    let playlist_id = create_playlist_record(
         &state.db.pool,
         CreatePlaylistParams {
             account_id,
@@ -169,6 +175,8 @@ pub async fn create_playlist(
         },
     )
     .await?;
+
+    set_playlist_genre_priority(&state.db.pool, playlist_id, &req.genres).await?;
 
     metrics::counter!("playlist_created", "service" => "apple_music").increment(1);
 
@@ -195,6 +203,7 @@ pub struct PlaylistSummary {
     pub city: String,
     pub update_cadence_days: i16,
     pub is_active: bool,
+    pub genres: Vec<String>,
 }
 
 pub async fn get_user_playlists(
@@ -226,6 +235,11 @@ pub async fn get_user_playlists(
 
     let mut summaries = Vec::with_capacity(rows.len());
     for row in rows {
+        let genres = get_playlist_genre_priorities(&state.db.pool, row.id)
+            .await
+            .map(|gs| gs.into_iter().map(|g| g.genre).collect())
+            .unwrap_or_default();
+
         if !row.is_active {
             summaries.push(PlaylistSummary {
                 playlist_id: row.id.to_string(),
@@ -235,6 +249,7 @@ pub async fn get_user_playlists(
                 city: row.city,
                 update_cadence_days: row.update_cadence_days,
                 is_active: false,
+                genres,
             });
             continue;
         }
@@ -266,6 +281,7 @@ pub async fn get_user_playlists(
                     city: row.city,
                     update_cadence_days: row.update_cadence_days,
                     is_active: true,
+                    genres,
                 })
             }
             Err(err) => {
@@ -289,6 +305,7 @@ pub async fn get_user_playlists(
                     city: row.city,
                     update_cadence_days: row.update_cadence_days,
                     is_active: false,
+                    genres,
                 });
             }
         }
@@ -304,12 +321,15 @@ pub async fn get_user_playlists(
 #[derive(Deserialize)]
 pub struct UpdatePlaylistRequest {
     pub cadence: i16,
+    #[serde(default)]
+    pub genres: Vec<String>,
 }
 
 #[derive(Serialize)]
 pub struct UpdatePlaylistResponse {
     pub playlist_id: String,
     pub update_cadence_days: i16,
+    pub genres: Vec<String>,
 }
 
 pub async fn update_playlist(
@@ -330,12 +350,14 @@ pub async fn update_playlist(
     }
 
     update_playlist_cadence(&state.db.pool, playlist_id, cadence).await?;
+    set_playlist_genre_priority(&state.db.pool, playlist_id, &req.genres).await?;
 
     metrics::counter!("playlist_updated", "service" => "apple_music").increment(1);
 
     Ok(Json(UpdatePlaylistResponse {
         playlist_id: playlist_id.to_string(),
         update_cadence_days: cadence,
+        genres: req.genres,
     }))
 }
 

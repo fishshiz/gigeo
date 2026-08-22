@@ -89,6 +89,39 @@ pub(crate) async fn attach_genres(events: &mut [EventResponse], pool: &PgPool) {
     merge_genres(events, &genres_by_normalized);
 }
 
+/// Batched genre lookup for a raw list of artist names, independent of any
+/// `EventResponse` -- used by `playlist_builder::apply_genre_filter` to
+/// check nearby-artist genres against a playlist's saved filter. Mirrors
+/// `attach_genres`'s normalize -> `fetch_rows` -> map shape, but returns the
+/// map directly instead of merging into events. A DB error is swallowed the
+/// same way (best-effort, matching `attach_genres`) -- the caller treats an
+/// empty map as "no genre data available" and falls back to unfiltered.
+pub(crate) async fn genres_for_names(
+    pool: &PgPool,
+    names: &[String],
+) -> HashMap<String, Vec<String>> {
+    let normalized_names: Vec<String> = names
+        .iter()
+        .map(|n| normalize_artist_name(n))
+        .filter(|n| !n.is_empty())
+        .collect();
+
+    if normalized_names.is_empty() {
+        return HashMap::new();
+    }
+
+    match fetch_rows(pool, &normalized_names).await {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|row| (row.normalized_name, row.genres))
+            .collect(),
+        Err(err) => {
+            tracing::warn!(error = %err, "artist enrichment: failed to read genres for genre filter, skipping");
+            HashMap::new()
+        }
+    }
+}
+
 /// Splits out from `attach_genres` so the merge itself (as opposed to the
 /// DB round-trip) is testable without a live database.
 fn merge_genres(events: &mut [EventResponse], genres_by_normalized: &HashMap<String, Vec<String>>) {

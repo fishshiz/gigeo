@@ -20,6 +20,8 @@ import {
 
 import { Button } from "@workspace/ui/components/ui/Button"
 import { RadioGroup, Radio } from "@workspace/ui/components/ui/RadioGroup"
+import { CheckboxGroup } from "@workspace/ui/components/ui/CheckboxGroup"
+import { Checkbox } from "@workspace/ui/components/ui/Checkbox"
 import {
   Tabs,
   TabList,
@@ -30,13 +32,15 @@ import {
 import { Form } from "@workspace/ui/components/ui/Form"
 import { Label } from "@workspace/ui/components/ui/Field"
 import { useSearchProvider } from "@/providers/searchProvider"
+import { useEventsContext } from "@/providers/eventsProvider"
 import { MapPin, Lock, Unlock } from "lucide-react"
 import { TextField } from "@workspace/ui/components/ui/TextField"
 import { Switch } from "@workspace/ui/components/ui/Switch"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ReactNode } from "react"
 import { PlaylistButtons } from "../PlaylistButtons"
 import { getRandomPlaylistName } from "@/lib/playlistNames"
+import { nearbyGenres } from "@/lib/genres"
 import { useDrawerProvider } from "@/providers/drawerProvider"
 import { useIsMobile } from "@/providers/Breakpoint"
 
@@ -180,6 +184,45 @@ const PrivacyToggle = ({
   </div>
 )
 
+/** Checkbox list of genres to filter playlist tracks by -- sourced from
+ * `nearbyGenres` (already-streamed event data, see apps/web/src/lib/genres.ts)
+ * rather than a fixed taxonomy or a new backend endpoint. Renders nothing
+ * when there's no genre data to offer, rather than an empty, confusing
+ * section. */
+const GenreCheckboxSection = ({
+  available,
+  selected,
+  onChange,
+}: {
+  available: string[]
+  selected: string[]
+  onChange: (value: string[]) => void
+}) => {
+  if (available.length === 0) return null
+
+  return (
+    <FormSection label="Genres">
+      <Label>Only include these genres</Label>
+      <CheckboxGroup
+        aria-label="Genre filter"
+        value={selected}
+        onChange={onChange}
+      >
+        <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto">
+          {available.map((genre) => (
+            <Checkbox key={genre} value={genre}>
+              {genre}
+            </Checkbox>
+          ))}
+        </div>
+      </CheckboxGroup>
+      <p className="text-xs text-muted-foreground">
+        Leave all unchecked to include every genre.
+      </p>
+    </FormSection>
+  )
+}
+
 const cadenceToFrequencyValue = (cadence: 7 | 30 | 60) =>
   cadence === 60 ? "bimonthly" : cadence === 7 ? "weekly" : "monthly"
 
@@ -291,15 +334,26 @@ const EditPlaylistForm = ({
   onDone: () => void
 }) => {
   const { updatePlaylist } = useSpotifyAuth()
+  const { eventsByDate } = useEventsContext()
   const [isPrivate, setIsPrivate] = useState(playlist.visibility === "private")
   const [selectedFrequency, setSelectedFrequency] = useState(
     cadenceToFrequencyValue(playlist.update_cadence_days)
   )
   const [selectedBehavior, setSelectedBehavior] = useState(playlist.update_mode)
+  const [selectedGenres, setSelectedGenres] = useState(playlist.genres)
   const [error, setError] = useState<string | null>(null)
 
   const showDestructiveWarning =
     selectedBehavior === "destructive" && playlist.update_mode === "additive"
+
+  // Already-saved genres always stay pickable, even if this playlist's
+  // city isn't the one currently loaded on the map -- otherwise editing a
+  // playlist for a city you're not viewing would make its saved genres
+  // impossible to see or uncheck.
+  const availableGenres = useMemo(
+    () => [...new Set([...nearbyGenres(eventsByDate), ...playlist.genres])].sort(),
+    [eventsByDate, playlist.genres]
+  )
 
   return (
     <Form
@@ -327,6 +381,11 @@ const EditPlaylistForm = ({
         type="hidden"
         name="privacy"
         value={isPrivate ? "private" : "public"}
+      />
+      <input
+        type="hidden"
+        name="genres"
+        value={JSON.stringify(selectedGenres)}
       />
       <FormSection label="Name">
         <TextField
@@ -396,6 +455,12 @@ const EditPlaylistForm = ({
         )}
       </FormSection>
 
+      <GenreCheckboxSection
+        available={availableGenres}
+        selected={selectedGenres}
+        onChange={setSelectedGenres}
+      />
+
       {error && <p className="text-xs text-red-500">{error}</p>}
       <Button type="submit">Save changes</Button>
     </Form>
@@ -459,6 +524,7 @@ const RadioCard = ({
 
 export const CreatePlaylistForm = () => {
   const { focusSearchInput, selectedLocation } = useSearchProvider()
+  const { eventsByDate } = useEventsContext()
   const { createPlaylist } = useSpotifyAuth()
 
   const emptyLocationString = "Search a location to start"
@@ -466,9 +532,15 @@ export const CreatePlaylistForm = () => {
   const [isPrivate, setIsPrivate] = useState(false)
   const [selectedFrequency, setSelectedFrequency] = useState("weekly")
   const [selectedBehavior, setSelectedBehavior] = useState("destructive")
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<CreatePlaylistOutput | null>(null)
+
+  const availableGenres = useMemo(
+    () => nearbyGenres(eventsByDate),
+    [eventsByDate]
+  )
 
   return (
     <Form
@@ -498,6 +570,11 @@ export const CreatePlaylistForm = () => {
         type="hidden"
         name="privacy"
         value={isPrivate ? "private" : "public"}
+      />
+      <input
+        type="hidden"
+        name="genres"
+        value={JSON.stringify(selectedGenres)}
       />
 
       {/* The one part of this form that scrolls -- the submit button
@@ -581,6 +658,12 @@ export const CreatePlaylistForm = () => {
             </RadioGroup>
           </div>
         </FormSection>
+
+        <GenreCheckboxSection
+          available={availableGenres}
+          selected={selectedGenres}
+          onChange={setSelectedGenres}
+        />
 
         {success && (
           <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">

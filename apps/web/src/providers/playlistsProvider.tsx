@@ -19,6 +19,7 @@ export type SpotifyPlaylist = {
   update_mode: "additive" | "destructive"
   update_cadence_days: 7 | 30 | 60
   is_active: boolean
+  genres: string[]
 }
 
 /// Apple's public API only supports create + add-tracks (see Phase 0's
@@ -34,6 +35,7 @@ export type ApplePlaylist = {
   city: string
   update_cadence_days: 7 | 30 | 60
   is_active: boolean
+  genres: string[]
 }
 
 type PlaylistProviderState = {
