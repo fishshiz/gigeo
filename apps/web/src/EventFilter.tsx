@@ -8,6 +8,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { MOTION_DURATION, MOTION_EASE } from "@workspace/ui/lib/motion"
 import { useEventsContext } from "./providers/eventsProvider"
 import { type Classification } from "./lib/types"
+import { normalizeClassificationName } from "./lib/classifications"
 import { FilterIcon, Sparkles } from "lucide-react"
 import { DialogTrigger, Heading } from "react-aria-components"
 
@@ -42,8 +43,9 @@ const EventFilter = () => {
         acc: Record<string, { name: string; id: string; count: number }>,
         curr: Classification
       ) => {
-        const { name, id } = curr.segment ?? {}
-        if (curr.primary && name && id) {
+        const { name: rawName, id } = curr.segment ?? {}
+        if (curr.primary && rawName && id) {
+          const name = normalizeClassificationName(rawName)
           if (!acc[name]) {
             acc[name] = { name, id, count: 1 }
           } else {
@@ -140,7 +142,7 @@ const EventFilter = () => {
                     aria-label={`Only show events matched to your taste (${matchedEventCount})`}
                     isSelected={forYouOnly}
                     onChange={setForYouOnly}
-                    className="flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 selected:border-transparent selected:bg-(--accent-bg) selected:text-(--text-on-accent) dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-500"
+                    className="flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-500 selected:border-transparent selected:bg-(--accent-bg) selected:text-(--text-on-accent)"
                   >
                     <Sparkles aria-hidden className="h-3.5 w-3.5 shrink-0" />
                     For You

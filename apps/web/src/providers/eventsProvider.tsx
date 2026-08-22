@@ -22,6 +22,7 @@ import {
 import { type EventsByDate } from "@/hooks/eventsStream"
 import { useSearchProvider } from "./searchProvider"
 import { dateRangeToApiParams } from "../lib/dates"
+import { normalizeClassificationName } from "../lib/classifications"
 
 /** Parses one ndjson line against `eventResponseSchema` rather than a bare
  * `JSON.parse(...) as EventResponse` -- a shape mismatch (backend/frontend
@@ -56,7 +57,10 @@ export function matchesClassificationFilter(
 ): boolean {
   if (active.size === 0) return true
   return (event.classifications ?? []).some(
-    (c) => c.primary && c.segment?.name && active.has(c.segment.name)
+    (c) =>
+      c.primary &&
+      c.segment?.name &&
+      active.has(normalizeClassificationName(c.segment.name))
   )
 }
 
