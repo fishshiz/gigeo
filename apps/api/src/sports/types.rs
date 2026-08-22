@@ -157,23 +157,31 @@ pub(crate) fn playoff_status(
         return None;
     }
     Some(if seed <= format.automatic_spots {
-        PlayoffStatus::InPlayoffPosition
+        PlayoffStatus::InPlayoff
     } else if seed <= format.total_spots {
-        PlayoffStatus::InPlayInPosition
+        PlayoffStatus::InPlayIn
     } else {
-        PlayoffStatus::OutOfPlayoffPosition
+        PlayoffStatus::OutOfPlayoff
     })
 }
 
+/// Variant names deliberately drop the shared `Position` postfix the
+/// wire format still uses (`#[serde(rename = ...)]` per variant) --
+/// clippy's `enum_variant_names` lint (`-D clippy::all` in CI) rejects
+/// same-postfix variants, and the wire format predates that rename so
+/// the frontend (`apps/web/src/hooks/eventsStreamSchema.ts`'s
+/// `playoffStatusSchema`) didn't need to change too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) enum PlayoffStatus {
-    InPlayoffPosition,
+    #[serde(rename = "inPlayoffPosition")]
+    InPlayoff,
     /// NBA only -- see `League::playoff_format`. Never produced for a
     /// league whose `PlayoffFormat` has no play-in tier
     /// (`automatic_spots == total_spots`).
-    InPlayInPosition,
-    OutOfPlayoffPosition,
+    #[serde(rename = "inPlayInPosition")]
+    InPlayIn,
+    #[serde(rename = "outOfPlayoffPosition")]
+    OutOfPlayoff,
 }
 
 /// One team performer worth attempting ESPN matching for.
@@ -301,7 +309,7 @@ mod playoff_status_tests {
     fn nba_seed_within_automatic_spots_is_in_playoff_position() {
         assert_eq!(
             playoff_status(League::Nba, Some(6)),
-            Some(PlayoffStatus::InPlayoffPosition)
+            Some(PlayoffStatus::InPlayoff)
         );
     }
 
@@ -309,11 +317,11 @@ mod playoff_status_tests {
     fn nba_seed_in_play_in_range_is_in_play_in_position() {
         assert_eq!(
             playoff_status(League::Nba, Some(7)),
-            Some(PlayoffStatus::InPlayInPosition)
+            Some(PlayoffStatus::InPlayIn)
         );
         assert_eq!(
             playoff_status(League::Nba, Some(10)),
-            Some(PlayoffStatus::InPlayInPosition)
+            Some(PlayoffStatus::InPlayIn)
         );
     }
 
@@ -321,37 +329,37 @@ mod playoff_status_tests {
     fn nba_seed_below_play_in_range_is_out() {
         assert_eq!(
             playoff_status(League::Nba, Some(11)),
-            Some(PlayoffStatus::OutOfPlayoffPosition)
+            Some(PlayoffStatus::OutOfPlayoff)
         );
     }
 
     /// NFL/NHL/MLB have no play-in tier -- `automatic_spots == total_spots`,
-    /// so nothing should ever come back `InPlayInPosition` for them.
+    /// so nothing should ever come back `InPlayIn` for them.
     #[test]
     fn leagues_without_a_play_in_tier_never_report_play_in_position() {
         assert_eq!(
             playoff_status(League::Nfl, Some(7)),
-            Some(PlayoffStatus::InPlayoffPosition)
+            Some(PlayoffStatus::InPlayoff)
         );
         assert_eq!(
             playoff_status(League::Nfl, Some(8)),
-            Some(PlayoffStatus::OutOfPlayoffPosition)
+            Some(PlayoffStatus::OutOfPlayoff)
         );
         assert_eq!(
             playoff_status(League::Nhl, Some(8)),
-            Some(PlayoffStatus::InPlayoffPosition)
+            Some(PlayoffStatus::InPlayoff)
         );
         assert_eq!(
             playoff_status(League::Nhl, Some(9)),
-            Some(PlayoffStatus::OutOfPlayoffPosition)
+            Some(PlayoffStatus::OutOfPlayoff)
         );
         assert_eq!(
             playoff_status(League::Mlb, Some(6)),
-            Some(PlayoffStatus::InPlayoffPosition)
+            Some(PlayoffStatus::InPlayoff)
         );
         assert_eq!(
             playoff_status(League::Mlb, Some(7)),
-            Some(PlayoffStatus::OutOfPlayoffPosition)
+            Some(PlayoffStatus::OutOfPlayoff)
         );
     }
 
