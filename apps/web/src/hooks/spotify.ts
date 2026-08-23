@@ -15,7 +15,6 @@ export type AuthStatus = {
 export type CreatePlaylistInput = {
   name: string
   location: string
-  description: string
   privacy: boolean
   cadence: number
   radius: number
@@ -101,7 +100,6 @@ export function parseCreatePlaylistForm(
   return {
     name: name.trim(),
     location: location.trim(),
-    description: "",
     privacy: privacy === "private",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     destructive: behavior === "destructive",

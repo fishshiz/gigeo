@@ -493,3 +493,43 @@ pub async fn delete_playlist(
         playlist_id: playlist_id.to_string(),
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A real bug: the frontend used to send `"description":""` for "no
+    /// description supplied," which deserializes as `Some("")` -- not
+    /// `None` -- silently skipping `create_playlist`'s
+    /// `unwrap_or_else(|| build_bulleted_description(...))` fallback and
+    /// leaving every created playlist with a blank description. The fix
+    /// was for the frontend to omit the field entirely; this pins down
+    /// that an absent key is what actually produces `None`, since that's
+    /// the one invariant the frontend fix depends on.
+    #[test]
+    fn create_playlist_request_description_is_none_when_key_is_absent() {
+        let json = r#"{
+            "name": "Test",
+            "privacy": false,
+            "location": "Austin, TX",
+            "latitude": 30.27,
+            "longitude": -97.74
+        }"#;
+        let req: CreatePlaylistRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.description, None);
+    }
+
+    #[test]
+    fn create_playlist_request_description_is_some_empty_when_key_is_empty_string() {
+        let json = r#"{
+            "name": "Test",
+            "description": "",
+            "privacy": false,
+            "location": "Austin, TX",
+            "latitude": 30.27,
+            "longitude": -97.74
+        }"#;
+        let req: CreatePlaylistRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.description, Some(String::new()));
+    }
+}

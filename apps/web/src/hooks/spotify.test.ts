@@ -20,7 +20,6 @@ describe("parseCreatePlaylistForm", () => {
     expect(parseCreatePlaylistForm(makeForm(validFields))).toEqual({
       name: "Road Trip",
       location: "Austin, TX",
-      description: "",
       privacy: false,
       cadence: 7,
       destructive: false,
@@ -101,12 +100,6 @@ describe("parseCreatePlaylistForm", () => {
         makeForm({ ...validFields, behavior: "preserve" })
       ).destructive
     ).toBe(false)
-  })
-
-  it("never sends a hardcoded placeholder description", () => {
-    expect(parseCreatePlaylistForm(makeForm(validFields)).description).toBe(
-      ""
-    )
   })
 
   it("parses the genres hidden field from JSON", () => {

@@ -72,7 +72,6 @@ export type AppleAuthStatus = {
 export type CreateApplePlaylistInput = {
   name: string
   location: string
-  description: string
   cadence: number
   radius: number
   genres: string[]
@@ -138,7 +137,6 @@ export function parseCreateApplePlaylistForm(
   return {
     name: name.trim(),
     location: location.trim(),
-    description: "",
     cadence: cadence === "bimonthly" ? 60 : cadence === "weekly" ? 7 : 30,
     radius: 25,
     genres: parseGenresField(formData),
@@ -280,7 +278,6 @@ export function useAppleMusicAuth(): UseAppleMusicAuthResult {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: payload.name,
-          description: payload.description || null,
           location: payload.location,
           cadence: payload.cadence,
           genres: payload.genres,

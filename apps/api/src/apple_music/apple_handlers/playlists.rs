@@ -390,3 +390,22 @@ pub async fn delete_playlist(
         playlist_id: playlist_id.to_string(),
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mirrors the regression test in spotify_handlers/playlists.rs -- see
+    /// that test's doc comment for the bug this guards against.
+    #[test]
+    fn create_playlist_request_description_is_none_when_key_is_absent() {
+        let json = r#"{
+            "name": "Test",
+            "location": "Austin, TX",
+            "latitude": 30.27,
+            "longitude": -97.74
+        }"#;
+        let req: CreatePlaylistRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.description, None);
+    }
+}
