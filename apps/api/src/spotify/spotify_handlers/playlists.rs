@@ -275,6 +275,17 @@ pub async fn get_playlists(
 
     let token = crate::spotify::token::get_valid_spotify_token(state, account_id).await?;
 
+    // Spotify has no true "delete playlist" endpoint -- deleting one you
+    // own in Spotify's own apps is the same unfollow operation Gigeo's own
+    // delete flow uses, and `get_playlist` (a per-id fetch, below) keeps
+    // returning 200 with the playlist's data for its creator indefinitely
+    // after that. Membership in this followed-playlists list is the only
+    // reliable "is it still there" signal. Best-effort: `None` on failure
+    // (e.g. transient error, or an account that hasn't reconnected since
+    // this scope was added) falls back to the per-id fetch/404 check alone,
+    // same as before this existed.
+    let followed_ids = state.spotify.get_followed_playlist_ids(&token).await.ok();
+
     let mut summaries = Vec::with_capacity(rows.len());
     for row in rows {
         let genres = get_playlist_genre_priorities(&state.db.pool, row.id)
@@ -284,6 +295,31 @@ pub async fn get_playlists(
 
         if !row.is_active {
             // Already known to be gone from Spotify — no point re-fetching.
+            summaries.push(PlaylistSummary {
+                playlist_id: row.id.to_string(),
+                id: row.provider_playlist_id,
+                name: String::new(),
+                external_url: None,
+                images: vec![],
+                track_count: 0,
+                city: row.city,
+                visibility: row.visibility,
+                update_mode: row.update_mode,
+                update_cadence_days: row.update_cadence_days,
+                is_active: false,
+                genres,
+            });
+            continue;
+        }
+
+        let unfollowed = matches!(
+            &followed_ids,
+            Some(ids) if !ids.contains(&row.provider_playlist_id)
+        );
+        if unfollowed {
+            if let Err(e) = deactivate_playlist(&state.db.pool, row.id).await {
+                tracing::warn!(playlist_id = %row.id, error = %e, "failed to persist is_active=false");
+            }
             summaries.push(PlaylistSummary {
                 playlist_id: row.id.to_string(),
                 id: row.provider_playlist_id,

@@ -8,6 +8,7 @@
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use crate::error::AppError;
 use crate::http_utils::{request_with_backoff, url_encode};
@@ -233,6 +234,11 @@ pub struct PlaylistTracksInfo {
 #[derive(Debug, Deserialize)]
 struct PlaylistTrackItem {
     track: Option<PlaylistItemTrack>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PlaylistIdItem {
+    id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -537,6 +543,48 @@ impl SpotifyClient {
         )
         .await?;
         Ok(())
+    }
+
+    /// `GET /me/playlists` — paginated ids of every playlist the current
+    /// user currently follows (owned or otherwise).
+    ///
+    /// Spotify has no true "delete playlist" endpoint (see
+    /// `unfollow_playlist`); the owner deleting a playlist in Spotify's own
+    /// apps is the same unfollow operation. Critically, `GET
+    /// /playlists/{playlist_id}` keeps returning 200 with the playlist's
+    /// data for its creator indefinitely after that -- so a per-playlist
+    /// fetch (`get_playlist`) can never observe that it's gone. Checking
+    /// membership in this followed-playlists list is the only reliable
+    /// signal, hence "My Playlists" cross-checks against it before trusting
+    /// a successful `get_playlist` response.
+    ///
+    /// Scope: `playlist-read-private` — without it, Spotify silently omits
+    /// the user's private playlists from this list, which would make every
+    /// private playlist look deleted. Requires reconnecting for accounts
+    /// that authorized before this scope was added.
+    pub async fn get_followed_playlist_ids(
+        &self,
+        user_token: &str,
+    ) -> Result<HashSet<String>, AppError> {
+        let mut ids = HashSet::new();
+        let mut url =
+            format!("{BASE}/me/playlists?fields=items(id),next,limit,offset,total&limit=50");
+
+        loop {
+            // `items` entries are individually nullable in Spotify's schema
+            // (observed in practice for a followed playlist that's become
+            // otherwise inaccessible) -- skip those rather than failing the
+            // whole page.
+            let page: Paging<Option<PlaylistIdItem>> = self.get_json(user_token, &url).await?;
+            ids.extend(page.items.into_iter().flatten().map(|i| i.id));
+
+            match page.next {
+                Some(next_url) => url = next_url,
+                None => break,
+            }
+        }
+
+        Ok(ids)
     }
 
     /// `GET /playlists/{playlist_id}` — non-deprecated.
