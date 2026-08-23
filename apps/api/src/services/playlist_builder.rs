@@ -302,10 +302,15 @@ const DESCRIPTION_CHAR_LIMIT: usize = 300;
 
 /// Builds a bulleted "Artist — Date" playlist description from a set of
 /// nearby artist events (in discovery order), stopping before
-/// `DESCRIPTION_CHAR_LIMIT` and appending a "+N more" line for whatever
+/// `DESCRIPTION_CHAR_LIMIT` and appending a "+N more" summary for whatever
 /// didn't fit. Always includes at least one bullet when `artists` is
 /// non-empty, even if that single bullet alone would exceed the limit — a
 /// fuller-than-ideal description beats an empty one.
+///
+/// Bullets are joined with a plain space, not a newline: Spotify's
+/// `POST /me/playlists` (and `PUT /playlists/{id}`) reject a description
+/// containing `\n` outright with a 400, which never surfaced until a real
+/// (non-empty) description actually reached the API for the first time.
 ///
 /// Used both at playlist creation (so a brand-new playlist explains which
 /// nearby artists populated it) and by the periodic destructive-update job
@@ -343,7 +348,8 @@ pub fn build_bulleted_description(artists: &[ArtistEvent]) -> String {
         lines.push(format!("+{remaining} more"));
     }
 
-    lines.join("\n")
+    // A single space, not "\n" -- see the doc comment above.
+    lines.join(" ")
 }
 
 #[cfg(test)]
@@ -419,8 +425,12 @@ mod tests {
             artist("Artist Two", Some("Aug 21")),
         ];
         let desc = build_bulleted_description(&artists);
-        assert_eq!(desc, "• Artist One — Aug 20\n• Artist Two — Aug 21");
+        assert_eq!(desc, "• Artist One — Aug 20 • Artist Two — Aug 21");
         assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT);
+        assert!(
+            !desc.contains('\n'),
+            "Spotify rejects a \\n in descriptions"
+        );
     }
 
     #[test]
@@ -441,9 +451,9 @@ mod tests {
     }
 
     #[test]
-    fn build_bulleted_description_overflow_appends_more_line_not_partial_bullet() {
+    fn build_bulleted_description_overflow_appends_more_summary_not_partial_bullet() {
         // A third artist that doesn't fit alongside the first two should
-        // surface as a whole "+N more" line, never a bullet truncated
+        // surface as a whole "+N more" summary, never a bullet truncated
         // mid-word.
         let long_name = "X".repeat(130);
         let artists = vec![
@@ -453,10 +463,9 @@ mod tests {
         ];
         let desc = build_bulleted_description(&artists);
         assert!(desc.len() <= DESCRIPTION_CHAR_LIMIT, "len={}", desc.len());
-        let last_line = desc.lines().last().unwrap();
         assert!(
-            last_line.starts_with('+') && last_line.ends_with(" more"),
-            "expected a '+N more' summary line, got {last_line:?}"
+            desc.ends_with("+1 more"),
+            "expected a trailing '+N more' summary, got {desc:?}"
         );
         assert!(!desc.contains("One More Artist"));
     }
