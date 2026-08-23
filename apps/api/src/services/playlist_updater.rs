@@ -24,7 +24,8 @@ use crate::apple_music::apple_handlers::get_apple_music_account;
 use crate::error::AppError;
 use crate::services::playlist_builder::{
     GenrePriority, PlaylistUpdateMode, apply_genre_filter, build_bulleted_description,
-    find_artist_events_near, search_tracks_for_artists, search_tracks_for_artists_apple,
+    contributing_artist_events, find_artist_events_near, search_tracks_for_artists,
+    search_tracks_for_artists_apple,
 };
 use crate::spotify::token::get_valid_spotify_token;
 use crate::state::AppState;
@@ -266,12 +267,13 @@ async fn do_update_apple(
         });
     }
 
-    let track_results =
+    let search_result =
         search_tracks_for_artists_apple(state, &dev_token, &artist_names, TRACKS_PER_ARTIST)
             .await?;
 
     let mut seen = HashSet::new();
-    let new_song_ids: Vec<String> = track_results
+    let new_song_ids: Vec<String> = search_result
+        .tracks
         .into_iter()
         .filter(|t| seen.insert(t.uri.clone()))
         .map(|t| t.uri)
@@ -352,7 +354,7 @@ async fn do_update_spotify(
         });
     }
 
-    let track_results = search_tracks_for_artists(
+    let search_result = search_tracks_for_artists(
         state,
         &cc_token.access_token,
         &artist_names,
@@ -363,7 +365,8 @@ async fn do_update_spotify(
     // De-dupe while preserving first-seen order (the same track can
     // surface via multiple artists, e.g. a featured collaboration).
     let mut seen = HashSet::new();
-    let new_uris: Vec<String> = track_results
+    let new_uris: Vec<String> = search_result
+        .tracks
         .into_iter()
         .filter(|t| seen.insert(t.uri.clone()))
         .map(|t| t.uri)
@@ -434,8 +437,13 @@ async fn do_update_spotify(
             // said before (it described tracks that no longer exist), so
             // it's always regenerated here — never left stale, and never
             // left as a user-authored description that's now describing
-            // the wrong playlist.
-            let description = build_bulleted_description(&artist_events);
+            // the wrong playlist. Built from only the artists that
+            // actually contributed a track, same as creation -- not every
+            // nearby event's performer (sports teams/events never match
+            // anything in Spotify's catalog).
+            let contributing =
+                contributing_artist_events(&artist_events, &search_result.contributing_names);
+            let description = build_bulleted_description(&contributing);
             state
                 .spotify
                 .update_playlist_details(

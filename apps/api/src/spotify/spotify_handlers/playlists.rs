@@ -7,8 +7,8 @@ use crate::accounts::db::{
 use crate::error::AppError;
 use crate::services::playlist_builder::{
     PlaylistUpdateMode, PlaylistVisibility, apply_genre_filter, build_bulleted_description,
-    find_artist_events_near, genres_to_priorities, resolve_update_mode, search_tracks_for_artists,
-    validate_cadence_days,
+    contributing_artist_events, find_artist_events_near, genres_to_priorities, resolve_update_mode,
+    search_tracks_for_artists, validate_cadence_days,
 };
 use crate::state::AppState;
 use axum::{
@@ -133,18 +133,19 @@ pub async fn create_playlist(
     }
     let artist_names: Vec<String> = artist_events.iter().map(|a| a.name.clone()).collect();
 
-    let track_results =
+    let search_result =
         search_tracks_for_artists(&state, &cc_token.access_token, &artist_names, per_artist)
             .await?;
 
-    if track_results.is_empty() {
+    if search_result.tracks.is_empty() {
         return Err(AppError::ArtistNotFound(
             "No Spotify tracks found for artists in nearby events".to_string(),
         ));
     }
 
-    let track_uris: Vec<String> = track_results.iter().map(|t| t.uri.clone()).collect();
-    let playlist_tracks: Vec<PlaylistTrack> = track_results
+    let track_uris: Vec<String> = search_result.tracks.iter().map(|t| t.uri.clone()).collect();
+    let playlist_tracks: Vec<PlaylistTrack> = search_result
+        .tracks
         .into_iter()
         .map(|t| PlaylistTrack {
             name: t.name,
@@ -154,12 +155,15 @@ pub async fn create_playlist(
         .collect();
 
     // A user-supplied description wins; otherwise auto-generate one from
-    // the nearby artists that populated the playlist, same bulleted
-    // format the periodic destructive update uses.
-    let description = req
-        .description
-        .clone()
-        .unwrap_or_else(|| build_bulleted_description(&artist_events));
+    // the nearby artists that actually contributed a track -- not every
+    // nearby event's performer, which includes sports teams/events that
+    // never match anything in Spotify's catalog -- same bulleted format
+    // the periodic destructive update uses.
+    let description = req.description.clone().unwrap_or_else(|| {
+        let contributing =
+            contributing_artist_events(&artist_events, &search_result.contributing_names);
+        build_bulleted_description(&contributing)
+    });
 
     let requested_public = !req.privacy;
     let playlist = state

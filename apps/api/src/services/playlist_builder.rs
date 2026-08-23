@@ -221,6 +221,19 @@ pub struct TrackResult {
     pub uri: String,
 }
 
+/// The result of searching tracks for a batch of nearby artist names.
+pub struct TrackSearchResult {
+    pub tracks: Vec<TrackResult>,
+    /// The subset of the queried names that actually returned at least one
+    /// track -- e.g. a nearby Ticketmaster performer name is anything from
+    /// a musical act to a sports team or a comedian, and most of those
+    /// never match anything in a music catalog. Used to trim a playlist's
+    /// auto-generated description down to artists that actually
+    /// contributed a track, instead of every nearby event's performer
+    /// (see `contributing_artist_events`).
+    pub contributing_names: HashSet<String>,
+}
+
 /// Searches Spotify (client-credentials token) for up to `per_artist` top
 /// tracks per artist name.
 ///
@@ -231,17 +244,21 @@ pub async fn search_tracks_for_artists(
     cc_access_token: &str,
     artist_names: &[String],
     per_artist: u8,
-) -> Result<Vec<TrackResult>, AppError> {
-    let mut results = Vec::new();
+) -> Result<TrackSearchResult, AppError> {
+    let mut tracks = Vec::new();
+    let mut contributing_names = HashSet::new();
 
     for artist_name in artist_names {
-        if let Some(tracks) = state
+        if let Some(found) = state
             .spotify
             .search_tracks_by_artist(cc_access_token, artist_name, per_artist)
             .await?
         {
-            for t in tracks {
-                results.push(TrackResult {
+            if !found.is_empty() {
+                contributing_names.insert(artist_name.clone());
+            }
+            for t in found {
+                tracks.push(TrackResult {
                     name: t.name,
                     artist: t
                         .artists
@@ -254,7 +271,10 @@ pub async fn search_tracks_for_artists(
         }
     }
 
-    Ok(results)
+    Ok(TrackSearchResult {
+        tracks,
+        contributing_names,
+    })
 }
 
 /// Searches Apple Music's catalog (developer token only, no user token
@@ -269,22 +289,26 @@ pub async fn search_tracks_for_artists_apple(
     developer_token: &str,
     artist_names: &[String],
     per_artist: u8,
-) -> Result<Vec<TrackResult>, AppError> {
+) -> Result<TrackSearchResult, AppError> {
     let am = state
         .apple_music_client
         .as_ref()
         .ok_or_else(|| AppError::Internal("Apple Music client not configured".into()))?;
 
-    let mut results = Vec::new();
+    let mut tracks = Vec::new();
+    let mut contributing_names = HashSet::new();
 
     for artist_name in artist_names {
         let songs = am
             .search_songs(developer_token, artist_name, per_artist)
             .await?;
 
+        if !songs.is_empty() {
+            contributing_names.insert(artist_name.clone());
+        }
         for song in songs {
             let attrs = song.attributes.as_ref();
-            results.push(TrackResult {
+            tracks.push(TrackResult {
                 name: attrs.map(|a| a.name.clone()).unwrap_or_default(),
                 artist: attrs.map(|a| a.artist_name.clone()).unwrap_or_default(),
                 uri: song.id,
@@ -292,7 +316,29 @@ pub async fn search_tracks_for_artists_apple(
         }
     }
 
-    Ok(results)
+    Ok(TrackSearchResult {
+        tracks,
+        contributing_names,
+    })
+}
+
+/// Narrows `artist_events` down to the ones that actually contributed at
+/// least one track (`contributing_names`, from `search_tracks_for_artists`
+/// / `_apple`) -- e.g. a sports team or comedian showing up as a nearby
+/// Ticketmaster "performer" never matches anything in a music catalog, and
+/// has no business appearing in a music playlist's description.
+pub fn contributing_artist_events(
+    artist_events: &[ArtistEvent],
+    contributing_names: &HashSet<String>,
+) -> Vec<ArtistEvent> {
+    artist_events
+        .iter()
+        .filter(|a| contributing_names.contains(&a.name))
+        .map(|a| ArtistEvent {
+            name: a.name.clone(),
+            date: a.date.clone(),
+        })
+        .collect()
 }
 
 /// Spotify's hard cap on a playlist description's length. Apple Music
@@ -361,6 +407,28 @@ mod tests {
             name: name.to_string(),
             date: date.map(str::to_string),
         }
+    }
+
+    #[test]
+    fn contributing_artist_events_keeps_only_contributing_names() {
+        let artists = vec![
+            artist("Role Model", Some("Aug 20")),
+            artist("New York Yankees", Some("Aug 21")),
+        ];
+        let mut contributing = HashSet::new();
+        contributing.insert("Role Model".to_string());
+
+        let result = contributing_artist_events(&artists, &contributing);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "Role Model");
+    }
+
+    #[test]
+    fn contributing_artist_events_empty_set_drops_everything() {
+        let artists = vec![artist("Role Model", Some("Aug 20"))];
+        let result = contributing_artist_events(&artists, &HashSet::new());
+        assert!(result.is_empty());
     }
 
     #[test]
